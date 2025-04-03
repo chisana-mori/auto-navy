@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Button, message, List, Tag, Badge, Space, Divider } from 'antd';
+import { Card, Button, message, Tag } from 'antd';
+import request from '../../utils/request';
+import type { F5Info } from '../../types/f5';
+
+// 图标导入
 import { 
+  CloudServerOutlined, 
+  InfoCircleOutlined, 
+  RollbackOutlined, 
+  GlobalOutlined, 
+  ApiOutlined, 
   CheckCircleFilled, 
   CloseCircleFilled, 
   WarningFilled, 
-  CloudServerOutlined, 
-  RollbackOutlined, 
-  DeleteOutlined,
-  InfoCircleOutlined,
-  GlobalOutlined,
-  ApiOutlined
+  DeleteOutlined
 } from '@ant-design/icons';
-import request from '../../utils/request';
-import type { F5Info } from '../../types/f5';
 
 // 格式化时间为 yyyy-MM-dd HH:mm:ss
 const formatDateTime = (dateString: string) => {
@@ -47,35 +49,27 @@ const getStatusInfo = (status: string) => {
   if (lowerStatus === 'active' || lowerStatus === 'online' || lowerStatus === 'running' || lowerStatus === 'healthy') {
     return {
       icon: <CheckCircleFilled style={{ color: '#52c41a' }} />,
-      color: '#f6ffed',
-      textColor: '#52c41a',
-      tagColor: 'success',
-      badgeStatus: 'success' as const
+      color: 'green',
+      tagColor: 'success'
     };
   } else if (lowerStatus === 'inactive' || lowerStatus === 'offline' || lowerStatus === 'stopped') {
     return {
       icon: <CloseCircleFilled style={{ color: '#ff4d4f' }} />,
-      color: '#fff1f0',
-      textColor: '#ff4d4f',
-      tagColor: 'error',
-      badgeStatus: 'error' as const
+      color: 'red',
+      tagColor: 'error'
     };
   } else if (lowerStatus === 'degraded' || lowerStatus === 'warning') {
     return {
       icon: <WarningFilled style={{ color: '#faad14' }} />,
-      color: '#fffbe6',
-      textColor: '#faad14',
-      tagColor: 'warning',
-      badgeStatus: 'warning' as const
+      color: 'yellow',
+      tagColor: 'warning'
     };
   }
   
   return {
     icon: null,
-    color: 'transparent',
-    textColor: 'inherit',
-    tagColor: 'default' as const,
-    badgeStatus: 'default' as const
+    color: 'default',
+    tagColor: 'default'
   };
 };
 
@@ -176,7 +170,7 @@ const F5InfoDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <Card className="f5-info-detail-loading-card">
+      <Card style={{ width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
           加载中...
         </div>
@@ -186,7 +180,7 @@ const F5InfoDetail: React.FC = () => {
 
   if (!data) {
     return (
-      <Card className="f5-info-detail-empty-card">
+      <Card style={{ width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
           未找到数据
         </div>
@@ -194,181 +188,159 @@ const F5InfoDetail: React.FC = () => {
     );
   }
 
-  const poolMembers = parsePoolMembers(data.pool_members);
   const domains = parseDomains(data.domains);
+  const poolMembers = parsePoolMembers(data.pool_members);
   const statusInfo = getStatusInfo(data.status);
   const poolStatusInfo = getStatusInfo(data.pool_status);
 
+  // 字段项组件
+  const FieldItem = ({ label, value, className = "" }: { label: string; value: React.ReactNode; className?: string }) => {
+    return (
+      <div className={`border rounded-md bg-white p-4 ${className}`} style={{ border: '1px solid #f0f0f0', borderRadius: '4px', padding: '16px' }}>
+        <div style={{ color: '#606060', fontSize: '14px', marginBottom: '4px' }}>{label}</div>
+        <div style={{ fontWeight: 500 }}>{value}</div>
+      </div>
+    );
+  };
+
   return (
-    <Card
-      title={
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <CloudServerOutlined style={{ fontSize: '20px', color: '#1677ff', marginRight: '12px' }} />
-          <span>F5 详情</span>
-          <Badge status={statusInfo.badgeStatus} text={data.name} style={{ marginLeft: 12 }} />
-        </div>
-      }
-      extra={
-        <Space>
-          <Button 
-            icon={<RollbackOutlined />} 
-            onClick={() => navigate('/f5')}
-          >
-            返回列表
-          </Button>
-          {data.ignored ? (
+    <div style={{ marginBottom: '24px' }}>
+      <Card 
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <CloudServerOutlined style={{ fontSize: '20px', color: '#1890ff', marginRight: '12px' }} />
+            <span style={{ fontSize: '18px', fontWeight: 500 }}>F5 详情</span>
+            <Tag color="success" style={{ marginLeft: '12px' }}>
+              {data.name}
+            </Tag>
+          </div>
+        }
+        extra={
+          <div style={{ display: 'flex', gap: '8px' }}>
             <Button 
-              type="default"
-              onClick={() => handleToggleIgnore(false)}
-              icon={<CheckCircleFilled />}
+              icon={<RollbackOutlined />} 
+              onClick={() => navigate('/f5')}
             >
-              取消忽略
+              返回列表
             </Button>
-          ) : (
             <Button 
-              type="default"
-              onClick={() => handleToggleIgnore(true)}
-              icon={<CloseCircleFilled />}
+              onClick={() => handleToggleIgnore(!data.ignored)}
             >
-              忽略
+              {data.ignored ? "取消忽略" : "忽略"}
             </Button>
+            <Button 
+              type="primary" 
+              danger 
+              icon={<DeleteOutlined />} 
+              onClick={handleDelete}
+            >
+              删除
+            </Button>
+          </div>
+        }
+        style={{ width: '100%' }}
+      >
+        <div style={{ marginBottom: '24px' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
+            <InfoCircleOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+            基本信息
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+            <FieldItem label="名称" value={data.name} />
+            <FieldItem label="VIP" value={data.vip} />
+            <FieldItem label="端口" value={data.port} />
+            <FieldItem label="appid" value={data.appid} />
+            <FieldItem label="实例组" value={data.instance_group} />
+            <FieldItem 
+              label="状态" 
+              value={
+                <Tag color={statusInfo.tagColor}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {statusInfo.icon}
+                    <span>{data.status}</span>
+                  </span>
+                </Tag>
+              } 
+            />
+            <FieldItem 
+              label="忽略状态" 
+              value={
+                <span style={{ background: '#f5f5f5', padding: '2px 8px', borderRadius: '2px', fontSize: '14px' }}>
+                  {data.ignored ? '是' : '否'}
+                </span>
+              } 
+            />
+            <FieldItem label="创建时间" value={formatDateTime(data.created_at)} />
+            <FieldItem label="更新时间" value={formatDateTime(data.updated_at)} />
+          </div>
+          
+          {domains.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <h4 style={{ fontSize: '15px', fontWeight: 500, marginBottom: '8px' }}>域名</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {domains.map((domain, index) => (
+                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #f0f0f0', padding: '8px', borderRadius: '4px', background: 'white' }}>
+                    <GlobalOutlined style={{ color: '#8c8c8c' }} />
+                    <span>{domain}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
-          <Button 
-            type="primary" 
-            danger 
-            icon={<DeleteOutlined />} 
-            onClick={handleDelete}
-          >
-            删除
-          </Button>
-        </Space>
-      }
-      className={data.ignored ? 'ignored-detail-card' : ''}
-      style={{ 
-        backgroundColor: data.ignored ? '#fffbe6' : 'white',
-        borderTop: `2px solid ${statusInfo.textColor}`
-      }}
-    >
-      <Divider orientation="left">
-        <Space>
-          <InfoCircleOutlined />
-          <span>基本信息</span>
-        </Space>
-      </Divider>
-      
-      <div style={{ display: 'table', tableLayout: 'fixed', width: '100%' }}>
-        <Descriptions 
-          bordered 
-          column={3}
-          size="middle"
-          style={{ width: '100%' }}
-          labelStyle={{ width: '15%', textAlign: 'right' }}
-          contentStyle={{ width: '18.33%' }}
-        >
-          <Descriptions.Item label="名称">
-            <span className="field-highlight">{data.name}</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="VIP">{data.vip}</Descriptions.Item>
-          <Descriptions.Item label="端口">{data.port}</Descriptions.Item>
-          <Descriptions.Item label="appid">{data.appid}</Descriptions.Item>
-          <Descriptions.Item label="实例组">{data.instance_group}</Descriptions.Item>
-          <Descriptions.Item label="状态">
-            <Tag color={statusInfo.tagColor} icon={statusInfo.icon}>
-              {data.status}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="忽略状态">
-            <Tag color={data.ignored ? 'default' : 'green'}>
-              {data.ignored ? '是' : '否'}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="创建时间">{formatDateTime(data.created_at)}</Descriptions.Item>
-          <Descriptions.Item label="更新时间">{formatDateTime(data.updated_at)}</Descriptions.Item>
-          <Descriptions.Item label="域名" span={3}>
-            {domains.length > 0 ? (
-              <List
-                size="small"
-                bordered
-                dataSource={domains}
-                renderItem={(domain) => (
-                  <List.Item>
-                    <Badge status="processing" text={domain} />
-                  </List.Item>
-                )}
-                style={{ backgroundColor: 'white' }}
-              />
-            ) : (
-              '无域名'
-            )}
-          </Descriptions.Item>
-        </Descriptions>
-      </div>
-      
-      <Divider orientation="left">
-        <Space>
-          <GlobalOutlined />
-          <span>Pool 信息</span>
-        </Space>
-      </Divider>
-      
-      <div style={{ display: 'table', tableLayout: 'fixed', width: '100%' }}>
-        <Descriptions 
-          bordered 
-          column={3}
-          size="middle"
-          style={{ width: '100%' }}
-          labelStyle={{ width: '15%', textAlign: 'right' }}
-          contentStyle={{ width: '18.33%' }}
-        >
-          <Descriptions.Item label="Pool名称">{data.pool_name}</Descriptions.Item>
-          <Descriptions.Item label="Pool状态" span={2}>
-            <Tag color={poolStatusInfo.tagColor} icon={poolStatusInfo.icon}>
-              {data.pool_status}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Pool成员" span={3}>
-            {poolMembers.length > 0 ? (
-              <List
-                size="small"
-                bordered
-                dataSource={poolMembers}
-                renderItem={(member) => (
-                  <List.Item>
-                    <Badge 
-                      status={member.status === 'online' ? 'success' : 'error'} 
-                      text={`${member.ip} ${member.status}`} 
-                    />
-                  </List.Item>
-                )}
-                style={{ backgroundColor: 'white' }}
-              />
-            ) : (
-              '无成员'
-            )}
-          </Descriptions.Item>
-        </Descriptions>
-      </div>
-      
-      <Divider orientation="left">
-        <Space>
-          <ApiOutlined />
-          <span>关联信息</span>
-        </Space>
-      </Divider>
-      
-      <div style={{ display: 'table', tableLayout: 'fixed', width: '100%' }}>
-        <Descriptions 
-          bordered 
-          column={2}
-          size="middle"
-          style={{ width: '100%' }}
-          labelStyle={{ width: '30%', textAlign: 'right' }}
-          contentStyle={{ width: '70%' }}
-        >
-          <Descriptions.Item label="K8s集群名称">{data.k8s_cluster_name || '未知集群'}</Descriptions.Item>
-        </Descriptions>
-      </div>
-    </Card>
+        </div>
+        
+        <div style={{ marginBottom: '24px' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
+            <ApiOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+            Pool 信息
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
+            <FieldItem label="Pool名称" value={data.pool_name} />
+            <FieldItem 
+              label="Pool状态" 
+              value={
+                <Tag color={poolStatusInfo.tagColor}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {poolStatusInfo.icon}
+                    <span>{data.pool_status}</span>
+                  </span>
+                </Tag>
+              } 
+            />
+          </div>
+          
+          {poolMembers.length > 0 && (
+            <div>
+              <h4 style={{ fontSize: '15px', fontWeight: 500, marginBottom: '8px' }}>Pool成员</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {poolMembers.map((member, index) => (
+                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #f0f0f0', padding: '8px', borderRadius: '4px', background: 'white' }}>
+                    {member.status === 'online' ? 
+                      <CheckCircleFilled style={{ color: '#52c41a' }} /> : 
+                      <CloseCircleFilled style={{ color: '#ff4d4f' }} />
+                    }
+                    <span>{`${member.ip} (${member.status})`}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div>
+          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
+            <CloudServerOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+            关联信息
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+            <FieldItem label="K8s集群名称" value={data.k8s_cluster_name || '未知集群'} />
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 };
 
