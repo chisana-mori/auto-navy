@@ -1,0 +1,271 @@
+basePath: /fe-v1
+definitions:
+  service.ErrorResponse:
+    properties:
+      error:
+        example: 错误信息
+        type: string
+    type: object
+  service.F5InfoListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/service.F5InfoResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  service.F5InfoResponse:
+    properties:
+      appid:
+        example: app-001
+        type: string
+      created_at:
+        example: "2024-01-01"
+        type: string
+      domains:
+        example: example.com,test.com
+        type: string
+      grafana_params:
+        example: http://grafana.example.com
+        type: string
+      id:
+        example: 1
+        type: integer
+      ignored:
+        example: false
+        type: boolean
+      instance_group:
+        example: group-1
+        type: string
+      k8s_cluster_id:
+        example: 1
+        type: integer
+      name:
+        example: f5-test
+        type: string
+      pool_members:
+        example: 192.168.1.10:80,192.168.1.11:80
+        type: string
+      pool_name:
+        example: pool-1
+        type: string
+      pool_status:
+        example: active
+        type: string
+      port:
+        example: "80"
+        type: string
+      status:
+        example: active
+        type: string
+      updated_at:
+        example: "2024-01-01"
+        type: string
+      vip:
+        example: 192.168.1.1
+        type: string
+    type: object
+  service.F5InfoUpdateDTO:
+    properties:
+      appid:
+        example: app-001
+        type: string
+      domains:
+        example: example.com,test.com
+        type: string
+      grafana_params:
+        example: http://grafana.example.com
+        type: string
+      ignored:
+        example: false
+        type: boolean
+      instance_group:
+        example: group-1
+        type: string
+      k8s_cluster_id:
+        example: 1
+        type: integer
+      name:
+        example: f5-test
+        type: string
+      pool_members:
+        example: 192.168.1.10:80,192.168.1.11:80
+        type: string
+      pool_name:
+        example: pool-1
+        type: string
+      pool_status:
+        example: active
+        type: string
+      port:
+        example: "80"
+        type: string
+      status:
+        example: active
+        type: string
+      vip:
+        example: 192.168.1.1
+        type: string
+    required:
+    - appid
+    - name
+    - port
+    - vip
+    type: object
+  service.SuccessResponse:
+    properties:
+      message:
+        example: success
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Navy-NG 管理平台 API 文档
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Navy-NG API
+  version: "1.0"
+paths:
+  /f5:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取F5信息列表
+      parameters:
+      - description: 页码
+        in: query
+        minimum: 1
+        name: page
+        required: true
+        type: integer
+      - description: 每页数量
+        in: query
+        maximum: 100
+        minimum: 1
+        name: size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.F5InfoListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取F5信息列表
+      tags:
+      - F5管理
+  /f5/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 软删除F5信息
+      parameters:
+      - description: F5信息ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 删除F5信息
+      tags:
+      - F5管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取F5信息详情
+      parameters:
+      - description: F5信息ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.F5InfoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取单个F5信息
+      tags:
+      - F5管理
+    put:
+      consumes:
+      - application/json
+      description: 更新F5信息
+      parameters:
+      - description: F5信息ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.F5InfoUpdateDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 更新F5信息
+      tags:
+      - F5管理
+swagger: "2.0"

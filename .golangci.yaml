@@ -1,0 +1,212 @@
+---
+# 严格模式的golangci-lint配置
+run:
+  # 超时时间
+  timeout: 5m
+  # 包含测试文件
+  tests: true
+  # 并行数
+  concurrency: 4
+  # 允许使用的内存大小
+  go: '1.18'
+
+# 输出配置
+output:
+  # 以彩色方式输出结果
+  format: colored-line-number
+  # 输出详细信息
+  print-issued-lines: true
+  # 输出失败的行号
+  print-linter-name: true
+
+# 配置linter
+linters:
+  disable-all: true
+  enable:
+    # 默认启用的linter
+    - errcheck      # 检查错误是否被正确处理
+    - gosimple      # 简化代码的建议
+    - govet         # Go静态检查工具
+    - ineffassign   # 检测未使用的变量赋值
+    - staticcheck   # Go静态分析工具
+    - typecheck     # 类型检查
+    - unused        # 检测未使用的代码
+    
+    # 额外启用的linter（严格模式）
+    - asciicheck    # 检查标识符中的非ASCII字符
+    - bidichk       # 检查危险的Unicode字符
+    - bodyclose     # 检查HTTP响应体是否关闭
+    - contextcheck  # 检查context传递是否正确
+    - cyclop        # 检查函数的循环复杂度
+    - depguard      # 依赖关系检查
+    - dogsled       # 检查过多的空白标识符(_)
+    - dupl          # 代码克隆检测
+    - durationcheck # 检查time.Duration的使用错误
+    - errorlint     # 错误处理lint检查
+    - exhaustive    # 检查switch语句是否详尽
+    - exportloopref # 检查循环变量引用
+    - forbidigo     # 禁止使用特定的功能/导入
+    - funlen        # 检查函数长度
+    - gci           # 控制Go包导入顺序
+    - gochecknoinits # 检查init函数的使用
+    - gocognit      # 认知复杂度检查
+    - goconst       # 查找可以替换为常量的重复字符串
+    - gocritic      # Go源代码linter集合
+    - gocyclo       # 检查函数的循环复杂度
+    - godot         # 检查注释是否以句点结束
+    - gofmt         # 检查代码是否已gofmt格式化
+    - gofumpt       # 比gofmt更严格的检查
+    - goheader      # 检查源码文件头部注释
+    - goimports     # 检查和修复导入
+    - gomnd         # 检测魔法数字
+    - gomoddirectives # 检查go.mod指令
+    - gomodguard    # 允许和阻止go.mod中的依赖项
+    - goprintffuncname # 检查printf类函数的命名
+    - gosec         # 安全性检查
+    - lll           # 行长度限制
+    - makezero      # 查找make()调用的可能bug
+    - misspell      # 拼写错误检查
+    - nakedret      # 查找裸返回
+    - nestif        # 嵌套if检查
+    - nilerr        # 检查返回nil和err的代码
+    - nilnil        # 检查返回值(nil, nil)的代码
+    - noctx         # 查找没有传递context.Context的HTTP请求
+    - nolintlint    # 检查nolint指令
+    - prealloc      # 查找可以预分配的切片
+    - predeclared   # 查找覆盖预声明标识符的代码
+    - promlinter    # Prometheus指标名称检查
+    - revive        # 快速、可配置、可扩展的Go linter
+    - sqlclosecheck # 检查SQL查询是否正确关闭
+    - stylecheck    # Go样式检查
+    - tenv          # tenv检查os.Setenv而不是t.Setenv
+    - thelper       # test helper函数检查
+    - tparallel     # t.Parallel正确使用检查
+    - unconvert     # 移除不必要的类型转换
+    - unparam       # 查找未使用的函数参数
+    - wastedassign  # 查找无用的赋值
+    - whitespace    # 检查空白
+
+# Linter设置
+linters-settings:
+  errcheck:
+    # 检查类型断言
+    check-type-assertions: true
+    # 检查空的函数体
+    check-blank: true
+  
+  funlen:
+    # 函数长度限制为100行
+    lines: 100
+    # 语句数量限制为50个
+    statements: 50
+  
+  gocognit:
+    # 认知复杂度阈值
+    min-complexity: 15
+  
+  cyclop:
+    # 循环复杂度阈值
+    max-complexity: 15
+    # 包级函数复杂度阈值
+    package-average: 10.0
+  
+  goconst:
+    # 设置字符串最少出现次数为3（即最多重复2次）
+    min-occurrences: 3
+    # 最小字符串长度
+    min-len: 3
+    # 是否忽略测试文件
+    ignore-tests: false
+  
+  gocyclo:
+    # 循环复杂度阈值
+    min-complexity: 15
+  
+  godot:
+    # 确保注释以句点结束
+    period: true
+  
+  goimports:
+    # 本地导入路径前缀
+    local-prefixes: github.com/pab
+
+  govet:
+    # 启用所有分析器
+    enable-all: true
+    # 禁用特定分析器
+    disable:
+      - fieldalignment # 字段对齐检查可能过于严格
+  
+  lll:
+    # 行长度限制
+    line-length: 120
+  
+  nakedret:
+    # 裸返回的函数最大行数限制
+    max-func-lines: 30
+  
+  nestif:
+    # 嵌套if语句的最大深度
+    min-complexity: 4
+  
+  prealloc:
+    # 简单的情况不报告
+    simple: true
+    # 报告测试范围的问题
+    range-loops: true
+    # 报告for循环范围问题
+    for-loops: true
+
+  revive:
+    # 严格级别
+    severity: warning
+    # 启用所有规则
+    enable-all-rules: true
+  
+  stylecheck:
+    # 启用所有检查
+    checks: ["all"]
+  
+  unused:
+    # 检查导出的标识符
+    check-exported: false
+
+# 问题匹配设置
+issues:
+  # 最大显示的问题数量
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  # 排除某些问题
+  exclude-rules:
+    # 排除测试文件的特定警告
+    - path: _test\.go
+      linters:
+        - dupl
+        - gosec
+        - funlen
+    
+    # 排除generated.go文件的所有警告
+    - path: \.generated\.go
+      linters:
+        - all
+    
+    # 排除文档注释警告
+    - linters:
+        - golint
+      text: "comment on exported"
+    
+    # 排除某些拼写错误检查
+    - linters:
+        - misspell
+      text: "misspell"
+      source: "occurence|behaviour"
+
+  # 包含所有可能的问题
+  exclude-use-default: false
+  
+  # 不排除文档相关问题
+  exclude-dirs:
+    - vendor
+    - .git
+    - node_modules 

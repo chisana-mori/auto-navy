@@ -1,0 +1,96 @@
+.container {
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
+  .header {
+    padding: 20px;
+    border-bottom: 1px solid #e8e8e8;
+
+    h2 {
+      margin: 0;
+      color: #242e42;
+      font-size: 20px;
+      font-weight: 600;
+    }
+  }
+}
+
+.poolMembers {
+  max-height: 100px;
+  overflow-y: auto;
+
+  .memberItem {
+    padding: 4px 0;
+    color: #242e42;
+    font-size: 14px;
+    line-height: 1.5;
+    border-bottom: 1px dashed #e8e8e8;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+// 状态样式
+.status {
+  &-active,
+  &-enabled,
+  &-running {
+    color: #55bc8a;
+    background-color: #e6f7f0;
+    padding: 4px 8px;
+    border-radius: 12px;
+  }
+
+  &-inactive,
+  &-disabled,
+  &-stopped {
+    color: #ca2621;
+    background-color: #fae7e5;
+    padding: 4px 8px;
+    border-radius: 12px;
+  }
+
+  &-warning {
+    color: #f5a623;
+    background-color: #fff7e6;
+    padding: 4px 8px;
+    border-radius: 12px;
+  }
+}
+
+// KubeSphere 风格的表格样式
+:global {
+  .ant-table {
+    .ant-table-thead > tr > th {
+      background: #f9fbfd;
+      color: #242e42;
+      font-weight: 600;
+    }
+
+    .ant-table-tbody > tr:hover > td {
+      background: #f9fbfd;
+    }
+
+    .ant-table-row {
+      cursor: pointer;
+    }
+  }
+
+  .ant-btn-link {
+    padding: 0 8px;
+    height: auto;
+    line-height: 1.5;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+
+  .ant-card {
+    border-radius: 4px;
+    border: none;
+  }
+} 

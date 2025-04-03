@@ -1,0 +1,388 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Navy-NG 管理平台 API 文档",
+        "title": "Navy-NG API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/fe-v1",
+    "paths": {
+        "/f5": {
+            "get": {
+                "description": "分页获取F5信息列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "获取F5信息列表",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.F5InfoListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/f5/{id}": {
+            "get": {
+                "description": "根据ID获取F5信息详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "获取单个F5信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "F5信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.F5InfoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新F5信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "更新F5信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "F5信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.F5InfoUpdateDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "软删除F5信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "删除F5信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "F5信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "service.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "错误信息"
+                }
+            }
+        },
+        "service.F5InfoListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.F5InfoResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "service.F5InfoResponse": {
+            "type": "object",
+            "properties": {
+                "appid": {
+                    "type": "string",
+                    "example": "app-001"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01"
+                },
+                "domains": {
+                    "type": "string",
+                    "example": "example.com,test.com"
+                },
+                "grafana_params": {
+                    "type": "string",
+                    "example": "http://grafana.example.com"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "ignored": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "instance_group": {
+                    "type": "string",
+                    "example": "group-1"
+                },
+                "k8s_cluster_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "f5-test"
+                },
+                "pool_members": {
+                    "type": "string",
+                    "example": "192.168.1.10:80,192.168.1.11:80"
+                },
+                "pool_name": {
+                    "type": "string",
+                    "example": "pool-1"
+                },
+                "pool_status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "port": {
+                    "type": "string",
+                    "example": "80"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-01"
+                },
+                "vip": {
+                    "type": "string",
+                    "example": "192.168.1.1"
+                }
+            }
+        },
+        "service.F5InfoUpdateDTO": {
+            "type": "object",
+            "required": [
+                "appid",
+                "name",
+                "port",
+                "vip"
+            ],
+            "properties": {
+                "appid": {
+                    "type": "string",
+                    "example": "app-001"
+                },
+                "domains": {
+                    "type": "string",
+                    "example": "example.com,test.com"
+                },
+                "grafana_params": {
+                    "type": "string",
+                    "example": "http://grafana.example.com"
+                },
+                "ignored": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "instance_group": {
+                    "type": "string",
+                    "example": "group-1"
+                },
+                "k8s_cluster_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "f5-test"
+                },
+                "pool_members": {
+                    "type": "string",
+                    "example": "192.168.1.10:80,192.168.1.11:80"
+                },
+                "pool_name": {
+                    "type": "string",
+                    "example": "pool-1"
+                },
+                "pool_status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "port": {
+                    "type": "string",
+                    "example": "80"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "vip": {
+                    "type": "string",
+                    "example": "192.168.1.1"
+                }
+            }
+        },
+        "service.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "success"
+                }
+            }
+        }
+    }
+}

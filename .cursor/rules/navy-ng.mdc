@@ -1,0 +1,48 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# 本项目为一个前后端融合项目，其中后端使用golang实现，web base于gin,前端使用react实现
+
+## 项目文件结构
+
+- 生成的业务代码需要满足以下代码树结构
+```
+navy-ng/
+├── models/                # 数据模型层 - 使用GORM进行数据库操作
+│   └── portal/            # 门户模块数据模型
+│       └── object.go      # 核心数据模型定义文件
+│
+├── pkg/                   # 公共库代码 - 可被外部项目引用
+│   └── utils/             # 通用工具包
+│       └── utils.go       # 工具函数集合
+│
+├── server/                # 后端服务层
+│   └── portal/            # 门户模块服务
+│       └── internal/      # 内部实现(不对外暴露)
+│           ├── main.go    # 服务启动入口
+│           ├── conf/      # 配置管理(环境变量/配置文件)
+│           ├── docs/      # swagger文档
+│           ├── routers/   # Gin路由定义与控制器
+│           └── service/   # 业务逻辑实现
+│
+├── web/                   # 前端应用层
+│   └── navy-fe/           # React前端项目
+│
+├── scripts/               # 开发运维脚本
+│                           # 构建/部署/测试等自动化脚本
+│
+# 项目配置文件
+├── .gitignore            # Git忽略规则
+├── .golangci.yaml        # Go代码静态分析配置
+├── Makefile              # 项目构建/测试/运行命令
+├── README.md             # 项目文档说明
+├── go.mod                # Go模块依赖管理
+└── go.sum                # 依赖版本校验
+```
+
+- 后端代码开发遵从java MVC设计模式，前端参数构造的模型与数据库层模型需要分离开，在service层构建单独的DTO模型，文件名以${service}_dto为模版
+
+
