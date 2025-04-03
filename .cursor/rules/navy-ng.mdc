@@ -16,8 +16,9 @@ navy-ng/
 │       └── object.go      # 核心数据模型定义文件
 │
 ├── pkg/                   # 公共库代码 - 可被外部项目引用
-│   └── utils/             # 通用工具包
-│       └── utils.go       # 工具函数集合
+│   └── middleware/        # 中间件
+│       └── render         # controller层渲染相关方法
+│            └── json.go   # 渲染方法
 │
 ├── server/                # 后端服务层
 │   └── portal/            # 门户模块服务

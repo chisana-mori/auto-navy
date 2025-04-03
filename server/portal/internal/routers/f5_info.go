@@ -3,8 +3,9 @@ package routers
 
 import (
 	"fmt"
+	render "navy-ng/pkg/middleware/render"
+
 	"navy-ng/server/portal/internal/service"
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -12,10 +13,6 @@ import (
 
 // Constants for HTTP status codes and default values
 const (
-	StatusBadRequest          = http.StatusBadRequest
-	StatusInternalServerError = http.StatusInternalServerError
-	StatusOK                    = http.StatusOK
-	StatusNotFound              = http.StatusNotFound
 	base10                    = 10
 	bitSize64                 = 64
 	routeParamID              = "id"           // Route parameter for ID
@@ -56,38 +53,38 @@ func (h *F5InfoHandler) getF5Info(c *gin.Context) {
 	idStr := c.Param(routeParamID)
 	id, err := strconv.ParseInt(idStr, base10, bitSize64)
 	if err != nil {
-		c.JSON(StatusBadRequest, service.ErrorResponse{Error: msgInvalidIDFormat})
+		render.BadRequest(c, msgInvalidIDFormat)
 		return
 	}
 
 	f5Info, err := h.f5Service.GetF5Info(c.Request.Context(), id)
 	if err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, id) {
-			c.JSON(StatusNotFound, service.ErrorResponse{Error: err.Error()})
+			render.NotFound(c, err.Error())
 		} else {
-			c.JSON(StatusInternalServerError, service.ErrorResponse{Error: err.Error()})
+			render.InternalServerError(c, err.Error())
 		}
 		return
 	}
 
-	c.JSON(StatusOK, f5Info)
+	render.Success(c, f5Info)
 }
 
 // listF5Infos handles GET /f5 requests.
 func (h *F5InfoHandler) listF5Infos(c *gin.Context) {
 	var query service.F5InfoQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		c.JSON(StatusBadRequest, service.ErrorResponse{Error: fmt.Sprintf(msgInvalidQueryParams, err.Error())})
+		render.BadRequest(c, fmt.Sprintf(msgInvalidQueryParams, err.Error()))
 		return
 	}
 
 	response, err := h.f5Service.ListF5Infos(c.Request.Context(), &query)
 	if err != nil {
-		c.JSON(StatusInternalServerError, service.ErrorResponse{Error: fmt.Sprintf(msgFailedToList, err.Error())})
+		render.InternalServerError(c, fmt.Sprintf(msgFailedToList, err.Error()))
 		return
 	}
 
-	c.JSON(StatusOK, response)
+	render.Success(c, response)
 }
 
 // updateF5Info handles PUT /f5/:id requests.
@@ -95,26 +92,26 @@ func (h *F5InfoHandler) updateF5Info(c *gin.Context) {
 	idStr := c.Param(routeParamID)
 	id, err := strconv.ParseInt(idStr, base10, bitSize64)
 	if err != nil {
-		c.JSON(StatusBadRequest, service.ErrorResponse{Error: msgInvalidIDFormat})
+		render.BadRequest(c, msgInvalidIDFormat)
 		return
 	}
 
 	var dto service.F5InfoUpdateDTO
 	if bindErr := c.ShouldBindJSON(&dto); bindErr != nil {
-		c.JSON(StatusBadRequest, service.ErrorResponse{Error: fmt.Sprintf(msgInvalidRequestBody, bindErr.Error())})
+		render.BadRequest(c, fmt.Sprintf(msgInvalidRequestBody, bindErr.Error()))
 		return
 	}
 
 	if err := h.f5Service.UpdateF5Info(c.Request.Context(), id, &dto); err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, id) {
-			c.JSON(StatusNotFound, service.ErrorResponse{Error: err.Error()})
+			render.NotFound(c, err.Error())
 		} else {
-			c.JSON(StatusInternalServerError, service.ErrorResponse{Error: fmt.Sprintf(msgFailedToUpdate, err.Error())})
+			render.InternalServerError(c, fmt.Sprintf(msgFailedToUpdate, err.Error()))
 		}
 		return
 	}
 
-	c.JSON(StatusOK, service.SuccessResponse{Message: msgSuccessUpdate})
+	render.SuccessWithMessage(c, msgSuccessUpdate, nil)
 }
 
 // deleteF5Info handles DELETE /f5/:id requests.
@@ -122,18 +119,18 @@ func (h *F5InfoHandler) deleteF5Info(c *gin.Context) {
 	idStr := c.Param(routeParamID)
 	id, err := strconv.ParseInt(idStr, base10, bitSize64)
 	if err != nil {
-		c.JSON(StatusBadRequest, service.ErrorResponse{Error: msgInvalidIDFormat})
+		render.BadRequest(c, msgInvalidIDFormat)
 		return
 	}
 
 	if err := h.f5Service.DeleteF5Info(c.Request.Context(), id); err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, id) {
-			c.JSON(StatusNotFound, service.ErrorResponse{Error: err.Error()})
+			render.NotFound(c, err.Error())
 		} else {
-			c.JSON(StatusInternalServerError, service.ErrorResponse{Error: fmt.Sprintf(msgFailedToDelete, err.Error())})
+			render.InternalServerError(c, fmt.Sprintf(msgFailedToDelete, err.Error()))
 		}
 		return
 	}
 
-	c.JSON(StatusOK, service.SuccessResponse{Message: msgSuccessDelete})
+	render.SuccessWithMessage(c, msgSuccessDelete, nil)
 }

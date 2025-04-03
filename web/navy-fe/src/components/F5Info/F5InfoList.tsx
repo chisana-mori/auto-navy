@@ -1,37 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Table, Space, Button, message, Popconfirm, Card, Input, Modal, Tag } from 'antd';
-import { SearchOutlined, CheckCircleFilled, CloseCircleFilled, WarningFilled, CloudServerOutlined, LineChartOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Table, Space, Button, message, Popconfirm, Card, Input, Tag } from 'antd';
+import { SearchOutlined, CheckCircleFilled, CloseCircleFilled, WarningFilled, CloudServerOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table/interface';
 import request from '../../utils/request';
 import type { F5Info, F5InfoListResponse, F5InfoQuery } from '../../types/f5';
 import Highlighter from 'react-highlight-words';
-
-// 格式化时间为 yyyy-MM-dd HH:mm:ss
-const formatDateTime = (dateString: string) => {
-  if (!dateString) return '';
-  
-  try {
-    const date = new Date(dateString);
-    
-    // 检查日期是否有效
-    if (isNaN(date.getTime())) {
-      return dateString;
-    }
-    
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  } catch (error) {
-    console.error('日期格式化错误:', error);
-    return dateString;
-  }
-};
 
 // 获取状态对应的图标和颜色
 const getStatusInfo = (status: string) => {
@@ -437,7 +411,6 @@ const F5InfoList: React.FC = () => {
         onChange={handleTableChange}
         scroll={{ x: 1300 }}
         rowClassName={(record) => {
-          const statusInfo = getStatusInfo(record.status);
           return record.ignored ? 'ignored-row' : `status-${record.status.toLowerCase()}-row`;
         }}
         onRow={(record) => {

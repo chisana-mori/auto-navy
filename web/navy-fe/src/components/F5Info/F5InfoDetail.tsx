@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Button, message, List, Modal, Tag, Badge, Space, Divider } from 'antd';
+import { Card, Descriptions, Button, message, List, Tag, Badge, Space, Divider } from 'antd';
 import { 
   CheckCircleFilled, 
   CloseCircleFilled, 
   WarningFilled, 
   CloudServerOutlined, 
   RollbackOutlined, 
-  LineChartOutlined,
   DeleteOutlined,
   InfoCircleOutlined,
   GlobalOutlined,
