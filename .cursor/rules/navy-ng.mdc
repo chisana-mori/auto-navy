@@ -45,5 +45,5 @@ navy-ng/
 ```
 
 - 后端代码开发遵从java MVC设计模式，前端参数构造的模型与数据库层模型需要分离开，在service层构建单独的DTO模型，文件名以${service}_dto为模版
-
+- controller类所有关于响应的代码必须调用pkg/middleware/render/json.go来完成
 
