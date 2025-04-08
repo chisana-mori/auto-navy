@@ -9,7 +9,7 @@ interface ApiError extends Error {
 }
 
 const request = axios.create({
-  baseURL: 'http://localhost:8080/fe-v1', // 直接使用完整的API地址
+  baseURL: 'http://localhost:8081/fe-v1', // 直接使用完整的API地址
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -47,13 +47,13 @@ request.interceptors.response.use(
   },
   (error) => {
     console.error('响应错误:', error);
-    
+
     if (error.response) {
       // 服务器返回了错误状态码
       console.error('服务器错误:', error.response.status, error.response.data);
       // 使用新的错误消息格式
-      const errorMsg = error.response.data?.msg || 
-                       error.response.data?.error || 
+      const errorMsg = error.response.data?.msg ||
+                       error.response.data?.error ||
                        `请求失败 (${error.response.status})`;
       message.error(errorMsg);
     } else if (error.request) {
@@ -65,9 +65,9 @@ request.interceptors.response.use(
       console.error('请求配置错误:', error.message);
       message.error(`请求错误: ${error.message}`);
     }
-    
+
     return Promise.reject(error);
   }
 );
 
-export default request; 
+export default request;

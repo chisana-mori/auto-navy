@@ -3,7 +3,7 @@ package routers
 
 import (
 	"fmt"
-	render "navy-ng/pkg/middleware/render"
+	"navy-ng/pkg/middleware/render"
 
 	"navy-ng/server/portal/internal/service"
 	"strconv"

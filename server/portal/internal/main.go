@@ -5,13 +5,14 @@ import (
 	"net/http"
 	"time"
 
+	"navy-ng/models/portal"
+	"navy-ng/server/portal/internal/routers"
+	"navy-ng/server/portal/internal/service"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"navy-ng/models/portal"
-	"navy-ng/server/portal/internal/routers"
-	"navy-ng/server/portal/internal/service"
 )
 
 // @title           Navy-NG API
@@ -79,20 +80,57 @@ func main() {
 		log.Fatalf("failed to connect database: %v", err)
 	}
 
-	// 自动迁移数据库表
+	// 先删除ops_job表，然后重新创建
+	log.Println("删除ops_job表...")
+	db.Exec("DROP TABLE IF EXISTS ops_job")
+
+	// 手动创建ops_job表，确保ID是自增的
+	log.Println("手动创建ops_job表...")
+	createTableSQL := `
+	CREATE TABLE ops_job (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		created_at datetime,
+		updated_at datetime,
+		name varchar(255) NOT NULL,
+		description text,
+		status varchar(50) NOT NULL,
+		progress integer DEFAULT 0,
+		start_time datetime,
+		end_time datetime,
+		log_content text,
+		deleted varchar(255)
+	)
+	`
+	if err := db.Exec(createTableSQL).Error; err != nil {
+		log.Fatalf("failed to create ops_job table: %v", err)
+	}
+
+	// 自动迁移其他表
+	log.Println("创建其他数据库表...")
 	err = db.AutoMigrate(&portal.K8sCluster{}, &portal.F5Info{})
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
+
+	// 检查ops_job表结构
+	var result map[string]interface{}
+	db.Raw("SELECT sql FROM sqlite_master WHERE type='table' AND name='ops_job'").Scan(&result)
+	log.Printf("ops_job表结构: %v", result)
+
+	// 插入模拟数据
+	log.Println("插入运维任务模拟数据...")
+	insertMockOpsJobs(db)
 
 	// 清空现有数据并插入样例数据
 	clearAndSeedData(db)
 
 	// 初始化服务
 	f5Service := service.NewF5InfoService(db)
+	opsService := service.NewOpsJobService(db)
 
 	// 初始化路由处理器
 	f5Handler := routers.NewF5InfoHandler(f5Service)
+	opsHandler := routers.NewOpsJobHandler(opsService)
 
 	// 创建 Gin 引擎
 	r := gin.Default()
@@ -103,15 +141,103 @@ func main() {
 	// 注册路由
 	api := r.Group("/fe-v1")
 	f5Handler.RegisterRoutes(api)
+	opsHandler.RegisterRoutes(api)
 
 	// 注册 Swagger 路由
 	routers.RegisterSwaggerRoutes(r)
 
 	// 启动服务器
-	log.Println("Starting server on :8080")
-	if err := r.Run(":8080"); err != nil && err != http.ErrServerClosed {
+	port := ":8081" // 使用不同的端口
+	log.Printf("Starting server on %s", port)
+	if err := r.Run(port); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Failed to run server: %v", err)
 	}
+}
+
+// 插入运维任务模拟数据
+func insertMockOpsJobs(db *gorm.DB) {
+	// 获取当前时间
+	now := time.Now()
+	// 创建一些不同状态的任务
+	mockJobs := []portal.OpsJob{
+		{
+			Name:        "部署Web应用到生产环境",
+			Description: "将最新版本的Web应用部署到生产服务器",
+			Status:      "completed",
+			Progress:    100,
+			StartTime:   now.Add(-24 * time.Hour),
+			EndTime:     now.Add(-23 * time.Hour),
+			LogContent:  `初始化部署...
+连接到生产服务器...
+拉取最新代码...
+构建应用...
+运行测试...
+部署到生产服务器...
+配置负载均衡...
+验证部署...
+部署完成！`,
+		},
+		{
+			Name:        "数据库备份",
+			Description: "执行所有生产数据库的完整备份",
+			Status:      "running",
+			Progress:    65,
+			StartTime:   now.Add(-1 * time.Hour),
+			EndTime:     now,
+			LogContent:  `初始化备份任务...
+连接到数据库服务器...
+开始备份用户数据库...
+用户数据库备份完成...
+开始备份订单数据库...
+订单数据库备份完成...
+开始备份产品数据库...
+正在进行中...`,
+		},
+		{
+			Name:        "系统安全补丁更新",
+			Description: "为所有服务器安装最新的安全补丁",
+			Status:      "pending",
+			Progress:    0,
+			StartTime:   now,
+			EndTime:     now,
+			LogContent:  `任务创建，等待执行...`,
+		},
+		{
+			Name:        "网络配置更新",
+			Description: "更新负载均衡器和防火墙规则",
+			Status:      "failed",
+			Progress:    45,
+			StartTime:   now.Add(-12 * time.Hour),
+			EndTime:     now.Add(-11 * time.Hour),
+			LogContent:  `初始化任务...
+连接到网络设备...
+备份当前配置...
+应用新的负载均衡规则...
+测试新配置...
+错误：无法连接到主防火墙
+回滚配置...
+任务失败！`,
+		},
+		{
+			Name:        "应用服务器扩容",
+			Description: "增加3台新的应用服务器到集群",
+			Status:      "pending",
+			Progress:    0,
+			StartTime:   now,
+			EndTime:     now,
+			LogContent:  `任务创建，等待执行...`,
+		},
+	}
+
+	// 插入模拟数据
+	for _, job := range mockJobs {
+		result := db.Create(&job)
+		if result.Error != nil {
+			log.Printf("Warning: failed to insert mock ops job: %v", result.Error)
+		}
+	}
+
+	log.Printf("成功插入 %d 条运维任务模拟数据", len(mockJobs))
 }
 
 func clearAndSeedData(db *gorm.DB) {

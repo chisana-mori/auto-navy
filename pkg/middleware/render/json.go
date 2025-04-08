@@ -1,4 +1,4 @@
-package middleware
+package render
 
 import (
 	"net/http"
@@ -71,4 +71,4 @@ func NotFound(c *gin.Context, message string) {
 // InternalServerError 500错误响应
 func InternalServerError(c *gin.Context, message string) {
 	Fail(c, http.StatusInternalServerError, message)
-} 
+}
