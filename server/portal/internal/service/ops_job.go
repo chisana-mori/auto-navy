@@ -21,10 +21,16 @@ type OpsJobService struct {
 	activeJobsMux sync.Mutex
 }
 
+// ClientConnection represents a WebSocket client connection with its own mutex
+type ClientConnection struct {
+	Conn     *websocket.Conn
+	WriteMux sync.Mutex
+}
+
 // JobExecution represents an active job execution
 type JobExecution struct {
 	JobID     int64
-	Clients   map[*websocket.Conn]bool
+	Clients   map[*ClientConnection]bool
 	ClientMux sync.Mutex
 	Cancel    context.CancelFunc
 }
@@ -166,7 +172,7 @@ func (s *OpsJobService) CreateOpsJob(ctx context.Context, dto *OpsJobCreateDTO) 
 }
 
 // StartJob starts the execution of a job and broadcasts updates via WebSocket.
-func (s *OpsJobService) StartJob(jobID int64, client *websocket.Conn) error {
+func (s *OpsJobService) StartJob(jobID int64, conn *websocket.Conn) error {
 	// Check if job exists
 	var job portal.OpsJob
 	if err := s.db.Where("id = ? AND deleted = ?", jobID, emptyString).First(&job).Error; err != nil {
@@ -174,6 +180,11 @@ func (s *OpsJobService) StartJob(jobID int64, client *websocket.Conn) error {
 			return fmt.Errorf(ErrOpsJobNotFoundMsg, jobID)
 		}
 		return fmt.Errorf("failed to get operation job: %w", err)
+	}
+
+	// Create a client connection with its own mutex
+	client := &ClientConnection{
+		Conn: conn,
 	}
 
 	// Check if job is already running
@@ -192,7 +203,7 @@ func (s *OpsJobService) StartJob(jobID int64, client *websocket.Conn) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	jobExec = &JobExecution{
 		JobID:   jobID,
-		Clients: make(map[*websocket.Conn]bool),
+		Clients: make(map[*ClientConnection]bool),
 		Cancel:  cancel,
 	}
 	jobExec.Clients[client] = true
@@ -211,7 +222,12 @@ func (s *OpsJobService) StartJob(jobID int64, client *websocket.Conn) error {
 }
 
 // RegisterClient registers a WebSocket client for job updates
-func (s *OpsJobService) RegisterClient(jobID int64, client *websocket.Conn) error {
+func (s *OpsJobService) RegisterClient(jobID int64, conn *websocket.Conn) error {
+	// Create a client connection with its own mutex
+	client := &ClientConnection{
+		Conn: conn,
+	}
+
 	s.activeJobsMux.Lock()
 	defer s.activeJobsMux.Unlock()
 
@@ -233,7 +249,11 @@ func (s *OpsJobService) RegisterClient(jobID int64, client *websocket.Conn) erro
 			Progress: job.Progress,
 			Message:  "Connected to job monitoring",
 		}
-		client.WriteJSON(update)
+
+		// Use mutex to safely write to the connection
+		client.WriteMux.Lock()
+		conn.WriteJSON(update)
+		client.WriteMux.Unlock()
 		return nil
 	}
 
@@ -246,7 +266,7 @@ func (s *OpsJobService) RegisterClient(jobID int64, client *websocket.Conn) erro
 }
 
 // UnregisterClient removes a WebSocket client
-func (s *OpsJobService) UnregisterClient(jobID int64, client *websocket.Conn) {
+func (s *OpsJobService) UnregisterClient(jobID int64, conn *websocket.Conn) {
 	s.activeJobsMux.Lock()
 	defer s.activeJobsMux.Unlock()
 
@@ -255,8 +275,14 @@ func (s *OpsJobService) UnregisterClient(jobID int64, client *websocket.Conn) {
 		return
 	}
 
+	// Find and remove the client
 	jobExec.ClientMux.Lock()
-	delete(jobExec.Clients, client)
+	for clientConn := range jobExec.Clients {
+		if clientConn.Conn == conn {
+			delete(jobExec.Clients, clientConn)
+			break
+		}
+	}
 	jobExec.ClientMux.Unlock()
 }
 
@@ -337,8 +363,11 @@ func (s *OpsJobService) updateJobStatus(jobID int64, status string, progress int
 	jobExec.ClientMux.Lock()
 	for client := range jobExec.Clients {
 		// Non-blocking send to avoid deadlocks if client is slow
-		go func(c *websocket.Conn, u OpsJobStatusUpdate) {
-			c.WriteJSON(u)
+		go func(c *ClientConnection, u OpsJobStatusUpdate) {
+			// Use the client's mutex to safely write to the connection
+			c.WriteMux.Lock()
+			c.Conn.WriteJSON(u)
+			c.WriteMux.Unlock()
 		}(client, update)
 	}
 	jobExec.ClientMux.Unlock()
@@ -352,13 +381,15 @@ func (s *OpsJobService) cleanupJob(jobID int64) {
 	if jobExec, exists := s.activeJobs[jobID]; exists {
 		jobExec.ClientMux.Lock()
 		for client := range jobExec.Clients {
-			// Send final message
-			client.WriteJSON(OpsJobStatusUpdate{
+			// Send final message - use mutex to safely write
+			client.WriteMux.Lock()
+			client.Conn.WriteJSON(OpsJobStatusUpdate{
 				ID:       jobID,
 				Status:   "completed",
 				Progress: 100,
 				Message:  "Job execution finished",
 			})
+			client.WriteMux.Unlock()
 		}
 		jobExec.ClientMux.Unlock()
 		delete(s.activeJobs, jobID)
