@@ -2,10 +2,11 @@ package database
 
 import (
 	"log"
-	"navy-ng/models/portal"
 	"time"
 
 	"gorm.io/gorm"
+
+	"navy-ng/models/portal"
 )
 
 // GenerateDevicesFromK8sNodes 根据K8s节点数据生成设备数据
@@ -21,12 +22,6 @@ func GenerateDevicesFromK8sNodes(db *gorm.DB) error {
 	if err := db.Find(&nodes).Error; err != nil {
 		log.Printf("Error: failed to get k8s nodes: %v", err)
 		return err
-	}
-
-	// 如果没有节点数据，则创建一些基本的设备数据
-	if len(nodes) == 0 {
-		log.Println("No k8s nodes found, creating basic device data...")
-		return InsertMockDevices(db)
 	}
 
 	// 根据K8s节点数据生成设备数据

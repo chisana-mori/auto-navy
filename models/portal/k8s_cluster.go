@@ -12,6 +12,7 @@ type K8sCluster struct {
 	CreatedAt time.Time `gorm:"column:created_at;type:datetime" json:"created_at"`        // 创建时间
 	UpdatedAt time.Time `gorm:"column:updated_at;type:datetime" json:"updated_at"`        // 更新时间
 	Deleted   string    `gorm:"column:deleted;type:varchar(255)" json:"deleted,omitempty"`// 软删除标记
+	Nodes     []K8sNode `gorm:"foreignKey:K8sClusterID" json:"nodes,omitempty"`          // 关联的节点列表
 }
 
 // TableName 指定表名

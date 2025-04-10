@@ -757,15 +757,24 @@ const DeviceQuerySimple: React.FC = () => {
       title: '操作',
       key: 'action',
       fixed: 'right' as const,
-      width: 100,
+      width: 120,
       render: (_: unknown, record: Device) => (
-        <Button
-          type="link"
-          size="small"
-          onClick={() => navigate(`/device/${record.id}`)}
-        >
-          详情
-        </Button>
+        <Space size={8}>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => navigate(`/device/${record.id}`)}
+          >
+            详情
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => navigate(`/device/${record.id}`)}
+          >
+            标记
+          </Button>
+        </Space>
       ),
     },
   ];

@@ -1,0 +1,316 @@
+/* 设备查询页面样式 */
+.device-query-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 拖拽区域样式 */
+.drag-drop-container {
+  display: flex;
+  gap: 24px;
+  min-height: 400px;
+}
+
+/* 左侧筛选项区域 */
+.filter-items-container {
+  width: 250px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-items-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.filter-item {
+  background-color: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: grab;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-item:hover {
+  border-color: #1890ff;
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.2);
+}
+
+.filter-item-icon {
+  color: #1890ff;
+  font-size: 16px;
+}
+
+/* 右侧筛选区域 */
+.filter-area-container {
+  flex: 1;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-area-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.filter-area-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #999;
+  border: 2px dashed #d9d9d9;
+  border-radius: 4px;
+}
+
+.filter-area-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #d9d9d9;
+}
+
+/* 筛选组样式 */
+.filter-group {
+  background-color: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.filter-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.filter-group-title {
+  font-weight: 500;
+  color: #333;
+}
+
+.filter-group-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-blocks-container {
+  min-height: 50px;
+}
+
+.filter-block {
+  background-color: #f0f7ff;
+  border: 1px solid #d6e4ff;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-block-type {
+  font-weight: 500;
+  color: #1890ff;
+}
+
+.filter-block-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-block-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.filter-block-field {
+  flex: 1;
+  min-width: 150px;
+}
+
+.filter-block-operator {
+  width: 100px;
+}
+
+.filter-block-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* 逻辑运算符样式 */
+.logic-operator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 0;
+  position: relative;
+}
+
+.logic-operator::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #e8e8e8;
+  z-index: 0;
+}
+
+.logic-operator-content {
+  background-color: #f9f9f9;
+  padding: 0 12px;
+  position: relative;
+  z-index: 1;
+}
+
+/* 查询按钮区域 */
+.query-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* 查询结果区域 */
+.query-results {
+  margin-top: 24px;
+}
+
+/* 模板管理样式 */
+.template-form {
+  margin-top: 16px;
+}
+
+.template-list {
+  margin-top: 16px;
+}
+
+.template-item {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  transition: all 0.3s;
+  background-color: #fff;
+}
+
+.template-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: #d9d9d9;
+}
+
+@media (min-width: 768px) {
+  .template-item {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.template-item-info {
+  flex: 1;
+  margin-bottom: 12px;
+}
+
+@media (min-width: 768px) {
+  .template-item-info {
+    margin-bottom: 0;
+  }
+}
+
+.template-item-name {
+  font-weight: 500;
+  font-size: 16px;
+  margin-bottom: 4px;
+  color: #1677ff;
+}
+
+.template-item-desc {
+  color: #666;
+  font-size: 13px;
+  max-width: 600px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.template-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.template-item-actions button {
+  min-width: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 拖拽时的样式 */
+.dragging {
+  opacity: 0.5;
+}
+
+.dragging-over {
+  background-color: #e6f7ff;
+  border: 2px dashed #1890ff;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .drag-drop-container {
+    flex-direction: column;
+  }
+
+  .filter-items-container {
+    width: 100%;
+  }
+
+  .filter-block-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .filter-block-field {
+    width: 100%;
+  }
+}

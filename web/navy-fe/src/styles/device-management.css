@@ -1,0 +1,166 @@
+/* 设备管理页面样式 */
+
+/* 卡片样式 */
+.device-management-card {
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.08), 0 9px 28px 0 rgba(0, 0, 0, 0.05), 0 12px 48px 16px rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  border: none;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.device-management-card .ant-card-head {
+  background: linear-gradient(to right, rgba(22, 119, 255, 0.05), rgba(22, 119, 255, 0.01));
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+.device-management-card .ant-card-head-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* 搜索区域样式 */
+.search-container {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 表格样式 */
+.ant-table {
+  border-radius: 8px;
+}
+
+.ant-table-wrapper {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ant-table-thead > tr > th {
+  background-color: #fafafa;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+  padding: 12px 16px;
+  transition: background 0.3s;
+}
+
+.ant-table-tbody > tr > td {
+  padding: 12px 16px;
+  transition: all 0.3s;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background-color: #f5f5f5;
+}
+
+/* 按钮样式 */
+.ant-btn {
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.ant-btn-primary {
+  background-color: #1677ff;
+  border-color: #1677ff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+}
+
+.ant-btn-link {
+  color: #1677ff;
+}
+
+.ant-btn-link:hover {
+  color: #4096ff;
+  text-decoration: underline;
+}
+
+/* 分页器样式 */
+.ant-pagination {
+  margin-top: 16px;
+}
+
+.ant-pagination-item-active {
+  border-color: #1677ff;
+}
+
+/* 设备详情页样式 */
+.device-detail-card {
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.08), 0 9px 28px 0 rgba(0, 0, 0, 0.05), 0 12px 48px 16px rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  border: none;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.device-detail-card .ant-card-head {
+  background: linear-gradient(to right, rgba(22, 119, 255, 0.05), rgba(22, 119, 255, 0.01));
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+.field-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.field-item:hover {
+  background-color: #f0f7ff;
+}
+
+.field-label {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.field-value {
+  color: rgba(0, 0, 0, 0.85);
+  font-weight: 500;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .search-container {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .search-container .ant-input-affix-wrapper {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .search-container .ant-btn {
+    margin-left: 8px;
+    margin-top: 0;
+  }
+
+  .ant-table {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .ant-card-head-title {
+    font-size: 16px;
+  }
+
+  .field-item {
+    padding: 6px 10px;
+  }
+
+  .device-detail-card .ant-card-body div[style*="grid-template-columns"] {
+    grid-template-columns: repeat(1, 1fr) !important;
+  }
+}

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Typography, Avatar } from 'antd';
-import { DashboardOutlined, CloudServerOutlined, SettingOutlined, UserOutlined, NodeIndexOutlined, ToolOutlined } from '@ant-design/icons';
+import { DashboardOutlined, CloudServerOutlined, SettingOutlined, UserOutlined, NodeIndexOutlined, ToolOutlined, DesktopOutlined, DatabaseOutlined } from '@ant-design/icons';
 import F5InfoList from './components/F5Info/F5InfoList';
 import F5InfoDetail from './components/F5Info/F5InfoDetail';
 import CalicoNetworkTopology from './components/Calico/CalicoNetworkTopology';
 import OpsManagement from './components/Ops/OpsManagement';
+import DeviceManagement from './components/Device/DeviceManagement';
+import DeviceDetail from './components/Device/DeviceDetail';
+import DeviceQuerySimple from './components/Device/DeviceQuerySimple';
 
 const { Header, Content, Sider } = Layout;
 const { Title } = Typography;
@@ -19,6 +22,8 @@ const App: React.FC = () => {
     if (path.startsWith('/calico')) return '4';
     if (path.startsWith('/k8s')) return '2';
     if (path.startsWith('/ops')) return '5';
+    if (path === '/device-query') return '7';
+    if (path.startsWith('/device')) return '6';
     if (path.startsWith('/settings')) return '3';
     return '1';
   });
@@ -40,6 +45,12 @@ const App: React.FC = () => {
         break;
       case '5':
         navigate('/ops');
+        break;
+      case '6':
+        navigate('/device');
+        break;
+      case '7':
+        navigate('/device-query');
         break;
     }
   };
@@ -95,6 +106,18 @@ const App: React.FC = () => {
                 onClick: () => handleMenuClick('5')
               },
               {
+                key: '6',
+                icon: <DesktopOutlined />,
+                label: '设备管理',
+                onClick: () => handleMenuClick('6')
+              },
+              {
+                key: '7',
+                icon: <DatabaseOutlined />,
+                label: '设备查询器',
+                onClick: () => handleMenuClick('7')
+              },
+              {
                 key: '3',
                 icon: <SettingOutlined />,
                 label: '系统设置',
@@ -116,6 +139,9 @@ const App: React.FC = () => {
               <Route path="/calico" element={<CalicoNetworkTopology />} />
               <Route path="/k8s" element={<div>K8s 集群管理（待开发）</div>} />
               <Route path="/ops" element={<OpsManagement />} />
+              <Route path="/device" element={<DeviceManagement />} />
+              <Route path="/device/:id" element={<DeviceDetail />} />
+              <Route path="/device-query" element={<DeviceQuerySimple />} />
               <Route path="/settings" element={<div>系统设置（待开发）</div>} />
             </Routes>
           </Content>

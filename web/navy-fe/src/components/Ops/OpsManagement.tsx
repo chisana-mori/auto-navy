@@ -324,9 +324,10 @@ const OpsManagement: React.FC = () => {
       key: 'action',
       width: 180,
       render: (_, record) => (
-        <Space size="middle">
+        <Space size={8}>
           <Button
             type="link"
+            size="small"
             icon={<FileTextOutlined />}
             onClick={() => handleViewJob(record.id)}
           >
@@ -335,6 +336,7 @@ const OpsManagement: React.FC = () => {
           {record.status === 'pending' && (
             <Button
               type="link"
+              size="small"
               icon={<PlayCircleOutlined />}
               onClick={() => {
                 handleViewJob(record.id).then(() => {

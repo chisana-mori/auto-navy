@@ -1026,41 +1026,38 @@ const CalicoNetworkTopology: React.FC = () => {
       fixed: 'right' as const,
       width: 180,
       render: (_: any, record: CalicoNode) => (
-        <Space size={2} style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+        <Space size={8} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           <Button 
             size="small" 
-            type="primary"
+            type="link"
             onClick={() => showTopo(record, 'rr')}
-            style={{ backgroundColor: '#1677ff' }}
           >
             查看RR详情
           </Button>
           <Button 
             size="small" 
-            type="primary"
+            type="link"
             onClick={() => showTopo(record, 'anchorleaf')}
-            style={{ backgroundColor: '#1677ff' }}
           >
             查看AnchorLeaf详情
           </Button>
           <Button 
             size="small" 
-            type="primary"
+            type="link"
             onClick={() => downloadRoute(record, 'ALL')}
-            style={{ backgroundColor: '#1677ff' }}
           >
             ALL
           </Button>
           <Button 
             size="small" 
-            type="primary"
+            type="link"
             onClick={() => downloadRoute(record, 'Detail')}
-            style={{ backgroundColor: '#1677ff' }}
           >
             Detail
           </Button>
           <Button 
-            size="small" 
+            size="small"
+            type="link"
             onClick={() => downloadRoute(record, 'Detail')}
           >
             历史追踪

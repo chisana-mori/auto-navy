@@ -9,8 +9,7 @@ import (
 
 // OpsJobQuery defines the query parameters for listing OpsJobs.
 type OpsJobQuery struct {
-	Page   int    `form:"page" json:"page" example:"1" swagger:"description=页码"`
-	Size   int    `form:"size" json:"size" example:"10" swagger:"description=每页数量"`
+	PaginationRequest
 	Name   string `form:"name" json:"name" example:"deploy-app" swagger:"description=任务名称"`
 	Status string `form:"status" json:"status" example:"running" swagger:"description=任务状态"`
 }

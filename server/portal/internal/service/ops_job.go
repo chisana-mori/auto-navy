@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"navy-ng/models/portal"
@@ -29,10 +28,9 @@ type ClientConnection struct {
 
 // JobExecution represents an active job execution
 type JobExecution struct {
-	JobID     int64
-	Clients   map[*ClientConnection]bool
-	ClientMux sync.Mutex
-	Cancel    context.CancelFunc
+	JobID    int64
+	Manager  *WebSocketManager
+	Cancel   context.CancelFunc
 }
 
 // NewOpsJobService creates a new OpsJobService.
@@ -47,12 +45,6 @@ func NewOpsJobService(db *gorm.DB) *OpsJobService {
 const (
 	// ErrOpsJobNotFoundMsg is the error message for record not found errors.
 	ErrOpsJobNotFoundMsg = "Operation job with id %d not found"
-
-	// Job status constants
-	StatusPending   = "pending"
-	StatusRunning   = "running"
-	StatusCompleted = "completed"
-	StatusFailed    = "failed"
 )
 
 // GetOpsJob retrieves a single OpsJob by ID.
@@ -69,14 +61,10 @@ const (
 // @Router /ops/job/{id} [get]
 func (s *OpsJobService) GetOpsJob(ctx context.Context, id int64) (*OpsJobResponse, error) {
 	var model portal.OpsJob
-	err := s.db.WithContext(ctx).Where("id = ? AND deleted = ?", id, emptyString).First(&model).Error
+	err := s.db.WithContext(ctx).Where("id = ? AND deleted = ?", id, EmptyString).First(&model).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf(ErrOpsJobNotFoundMsg, id)
-		}
-		return nil, fmt.Errorf("failed to get operation job: %w", err)
+		return nil, HandleDBError(err, ResourceOpsJob, id)
 	}
-
 	return toOpsJobResponse(&model), nil
 }
 
@@ -95,35 +83,30 @@ func (s *OpsJobService) ListOpsJobs(ctx context.Context, query *OpsJobQuery) (*O
 	var models []portal.OpsJob
 	var total int64
 
-	db := s.db.WithContext(ctx).Model(&portal.OpsJob{}).Where("deleted = ?", emptyString)
+	db := s.db.WithContext(ctx).Model(&portal.OpsJob{}).Where("deleted = ?", EmptyString)
 
 	// Apply filters
-	if query.Name != emptyString {
+	if query.Name != EmptyString {
 		db = db.Where("name LIKE ?", "%"+query.Name+"%")
 	}
-	if query.Status != emptyString {
+	if query.Status != EmptyString {
 		db = db.Where("status = ?", query.Status)
 	}
 
 	// Count total records
 	if err := db.Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("failed to count operation jobs: %w", err)
+		return nil, NewServerError("failed to count operation jobs", err)
 	}
 
 	// Adjust pagination
-	if query.Page <= 0 {
-		query.Page = defaultPage
-	}
-	if query.Size <= 0 || query.Size > maxSize {
-		query.Size = defaultSize
-	}
+	query.AdjustPagination()
 
 	// Fetch data with pagination
 	err := db.Order("id DESC").
-		Offset((query.Page - 1) * query.Size).Limit(query.Size).
+		Offset(query.GetOffset()).Limit(query.Size).
 		Find(&models).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to list operation jobs: %w", err)
+		return nil, NewServerError("failed to list operation jobs", err)
 	}
 
 	list := make([]*OpsJobResponse, 0, len(models))
@@ -151,10 +134,9 @@ func (s *OpsJobService) ListOpsJobs(ctx context.Context, query *OpsJobQuery) (*O
 // @Failure 500 {object} ErrorResponse
 // @Router /ops/job [post]
 func (s *OpsJobService) CreateOpsJob(ctx context.Context, dto *OpsJobCreateDTO) (*OpsJobResponse, error) {
-	// 确保使用数据库自增ID，忽略前端可能传递的ID字段
 	now := time.Now()
 	model := &portal.OpsJob{
-		BaseModel:   portal.BaseModel{ID: 0}, // 显式设置ID为0，确保使用数据库自增ID
+		BaseModel:   portal.BaseModel{ID: 0},
 		Name:        dto.Name,
 		Description: dto.Description,
 		Status:      StatusPending,
@@ -165,7 +147,7 @@ func (s *OpsJobService) CreateOpsJob(ctx context.Context, dto *OpsJobCreateDTO) 
 	}
 
 	if err := s.db.WithContext(ctx).Create(model).Error; err != nil {
-		return nil, fmt.Errorf("failed to create operation job: %w", err)
+		return nil, NewServerError("failed to create operation job", err)
 	}
 
 	return toOpsJobResponse(model), nil
@@ -175,26 +157,18 @@ func (s *OpsJobService) CreateOpsJob(ctx context.Context, dto *OpsJobCreateDTO) 
 func (s *OpsJobService) StartJob(jobID int64, conn *websocket.Conn) error {
 	// Check if job exists
 	var job portal.OpsJob
-	if err := s.db.Where("id = ? AND deleted = ?", jobID, emptyString).First(&job).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf(ErrOpsJobNotFoundMsg, jobID)
-		}
-		return fmt.Errorf("failed to get operation job: %w", err)
+	if err := s.db.Where("id = ? AND deleted = ?", jobID, EmptyString).First(&job).Error; err != nil {
+		return HandleDBError(err, ResourceOpsJob, jobID)
 	}
 
-	// Create a client connection with its own mutex
-	client := &ClientConnection{
-		Conn: conn,
-	}
+	client := NewWebSocketClient(conn)
 
 	// Check if job is already running
 	s.activeJobsMux.Lock()
 	jobExec, exists := s.activeJobs[jobID]
 	if exists {
 		// Add this client to existing job
-		jobExec.ClientMux.Lock()
-		jobExec.Clients[client] = true
-		jobExec.ClientMux.Unlock()
+		jobExec.Manager.AddClient(client)
 		s.activeJobsMux.Unlock()
 		return nil
 	}
@@ -202,11 +176,11 @@ func (s *OpsJobService) StartJob(jobID int64, conn *websocket.Conn) error {
 	// Create a new job execution context
 	ctx, cancel := context.WithCancel(context.Background())
 	jobExec = &JobExecution{
-		JobID:   jobID,
-		Clients: make(map[*ClientConnection]bool),
-		Cancel:  cancel,
+		JobID:    jobID,
+		Manager:  NewWebSocketManager(),
+		Cancel:   cancel,
 	}
-	jobExec.Clients[client] = true
+	jobExec.Manager.AddClient(client)
 	s.activeJobs[jobID] = jobExec
 	s.activeJobsMux.Unlock()
 
@@ -223,10 +197,7 @@ func (s *OpsJobService) StartJob(jobID int64, conn *websocket.Conn) error {
 
 // RegisterClient registers a WebSocket client for job updates
 func (s *OpsJobService) RegisterClient(jobID int64, conn *websocket.Conn) error {
-	// Create a client connection with its own mutex
-	client := &ClientConnection{
-		Conn: conn,
-	}
+	client := NewWebSocketClient(conn)
 
 	s.activeJobsMux.Lock()
 	defer s.activeJobsMux.Unlock()
@@ -235,11 +206,8 @@ func (s *OpsJobService) RegisterClient(jobID int64, conn *websocket.Conn) error 
 	if !exists {
 		// Job is not running, check if it exists
 		var job portal.OpsJob
-		if err := s.db.Where("id = ? AND deleted = ?", jobID, emptyString).First(&job).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf(ErrOpsJobNotFoundMsg, jobID)
-			}
-			return fmt.Errorf("failed to get operation job: %w", err)
+		if err := s.db.Where("id = ? AND deleted = ?", jobID, EmptyString).First(&job).Error; err != nil {
+			return HandleDBError(err, ResourceOpsJob, jobID)
 		}
 
 		// Send the current status immediately
@@ -249,19 +217,11 @@ func (s *OpsJobService) RegisterClient(jobID int64, conn *websocket.Conn) error 
 			Progress: job.Progress,
 			Message:  "Connected to job monitoring",
 		}
-
-		// Use mutex to safely write to the connection
-		client.WriteMux.Lock()
-		conn.WriteJSON(update)
-		client.WriteMux.Unlock()
-		return nil
+		return client.SafeWrite(update)
 	}
 
 	// Add client to active job
-	jobExec.ClientMux.Lock()
-	jobExec.Clients[client] = true
-	jobExec.ClientMux.Unlock()
-
+	jobExec.Manager.AddClient(client)
 	return nil
 }
 
@@ -276,19 +236,16 @@ func (s *OpsJobService) UnregisterClient(jobID int64, conn *websocket.Conn) {
 	}
 
 	// Find and remove the client
-	jobExec.ClientMux.Lock()
-	for clientConn := range jobExec.Clients {
-		if clientConn.Conn == conn {
-			delete(jobExec.Clients, clientConn)
+	for client := range jobExec.Manager.Clients {
+		if client.Conn == conn {
+			jobExec.Manager.RemoveClient(client)
 			break
 		}
 	}
-	jobExec.ClientMux.Unlock()
 }
 
 // executeJob simulates a job execution with progress updates
 func (s *OpsJobService) executeJob(ctx context.Context, jobID int64) {
-	// Simulate job execution with random progress updates
 	totalSteps := 10
 	logLines := []string{
 		"Initializing job execution...",
@@ -306,23 +263,19 @@ func (s *OpsJobService) executeJob(ctx context.Context, jobID int64) {
 	for step := 0; step < totalSteps; step++ {
 		select {
 		case <-ctx.Done():
-			// Job was cancelled
 			s.updateJobStatus(jobID, StatusFailed, (step*100)/totalSteps, "Job execution cancelled")
 			s.cleanupJob(jobID)
 			return
 		default:
-			// Update progress
 			progress := ((step + 1) * 100) / totalSteps
 			logLine := logLines[step]
 			s.updateJobStatus(jobID, StatusRunning, progress, logLine)
 
-			// Simulate work
 			sleepTime := time.Duration(2+rand.Intn(3)) * time.Second
 			time.Sleep(sleepTime)
 		}
 	}
 
-	// Job completed successfully
 	s.updateJobStatus(jobID, StatusCompleted, 100, "Job execution completed successfully")
 	s.cleanupJob(jobID)
 }
@@ -356,21 +309,9 @@ func (s *OpsJobService) updateJobStatus(jobID int64, status string, progress int
 	jobExec, exists := s.activeJobs[jobID]
 	s.activeJobsMux.Unlock()
 
-	if !exists {
-		return
+	if exists {
+		jobExec.Manager.BroadcastMessage(update)
 	}
-
-	jobExec.ClientMux.Lock()
-	for client := range jobExec.Clients {
-		// Non-blocking send to avoid deadlocks if client is slow
-		go func(c *ClientConnection, u OpsJobStatusUpdate) {
-			// Use the client's mutex to safely write to the connection
-			c.WriteMux.Lock()
-			c.Conn.WriteJSON(u)
-			c.WriteMux.Unlock()
-		}(client, update)
-	}
-	jobExec.ClientMux.Unlock()
 }
 
 // cleanupJob removes the job from active jobs map
@@ -379,19 +320,12 @@ func (s *OpsJobService) cleanupJob(jobID int64) {
 	defer s.activeJobsMux.Unlock()
 
 	if jobExec, exists := s.activeJobs[jobID]; exists {
-		jobExec.ClientMux.Lock()
-		for client := range jobExec.Clients {
-			// Send final message - use mutex to safely write
-			client.WriteMux.Lock()
-			client.Conn.WriteJSON(OpsJobStatusUpdate{
-				ID:       jobID,
-				Status:   "completed",
-				Progress: 100,
-				Message:  "Job execution finished",
-			})
-			client.WriteMux.Unlock()
-		}
-		jobExec.ClientMux.Unlock()
+		jobExec.Manager.BroadcastMessage(OpsJobStatusUpdate{
+			ID:       jobID,
+			Status:   StatusCompleted,
+			Progress: 100,
+			Message:  "Job execution finished",
+		})
 		delete(s.activeJobs, jobID)
 	}
 }

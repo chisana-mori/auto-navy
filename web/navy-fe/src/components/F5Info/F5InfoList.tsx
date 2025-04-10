@@ -342,8 +342,12 @@ const F5InfoList: React.FC = () => {
       title: '操作',
       key: 'action',
       render: (_, record) => (
-        <Space size="middle">
-          <Button type="link" onClick={() => navigate(`/f5/${record.id}`)}>
+        <Space size={8}>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => navigate(`/f5/${record.id}`)}
+          >
             详情
           </Button>
           {record.ignored ? (
@@ -353,7 +357,11 @@ const F5InfoList: React.FC = () => {
               okText="确定"
               cancelText="取消"
             >
-              <Button type="link" icon={<CheckCircleFilled />}>
+              <Button
+                type="link"
+                size="small"
+                icon={<CheckCircleFilled />}
+              >
                 取消忽略
               </Button>
             </Popconfirm>
@@ -364,7 +372,11 @@ const F5InfoList: React.FC = () => {
               okText="确定"
               cancelText="取消"
             >
-              <Button type="link" icon={<CloseCircleFilled />}>
+              <Button
+                type="link"
+                size="small"
+                icon={<CloseCircleFilled />}
+              >
                 忽略
               </Button>
             </Popconfirm>
