@@ -148,102 +148,100 @@ const DeviceManagement: React.FC = () => {
       dataIndex: 'deviceId',
       key: 'deviceId',
       width: 150,
+      ellipsis: true,
     },
     {
       title: 'IP地址',
       dataIndex: 'ip',
       key: 'ip',
-      width: 120,
+      width: 130,
+      ellipsis: true,
     },
     {
       title: '机器类型',
       dataIndex: 'machineType',
       key: 'machineType',
       width: 120,
+      ellipsis: true,
     },
     {
       title: '所属集群',
       dataIndex: 'cluster',
       key: 'cluster',
       width: 150,
+      ellipsis: true,
     },
     {
       title: '集群角色',
       dataIndex: 'role',
       key: 'role',
       width: 100,
+      ellipsis: true,
     },
     {
       title: '架构',
       dataIndex: 'arch',
       key: 'arch',
       width: 80,
+      ellipsis: true,
     },
     {
       title: 'IDC',
       dataIndex: 'idc',
       key: 'idc',
       width: 80,
+      ellipsis: true,
     },
     {
       title: 'Room',
       dataIndex: 'room',
       key: 'room',
-      width: 100,
-    },
-    {
-      title: '机房',
-      dataIndex: 'datacenter',
-      key: 'datacenter',
-      width: 100,
+      width: 250,
+      ellipsis: { showTitle: false },
+      render: (text) => (
+        <span title={text}>{text}</span>
+      ),
     },
     {
       title: '机柜号',
       dataIndex: 'cabinet',
       key: 'cabinet',
-      width: 80,
+      width: 120,
+      ellipsis: true,
     },
     {
       title: '网络区域',
       dataIndex: 'network',
       key: 'network',
       width: 100,
+      ellipsis: true,
     },
     {
       title: 'APPID',
       dataIndex: 'appId',
       key: 'appId',
       width: 100,
+      ellipsis: true,
     },
     {
       title: '资源池/产品',
       dataIndex: 'resourcePool',
       key: 'resourcePool',
       width: 120,
+      ellipsis: true,
     },
     {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 150,
+      width: 130,
+      align: 'center',
       render: (_, record) => (
-        <div style={{ 
-          display: 'flex',
-          gap: '8px',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          height: '100%',
-          padding: '0 8px',
-          margin: '-12px -16px',
-          minHeight: '46px'
-        }}>
+        <Space size={4} wrap={false} className="action-space">
           <Button
             type="link"
             size="small"
-            style={{ 
-              padding: '4px 8px',
-              height: '28px'
-            }}
+            className="action-button"
             onClick={() => navigate(`/device/${record.id}`)}
           >
             详情
@@ -251,21 +249,18 @@ const DeviceManagement: React.FC = () => {
           <Button
             type="link"
             size="small"
-            style={{ 
-              padding: '4px 8px',
-              height: '28px'
-            }}
+            className="action-button"
             onClick={() => showRoleModal(record)}
           >
             标记
           </Button>
-        </div>
+        </Space>
       ),
     },
   ];
 
   return (
-    <>
+    <div style={{ padding: '24px' }}>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -274,7 +269,26 @@ const DeviceManagement: React.FC = () => {
           </div>
         }
         className="device-management-card"
-        extra={
+      >
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="search-container" style={{ display: 'flex', alignItems: 'center' }}>
+            <Input
+              placeholder="输入关键字搜索所有字段"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              onKeyPress={handleKeyPress}
+              prefix={<SearchOutlined />}
+              allowClear
+              style={{ width: 300 }}
+            />
+            <Button
+              type="primary"
+              onClick={handleSearch}
+              style={{ marginLeft: 8 }}
+            >
+              搜索
+            </Button>
+          </div>
           <Space>
             <Button
               icon={<DownloadOutlined />}
@@ -292,25 +306,6 @@ const DeviceManagement: React.FC = () => {
               刷新
             </Button>
           </Space>
-        }
-      >
-        <div className="search-container">
-          <Input
-            placeholder="输入关键字搜索所有字段"
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            onKeyPress={handleKeyPress}
-            prefix={<SearchOutlined />}
-            allowClear
-            style={{ width: 300, marginBottom: 0 }}
-          />
-          <Button
-            type="primary"
-            onClick={handleSearch}
-            style={{ marginLeft: 8 }}
-          >
-            搜索
-          </Button>
         </div>
 
         <Table
@@ -327,8 +322,8 @@ const DeviceManagement: React.FC = () => {
             showQuickJumper: true,
           }}
           onChange={handleTableChange}
-          scroll={{ x: 1500 }}
           size="middle"
+          scroll={{ x: 1700 }}
         />
       </Card>
 
@@ -358,7 +353,7 @@ const DeviceManagement: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </>
+    </div>
   );
 };
 

@@ -1068,7 +1068,7 @@ const CalicoNetworkTopology: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '24px' }}>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1076,8 +1076,9 @@ const CalicoNetworkTopology: React.FC = () => {
             <span>Calico网络管理</span>
           </div>
         }
-        extra={
-          <Space>
+      >
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <Input
               placeholder="输入Calico集群..."
               value={searchText}
@@ -1086,10 +1087,10 @@ const CalicoNetworkTopology: React.FC = () => {
               style={{ width: 200 }}
               prefix={<SearchOutlined />}
             />
-            <Button type="primary">查询</Button>
-          </Space>
-        }
-      >
+            <Button type="primary" style={{ marginLeft: 8 }}>查询</Button>
+          </div>
+        </div>
+
         <Table
           columns={columns}
           dataSource={data}
@@ -1097,7 +1098,6 @@ const CalicoNetworkTopology: React.FC = () => {
           loading={loading}
           bordered
           size="middle"
-          scroll={{ x: 'max-content' }}
           pagination={{
             defaultPageSize: 10,
             showQuickJumper: true,

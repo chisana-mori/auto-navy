@@ -358,7 +358,7 @@ const OpsManagement: React.FC = () => {
   ];
 
   return (
-    <div style={{ marginBottom: '24px' }}>
+    <div style={{ padding: '24px' }}>
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -366,7 +366,8 @@ const OpsManagement: React.FC = () => {
             <span style={{ fontSize: '18px', fontWeight: 500 }}>运维管理</span>
           </div>
         }
-        extra={
+      >
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
           <Space>
             <Button
               icon={<ReloadOutlined />}
@@ -382,8 +383,8 @@ const OpsManagement: React.FC = () => {
               提交运维任务
             </Button>
           </Space>
-        }
-      >
+        </div>
+
         <Table
           columns={columns}
           dataSource={data}
