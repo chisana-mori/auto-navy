@@ -637,7 +637,7 @@ const DeviceQuerySimple: React.FC = () => {
                 updateFilterBlock(groupId, block.id, { value });
               }}
               style={{ width: 200 }}
-              mode={block.type !== FilterType.Device ? 'multiple' : undefined}
+              mode={(block.type !== FilterType.Device || block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn) ? 'multiple' : undefined}
               loading={loadingValues}
               showSearch
               optionFilterProp="children"
@@ -791,7 +791,7 @@ const DeviceQuerySimple: React.FC = () => {
   // 添加搜索过滤函数
   const filterTemplates = (templates: QueryTemplate[], keyword: string) => {
     if (!keyword) return templates;
-    return templates.filter(template => 
+    return templates.filter(template =>
       template.name.toLowerCase().includes(keyword.toLowerCase())
     );
   };

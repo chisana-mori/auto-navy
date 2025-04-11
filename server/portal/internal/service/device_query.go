@@ -475,8 +475,14 @@ func (s *DeviceQueryService) applyNodeLabelFilter(query *gorm.DB, block FilterBl
 	escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
 	escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
 
-	// 直接JOIN k8s_node_label表，因为k8s_node表已经在主查询中JOIN了
-	query = query.Joins("LEFT JOIN k8s_node_label nl ON kn.id = nl.node_id AND nl.key = ?", block.Key)
+	// 获取当天的开始和结束时间
+	todayStart := now.BeginningOfDay()
+	todayEnd := now.EndOfDay()
+
+	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
+	// 并且只查询当天的标签数据
+	query = query.Joins("INNER JOIN k8s_node_label nl ON kn.id = nl.node_id AND nl.key = ? AND nl.created_at BETWEEN ? AND ?",
+		block.Key, todayStart, todayEnd)
 
 	switch block.ConditionType {
 	case ConditionTypeEqual:
@@ -514,8 +520,14 @@ func (s *DeviceQueryService) applyTaintFilter(query *gorm.DB, block FilterBlock)
 	escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
 	escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
 
-	// 直接JOIN k8s_node_taint表，因为k8s_node表已经在主查询中JOIN了
-	query = query.Joins("LEFT JOIN k8s_node_taint nt ON kn.id = nt.node_id AND nt.key = ?", block.Key)
+	// 获取当天的开始和结束时间
+	todayStart := now.BeginningOfDay()
+	todayEnd := now.EndOfDay()
+
+	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
+	// 并且只查询当天的污点数据
+	query = query.Joins("INNER JOIN k8s_node_taint nt ON kn.id = nt.node_id AND nt.key = ? AND nt.created_at BETWEEN ? AND ?",
+		block.Key, todayStart, todayEnd)
 
 	switch block.ConditionType {
 	case ConditionTypeEqual:
