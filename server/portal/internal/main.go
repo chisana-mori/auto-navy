@@ -8,7 +8,7 @@ import (
 
 	"navy-ng/server/portal/internal/database"
 	"navy-ng/server/portal/internal/routers"
-	"navy-ng/server/portal/internal/service"
+	// "navy-ng/server/portal/internal/service" // Service is no longer directly used here
 )
 
 // @title           Navy-NG API
@@ -25,6 +25,9 @@ import (
 
 // @host      localhost:8080
 // @BasePath  /fe-v1
+// @securityDefinitions.basic BasicAuth
+// @in header
+// @name Authorization
 
 func main() {
 	// 初始化数据库连接
@@ -38,17 +41,11 @@ func main() {
 		log.Fatalf("failed to generate test data: %v", err)
 	}
 
-	// 初始化服务
-	f5Service := service.NewF5InfoService(db)
-	opsService := service.NewOpsJobService(db)
-	deviceService := service.NewDeviceService(db)
-	deviceQueryService := service.NewDeviceQueryService(db)
-
-	// 初始化路由处理器
-	f5Handler := routers.NewF5InfoHandler(f5Service)
-	opsHandler := routers.NewOpsJobHandler(opsService)
-	deviceHandler := routers.NewDeviceHandler(deviceService)
-	deviceQueryHandler := routers.NewDeviceQueryHandler(deviceQueryService)
+	// 初始化路由处理器 (Service 实例化移至 Handler 构造函数)
+	f5Handler := routers.NewF5InfoHandler(db)
+	opsHandler := routers.NewOpsJobHandler(db)
+	deviceHandler := routers.NewDeviceHandler(db)
+	deviceQueryHandler := routers.NewDeviceQueryHandler(db)
 
 	// 创建 Gin 引擎
 	r := gin.Default()

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm" // Added import for gorm
 )
 
 // Constants for DeviceHandler
@@ -25,12 +26,13 @@ const (
 
 // DeviceHandler handles HTTP requests related to Device.
 type DeviceHandler struct {
-	deviceService *service.DeviceService
+	service *service.DeviceService // Renamed field for consistency
 }
 
-// NewDeviceHandler creates a new DeviceHandler.
-func NewDeviceHandler(deviceService *service.DeviceService) *DeviceHandler {
-	return &DeviceHandler{deviceService: deviceService}
+// NewDeviceHandler creates a new DeviceHandler, instantiating the service internally.
+func NewDeviceHandler(db *gorm.DB) *DeviceHandler {
+	deviceService := service.NewDeviceService(db) // Instantiate service here
+	return &DeviceHandler{service: deviceService}
 }
 
 // RegisterRoutes registers Device routes with the given router group.
@@ -54,7 +56,7 @@ func (h *DeviceHandler) getDevice(c *gin.Context) {
 		return
 	}
 
-	device, err := h.deviceService.GetDevice(c.Request.Context(), id)
+	device, err := h.service.GetDevice(c.Request.Context(), id)
 	if err != nil {
 		render.NotFound(c, fmt.Sprintf(msgFailedToGetDevice, err.Error()))
 		return
@@ -71,7 +73,7 @@ func (h *DeviceHandler) listDevices(c *gin.Context) {
 		return
 	}
 
-	response, err := h.deviceService.ListDevices(c.Request.Context(), &query)
+	response, err := h.service.ListDevices(c.Request.Context(), &query)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToListDevices, err.Error()))
 		return
@@ -98,7 +100,7 @@ func (h *DeviceHandler) updateDeviceRole(c *gin.Context) {
 	}
 
 	// 更新设备角色
-	err = h.deviceService.UpdateDeviceRole(c.Request.Context(), id, &request)
+	err = h.service.UpdateDeviceRole(c.Request.Context(), id, &request)
 	if err != nil {
 		if strings.Contains(err.Error(), fmt.Sprintf(service.ErrDeviceNotFoundMsg, id)) {
 			render.NotFound(c, err.Error())
@@ -114,7 +116,7 @@ func (h *DeviceHandler) updateDeviceRole(c *gin.Context) {
 
 // exportDevices handles GET /device/export requests.
 func (h *DeviceHandler) exportDevices(c *gin.Context) {
-	data, err := h.deviceService.ExportDevices(c.Request.Context())
+	data, err := h.service.ExportDevices(c.Request.Context())
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToExportDevices, err.Error()))
 		return

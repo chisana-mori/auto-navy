@@ -50,75 +50,44 @@ func (s *DeviceQueryService) applyFilterBlock(query *gorm.DB, block FilterBlock)
 	}
 }
 
+// isValidColumnName performs basic validation on potential column names.
+// WARNING: This is a simplistic check and might not cover all injection vectors.
+// A strict allowlist of known columns is generally safer.
+func isValidColumnName(name string) bool {
+	// Allow only alphanumeric characters and underscores
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_') {
+			return false
+		}
+	}
+	// Prevent overly long names
+	if len(name) == 0 || len(name) > 64 {
+		return false
+	}
+	// Add more checks if needed (e.g., blacklist SQL keywords)
+	return true
+}
+
+
 // applyDeviceFilter 应用设备字段筛选
 func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
-	// 预处理LIKE查询的值，转义特殊字符
-	escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
-	escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
-
-	// 根据字段名构建查询条件
-	var column string
-	switch block.Key {
-	case "machineType", "machine_type":
-		column = "d.machine_type"
-	case "appId", "app_id":
-		column = "d.app_id"
-	case "resourcePool", "resource_pool":
-		column = "d.resource_pool"
-	case "deviceId", "device_id":
-		column = "d.device_id"
-	case "ip":
-		column = "d.ip"
-	case "cluster":
-		column = "d.cluster"
-	case "role":
-		column = "d.role"
-	case "arch":
-		column = "d.arch"
-	case "idc":
-		column = "d.idc"
-	case "room":
-		column = "d.room"
-	case "datacenter":
-		column = "d.datacenter"
-	case "cabinet":
-		column = "d.cabinet"
-	case "network":
-		column = "d.network"
-	default:
-		// 尝试将驼峰命名法转换为下划线命名法
+	column, ok := deviceFieldColumnMap[block.Key]
+	if !ok {
+		// Fallback for keys not in the map: convert camelCase to snake_case
+		// Apply basic validation to the generated column name
 		snakeCase := camelToSnake(block.Key)
+		if !isValidColumnName(snakeCase) {
+			fmt.Printf("Warning: Invalid or potentially unsafe column key detected: %s\n", block.Key)
+			return query // Return unchanged query if the key is suspicious
+		}
 		column = fmt.Sprintf("d.%s", snakeCase)
+		// Consider logging a warning here that a direct map entry is preferred
+		fmt.Printf("Warning: Column key '%s' not found in deviceFieldColumnMap, using generated '%s'. Consider adding it to the map.\n", block.Key, column)
 	}
 
-	switch block.ConditionType {
-	case ConditionTypeEqual:
-		return query.Where(column+" = ?", block.Value)
-	case ConditionTypeNotEqual:
-		return query.Where(column+" != ?", block.Value)
-	case ConditionTypeContains:
-		return query.Where(column+" LIKE ?", "%"+escapedValue+"%")
-	case ConditionTypeNotContains:
-		return query.Where(column+" NOT LIKE ?", "%"+escapedValue+"%")
-	case ConditionTypeIn:
-		// 处理IN查询，将逗号分隔的值转换为切片
-		values := strings.Split(block.Value, ",")
-		// 对每个值进行转义
-		for i, v := range values {
-			values[i] = strings.TrimSpace(v)
-		}
-		return query.Where(column+" IN (?)", values)
-	case ConditionTypeNotIn:
-		// 处理NOT IN查询
-		values := strings.Split(block.Value, ",")
-		// 对每个值进行转义
-		for i, v := range values {
-			values[i] = strings.TrimSpace(v)
-		}
-		return query.Where(column+" NOT IN (?)", values)
-	default:
-		return query
-	}
+	// Build and apply the condition using the helper function
+	conditionScope := buildCondition(column, block.ConditionType, block.Value)
+	return query.Scopes(conditionScope)
 }
 
 // ConditionType 条件类型
@@ -187,6 +156,87 @@ type DeviceQueryRequest struct {
 type DeviceFieldValues struct {
 	Field  string         `json:"field"`
 	Values []FilterOption `json:"values"`
+}
+// deviceFieldColumnMap maps frontend keys to database column names for the device table
+var deviceFieldColumnMap = map[string]string{
+	"machineType":  "d.machine_type",
+	"machine_type": "d.machine_type",
+	"appId":        "d.app_id",
+	"app_id":       "d.app_id",
+	"resourcePool": "d.resource_pool",
+	"resource_pool":"d.resource_pool",
+	"deviceId":     "d.device_id",
+	"device_id":    "d.device_id",
+	"ip":           "d.ip",
+	"cluster":      "d.cluster",
+	"role":         "d.role",
+	"arch":         "d.arch",
+	"idc":          "d.idc",
+	"room":         "d.room",
+	"datacenter":   "d.datacenter",
+	"cabinet":      "d.cabinet",
+	"network":      "d.network",
+	// Add other direct mappings if needed
+}
+
+// buildCondition creates a GORM scope function based on the condition type and value.
+func buildCondition(column string, conditionType ConditionType, value string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		// Escape value for LIKE conditions
+		escapedValue := strings.ReplaceAll(value, "%", "\\%")
+		escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
+
+		switch conditionType {
+		case ConditionTypeEqual:
+			return db.Where(column+" = ?", value)
+		case ConditionTypeNotEqual:
+			// Handle NULL properly for NOT EQUAL
+			return db.Where(fmt.Sprintf("(%s != ? OR %s IS NULL)", column, column), value)
+		case ConditionTypeContains:
+			return db.Where(column+" LIKE ?", "%"+escapedValue+"%")
+		case ConditionTypeNotContains:
+			// Handle NULL properly for NOT CONTAINS
+			return db.Where(fmt.Sprintf("(%s NOT LIKE ? OR %s IS NULL)", column, column), "%"+escapedValue+"%")
+		case ConditionTypeExists:
+			// Check for non-null and non-empty string
+			return db.Where(fmt.Sprintf("%s IS NOT NULL AND %s != ''", column, column))
+		case ConditionTypeNotExists:
+			// Check for null or empty string
+			return db.Where(fmt.Sprintf("%s IS NULL OR %s = ''", column, column))
+		case ConditionTypeIn:
+			values := strings.Split(value, ",")
+			trimmedValues := make([]string, 0, len(values))
+			for _, v := range values {
+				trimmed := strings.TrimSpace(v)
+				if trimmed != "" {
+					trimmedValues = append(trimmedValues, trimmed)
+				}
+			}
+			if len(trimmedValues) == 0 {
+				// Avoid WHERE column IN (NULL) which might behave unexpectedly
+				return db.Where("1 = 0") // Effectively returns no results
+			}
+			return db.Where(column+" IN (?)", trimmedValues)
+		case ConditionTypeNotIn:
+			values := strings.Split(value, ",")
+			trimmedValues := make([]string, 0, len(values))
+			for _, v := range values {
+				trimmed := strings.TrimSpace(v)
+				if trimmed != "" {
+					trimmedValues = append(trimmedValues, trimmed)
+				}
+			}
+			if len(trimmedValues) == 0 {
+				// NOT IN empty set should return all non-null rows
+				return db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+			// Handle NULL properly for NOT IN
+			return db.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), trimmedValues)
+		default:
+			// Unknown condition type, return unchanged query
+			return db
+		}
+	}
 }
 
 // DeviceQueryService 设备查询服务
@@ -344,106 +394,115 @@ func (s *DeviceQueryService) GetTaintValues(ctx context.Context, key string) ([]
 	return options, nil
 }
 
-// QueryDevices 查询设备
-func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryRequest) (*DeviceListResponse, error) {
-	// 构建基础查询
-	query := s.db.WithContext(ctx).Table("device d").
-		Select("d.id, d.device_id as deviceId, d.ip, d.machine_type as machineType, d.cluster, d.role, d.arch, d.idc, d.room, d.datacenter, d.cabinet, d.network, d.app_id as appId, d.resource_pool as resourcePool, d.created_at as createdAt, d.updated_at as updatedAt").
-		Where("d.deleted = ?", "")
-
-	// 检查是否需要关联k8s_node表
-	needJoinK8sNode := false
-	if len(req.Groups) > 0 {
-		for _, group := range req.Groups {
-			for _, block := range group.Blocks {
-				if block.Type == FilterTypeNodeLabel || block.Type == FilterTypeTaint {
-					needJoinK8sNode = true
-					break
-				}
-			}
-			if needJoinK8sNode {
-				break
+// determineRequiredJoins checks if the provided filter groups require joining the k8s_node table.
+// It iterates through all blocks in all groups to see if any filter type is NodeLabel or Taint.
+func determineRequiredJoins(groups []FilterGroup) bool {
+	for _, group := range groups {
+		for _, block := range group.Blocks {
+			if block.Type == FilterTypeNodeLabel || block.Type == FilterTypeTaint {
+				return true
 			}
 		}
 	}
+	return false
+}
 
-	// 仅在需要时添加JOIN
+// buildDeviceQuery constructs the base GORM query for devices.
+// It selects necessary device fields, filters out deleted devices,
+// and optionally adds a LEFT JOIN to the k8s_node table if needed based on filter types.
+func (s *DeviceQueryService) buildDeviceQuery(ctx context.Context, needJoinK8sNode bool) *gorm.DB {
+	query := s.db.WithContext(ctx).Table("device d").
+		Select("d.id, d.device_id, d.ip, d.machine_type, d.cluster, d.role, d.arch, d.idc, d.room, d.datacenter, d.cabinet, d.network, d.app_id, d.resource_pool, d.created_at, d.updated_at").
+		Where("d.deleted = ?", "") // Base condition for not deleted devices
+
 	if needJoinK8sNode {
 		query = query.Joins("LEFT JOIN k8s_node kn ON LOWER(d.device_id) = LOWER(kn.nodename)")
 	}
+	return query
+}
 
-	// 应用筛选条件
-	if len(req.Groups) > 0 {
-		for i, group := range req.Groups {
-			if len(group.Blocks) == 0 {
-				continue
-			}
+// applyFilterGroups applies a list of filter groups to the base query.
+// It iterates through each group and applies its filter blocks using the correct
+// logical operator (AND/OR) between groups.
+func (s *DeviceQueryService) applyFilterGroups(query *gorm.DB, groups []FilterGroup, needJoinK8sNode bool) *gorm.DB {
+	if len(groups) == 0 {
+		return query
+	}
 
-			// 为每个组创建一个子查询
-			subQuery := s.db.WithContext(ctx).Table("device d")
-			if needJoinK8sNode {
-				subQuery = subQuery.Joins("LEFT JOIN k8s_node kn ON LOWER(d.device_id) = LOWER(kn.nodename)")
-			}
-			subQuery = subQuery.Select("d.id")
+	// Use a single transaction block for applying filters if needed, though GORM handles this generally.
+	// We'll build the WHERE clause progressively.
 
+	finalQuery := query // Start with the base query including joins
+
+	for i, group := range groups {
+		if len(group.Blocks) == 0 {
+			continue
+		}
+
+		// Create a scope for the current group's conditions
+		groupScope := func(db *gorm.DB) *gorm.DB {
+			groupQuery := db // Start fresh for this group's AND conditions
 			for _, block := range group.Blocks {
-				subQuery = s.applyFilterBlock(subQuery, block)
+				// Apply each block's filter logic using the appropriate apply function
+				// Note: applyFilterBlock handles the different FilterTypes internally
+				groupQuery = s.applyFilterBlock(groupQuery, block)
 			}
+			return groupQuery
+		}
 
-			// 将子查询应用到主查询
-			if i == 0 {
-				for _, block := range group.Blocks {
-					query = s.applyFilterBlock(query, block)
-				}
-			} else if req.Groups[i-1].Operator == LogicalOperatorOr {
-				subQuery := s.db.WithContext(ctx).Table("device d")
-				if needJoinK8sNode {
-					subQuery = subQuery.Joins("LEFT JOIN k8s_node kn ON LOWER(d.device_id) = LOWER(kn.nodename)")
-				}
-				for _, block := range group.Blocks {
-					subQuery = s.applyFilterBlock(subQuery, block)
-				}
-				subQuery = subQuery.Select("d.id")
-				query = query.Or("d.id IN (?)", subQuery)
-			} else {
-				for _, block := range group.Blocks {
-					query = s.applyFilterBlock(query, block)
-				}
-			}
+		// Apply the group scope with the correct logical operator (AND/OR)
+		if i == 0 {
+			finalQuery = finalQuery.Scopes(groupScope) // First group is always ANDed initially
+		} else if group.Operator == LogicalOperatorOr {
+			// For OR, we need to group the previous conditions if they weren't already ORed
+			// GORM's Or() method handles this correctly when chained.
+			finalQuery = finalQuery.Or(s.db.Scopes(groupScope)) // Apply OR condition
+		} else { // LogicalOperatorAnd or default
+			finalQuery = finalQuery.Scopes(groupScope) // Apply AND condition
 		}
 	}
 
-	// 获取总数
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("failed to count devices: %w", err)
-	}
+	return finalQuery
+}
 
-	// 分页
-	page := req.Page
+
+// executeCountQuery executes a COUNT query on the provided GORM query object.
+// It uses a new session to avoid modifying the original query object which might be used for fetching data later.
+func (s *DeviceQueryService) executeCountQuery(query *gorm.DB) (int64, error) {
+	var total int64
+	// Important: Create a new session for count to avoid modifying the original query object
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return 0, fmt.Errorf("failed to count devices: %w", err)
+	}
+	return total, nil
+}
+
+// executeListQuery executes the main data fetching query with pagination.
+// It applies offset and limit based on the requested page and size,
+// ensuring page and size are within valid ranges.
+func (s *DeviceQueryService) executeListQuery(query *gorm.DB, page, size int) ([]portal.Device, error) {
 	if page <= 0 {
 		page = 1
 	}
-
-	size := req.Size
-	if size <= 0 {
-		size = 10
+	if size <= 0 || size > MaxSize { // Assuming MaxSize is defined elsewhere or use a default
+		size = DefaultSize // Assuming DefaultSize is defined
 	}
-
 	offset := (page - 1) * size
 
-	// 获取设备列表
 	var devices []portal.Device
 	if err := query.Offset(offset).Limit(size).Find(&devices).Error; err != nil {
 		return nil, fmt.Errorf("failed to query devices: %w", err)
 	}
+	return devices, nil
+}
 
-	// 转换为响应格式
+// mapDevicesToResponse converts a slice of portal.Device models to a slice of DeviceResponse DTOs.
+func mapDevicesToResponse(devices []portal.Device) []DeviceResponse {
 	responses := make([]DeviceResponse, len(devices))
 	for i, device := range devices {
 		responses[i] = DeviceResponse{
 			ID:           device.ID,
-			DeviceID:     device.DeviceID,
+			DeviceID:     device.DeviceID, // Use direct field access
 			IP:           device.IP,
 			MachineType:  device.MachineType,
 			Cluster:      device.Cluster,
@@ -456,16 +515,46 @@ func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryR
 			Network:      device.Network,
 			AppID:        device.AppID,
 			ResourcePool: device.ResourcePool,
-			CreatedAt:    time.Time(device.CreatedAt),
+			CreatedAt:    time.Time(device.CreatedAt), // Ensure proper type conversion if needed
 			UpdatedAt:    time.Time(device.UpdatedAt),
 		}
 	}
+	return responses
+}
 
+
+// QueryDevices 查询设备 (Refactored)
+func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryRequest) (*DeviceListResponse, error) {
+	// 1. Determine if JOIN with k8s_node is needed
+	needJoinK8sNode := determineRequiredJoins(req.Groups)
+
+	// 2. Build the base query with necessary JOINs
+	baseQuery := s.buildDeviceQuery(ctx, needJoinK8sNode)
+
+	// 3. Apply filter groups to the query
+	filteredQuery := s.applyFilterGroups(baseQuery, req.Groups, needJoinK8sNode)
+
+	// 4. Execute count query (using a session to avoid modifying filteredQuery)
+	total, err := s.executeCountQuery(filteredQuery.Session(&gorm.Session{})) // Use Session for count
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. Execute list query with pagination
+	devices, err := s.executeListQuery(filteredQuery, req.Page, req.Size)
+	if err != nil {
+		return nil, err
+	}
+
+	// 6. Map results to response DTO
+	responses := mapDevicesToResponse(devices)
+
+	// 7. Return the final response
 	return &DeviceListResponse{
 		List:  responses,
 		Total: total,
-		Page:  page,
-		Size:  size,
+		Page:  req.Page, // Use request page/size or adjusted ones from executeListQuery
+		Size:  req.Size,
 	}, nil
 }
 

@@ -4,11 +4,11 @@ package routers
 import (
 	"fmt"
 	"navy-ng/pkg/middleware/render"
-
 	"navy-ng/server/portal/internal/service"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm" // Added import for gorm
 )
 
 // Constants for HTTP status codes and default values
@@ -28,12 +28,13 @@ const (
 
 // F5InfoHandler handles HTTP requests related to F5Info.
 type F5InfoHandler struct {
-	f5Service *service.F5InfoService
+	service *service.F5InfoService // Renamed field for consistency
 }
 
-// NewF5InfoHandler creates a new F5InfoHandler.
-func NewF5InfoHandler(f5Service *service.F5InfoService) *F5InfoHandler {
-	return &F5InfoHandler{f5Service: f5Service}
+// NewF5InfoHandler creates a new F5InfoHandler, instantiating the service internally.
+func NewF5InfoHandler(db *gorm.DB) *F5InfoHandler {
+	f5Service := service.NewF5InfoService(db) // Instantiate service here
+	return &F5InfoHandler{service: f5Service}
 }
 
 // RegisterRoutes registers F5Info routes with the given router group.
@@ -57,7 +58,7 @@ func (h *F5InfoHandler) getF5Info(c *gin.Context) {
 		return
 	}
 
-	f5Info, err := h.f5Service.GetF5Info(c.Request.Context(), id)
+	f5Info, err := h.service.GetF5Info(c.Request.Context(), id)
 	if err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, id) {
 			render.NotFound(c, err.Error())
@@ -78,7 +79,7 @@ func (h *F5InfoHandler) listF5Infos(c *gin.Context) {
 		return
 	}
 
-	response, err := h.f5Service.ListF5Infos(c.Request.Context(), &query)
+	response, err := h.service.ListF5Infos(c.Request.Context(), &query)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToList, err.Error()))
 		return
@@ -102,7 +103,7 @@ func (h *F5InfoHandler) updateF5Info(c *gin.Context) {
 		return
 	}
 
-	if err := h.f5Service.UpdateF5Info(c.Request.Context(), id, &dto); err != nil {
+	if err := h.service.UpdateF5Info(c.Request.Context(), id, &dto); err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, id) {
 			render.NotFound(c, err.Error())
 		} else {
@@ -123,7 +124,7 @@ func (h *F5InfoHandler) deleteF5Info(c *gin.Context) {
 		return
 	}
 
-	if err := h.f5Service.DeleteF5Info(c.Request.Context(), id); err != nil {
+	if err := h.service.DeleteF5Info(c.Request.Context(), id); err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, id) {
 			render.NotFound(c, err.Error())
 		} else {

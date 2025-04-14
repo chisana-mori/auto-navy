@@ -11,5 +11,5 @@ import (
 // RegisterSwaggerRoutes registers swagger routes.
 func RegisterSwaggerRoutes(r *gin.Engine) {
 	// use ginSwagger middleware to serve the API docs
-	r.GET("/swagger/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
+	r.GET("/swagger/*any", BasicAuthMiddleware(), ginswagger.WrapHandler(swaggerfiles.Handler))
 }

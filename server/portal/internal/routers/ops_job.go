@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"gorm.io/gorm" // Added import for gorm
 )
 
 // Constants for OpsJobHandler
@@ -25,19 +26,21 @@ const (
 
 // OpsJobHandler handles HTTP requests related to OpsJob.
 type OpsJobHandler struct {
-	opsService *service.OpsJobService
-	upgrader   websocket.Upgrader
+	service  *service.OpsJobService // Renamed field for consistency
+	upgrader websocket.Upgrader
 }
 
-// NewOpsJobHandler creates a new OpsJobHandler.
-func NewOpsJobHandler(opsService *service.OpsJobService) *OpsJobHandler {
+// NewOpsJobHandler creates a new OpsJobHandler, instantiating the service internally.
+func NewOpsJobHandler(db *gorm.DB) *OpsJobHandler {
+	opsService := service.NewOpsJobService(db) // Instantiate service here
 	return &OpsJobHandler{
-		opsService: opsService,
+		service: opsService,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
 				// Allow all origins in development
+				// TODO: Implement proper origin checking for production
 				return true
 			},
 		},
@@ -68,7 +71,7 @@ func (h *OpsJobHandler) getOpsJob(c *gin.Context) {
 		return
 	}
 
-	job, err := h.opsService.GetOpsJob(c.Request.Context(), id)
+	job, err := h.service.GetOpsJob(c.Request.Context(), id)
 	if err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrOpsJobNotFoundMsg, id) {
 			render.NotFound(c, err.Error())
@@ -89,7 +92,7 @@ func (h *OpsJobHandler) listOpsJobs(c *gin.Context) {
 		return
 	}
 
-	response, err := h.opsService.ListOpsJobs(c.Request.Context(), &query)
+	response, err := h.service.ListOpsJobs(c.Request.Context(), &query)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToListJobs, err.Error()))
 		return
@@ -106,7 +109,7 @@ func (h *OpsJobHandler) createOpsJob(c *gin.Context) {
 		return
 	}
 
-	job, err := h.opsService.CreateOpsJob(c.Request.Context(), &dto)
+	job, err := h.service.CreateOpsJob(c.Request.Context(), &dto)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToCreateJob, err.Error()))
 		return
@@ -140,7 +143,7 @@ func (h *OpsJobHandler) handleConnection(conn *websocket.Conn, jobID int64) {
 	defer conn.Close()
 
 	// Register client for job updates
-	err := h.opsService.RegisterClient(jobID, conn)
+	err := h.service.RegisterClient(jobID, conn)
 	if err != nil {
 		conn.WriteJSON(map[string]string{"error": err.Error()})
 		return
@@ -151,7 +154,7 @@ func (h *OpsJobHandler) handleConnection(conn *websocket.Conn, jobID int64) {
 		messageType, p, err := conn.ReadMessage()
 		if err != nil {
 			// Client disconnected or error occurred
-			h.opsService.UnregisterClient(jobID, conn)
+			h.service.UnregisterClient(jobID, conn)
 			break
 		}
 
@@ -160,7 +163,7 @@ func (h *OpsJobHandler) handleConnection(conn *websocket.Conn, jobID int64) {
 			message := string(p)
 			if message == "start" {
 				// Start job execution
-				if err := h.opsService.StartJob(jobID, conn); err != nil {
+				if err := h.service.StartJob(jobID, conn); err != nil {
 					conn.WriteJSON(map[string]string{"error": err.Error()})
 				}
 			}

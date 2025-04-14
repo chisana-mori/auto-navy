@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm" // Added import for gorm
 
 	"navy-ng/pkg/middleware/render"
 	"navy-ng/server/portal/internal/service"
@@ -25,12 +26,13 @@ const (
 
 // DeviceQueryHandler handles HTTP requests related to DeviceQuery.
 type DeviceQueryHandler struct {
-	deviceQueryService *service.DeviceQueryService
+	service *service.DeviceQueryService // Renamed field for consistency
 }
 
-// NewDeviceQueryHandler creates a new DeviceQueryHandler.
-func NewDeviceQueryHandler(deviceQueryService *service.DeviceQueryService) *DeviceQueryHandler {
-	return &DeviceQueryHandler{deviceQueryService: deviceQueryService}
+// NewDeviceQueryHandler creates a new DeviceQueryHandler, instantiating the service internally.
+func NewDeviceQueryHandler(db *gorm.DB) *DeviceQueryHandler {
+	deviceQueryService := service.NewDeviceQueryService(db) // Instantiate service here
+	return &DeviceQueryHandler{service: deviceQueryService}
 }
 
 // RegisterRoutes registers DeviceQuery routes with the given router group.
@@ -50,7 +52,7 @@ func (h *DeviceQueryHandler) RegisterRoutes(r *gin.RouterGroup) {
 
 // getFilterOptions handles GET /device-query/filter-options requests.
 func (h *DeviceQueryHandler) getFilterOptions(c *gin.Context) {
-	options, err := h.deviceQueryService.GetFilterOptions(c.Request.Context())
+	options, err := h.service.GetFilterOptions(c.Request.Context())
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetFilterOptions, err.Error()))
 		return
@@ -67,7 +69,7 @@ func (h *DeviceQueryHandler) getLabelValues(c *gin.Context) {
 		return
 	}
 
-	values, err := h.deviceQueryService.GetLabelValues(c.Request.Context(), key)
+	values, err := h.service.GetLabelValues(c.Request.Context(), key)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetLabelValues, err.Error()))
 		return
@@ -84,7 +86,7 @@ func (h *DeviceQueryHandler) getTaintValues(c *gin.Context) {
 		return
 	}
 
-	values, err := h.deviceQueryService.GetTaintValues(c.Request.Context(), key)
+	values, err := h.service.GetTaintValues(c.Request.Context(), key)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetTaintValues, err.Error()))
 		return
@@ -101,7 +103,7 @@ func (h *DeviceQueryHandler) queryDevices(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.deviceQueryService.QueryDevices(c.Request.Context(), &req)
+	resp, err := h.service.QueryDevices(c.Request.Context(), &req)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToQueryDevices, err.Error()))
 		return
@@ -118,7 +120,7 @@ func (h *DeviceQueryHandler) saveTemplate(c *gin.Context) {
 		return
 	}
 
-	err := h.deviceQueryService.SaveQueryTemplate(c.Request.Context(), &template)
+	err := h.service.SaveQueryTemplate(c.Request.Context(), &template)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToSaveTemplate, err.Error()))
 		return
@@ -129,7 +131,7 @@ func (h *DeviceQueryHandler) saveTemplate(c *gin.Context) {
 
 // getTemplates handles GET /device-query/templates requests.
 func (h *DeviceQueryHandler) getTemplates(c *gin.Context) {
-	templates, err := h.deviceQueryService.GetQueryTemplates(c.Request.Context())
+	templates, err := h.service.GetQueryTemplates(c.Request.Context())
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetTemplates, err.Error()))
 		return
@@ -152,7 +154,7 @@ func (h *DeviceQueryHandler) getTemplate(c *gin.Context) {
 		return
 	}
 
-	template, err := h.deviceQueryService.GetQueryTemplate(c.Request.Context(), id)
+	template, err := h.service.GetQueryTemplate(c.Request.Context(), id)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetTemplate, err.Error()))
 		return
@@ -175,7 +177,7 @@ func (h *DeviceQueryHandler) deleteTemplate(c *gin.Context) {
 		return
 	}
 
-	err = h.deviceQueryService.DeleteQueryTemplate(c.Request.Context(), id)
+	err = h.service.DeleteQueryTemplate(c.Request.Context(), id)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToDeleteTemplate, err.Error()))
 		return
