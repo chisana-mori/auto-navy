@@ -1,6 +1,6 @@
 package portal
 
-// K8sNodeLabel 表示 Kubernetes 节点标签信息
+// K8sNodeLabel 表示 Kubernetes 节点标签信息.
 type K8sNodeLabel struct {
 	BaseModel
 	Key     string `gorm:"column:key;type:varchar(191)" json:"key"`         // 标签key
@@ -10,7 +10,7 @@ type K8sNodeLabel struct {
 	Node    *K8sNode `gorm:"foreignKey:NodeID" json:"node,omitempty"`      // 关联的节点信息
 }
 
-// TableName 指定表名
+// TableName 指定表名.
 func (K8sNodeLabel) TableName() string {
 	return "k8s_node_label"
 }

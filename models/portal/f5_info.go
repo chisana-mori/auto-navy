@@ -2,7 +2,7 @@ package portal
 
 import "time"
 
-// F5Info F5负载均衡信息
+// F5Info F5负载均衡信息.
 type F5Info struct {
 	BaseModel
 	Name          string     `gorm:"column:name;type:varchar(255);not null" json:"name"`              // 名称
@@ -24,7 +24,7 @@ type F5Info struct {
 	Deleted       string     `gorm:"column:deleted;type:varchar(255)" json:"deleted,omitempty"`       // 软删除标记
 }
 
-// TableName 指定表名
+// TableName 指定表名.
 func (F5Info) TableName() string {
 	return "f5_info"
 }

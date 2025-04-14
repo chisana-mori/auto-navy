@@ -1,6 +1,10 @@
+/*
+Package main 是 Navy-NG 后端服务的入口点。
+*/
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 
@@ -8,7 +12,7 @@ import (
 
 	"navy-ng/server/portal/internal/database"
 	"navy-ng/server/portal/internal/routers"
-	// "navy-ng/server/portal/internal/service" // Service is no longer directly used here
+	// "navy-ng/server/portal/internal/service" // Service is no longer directly used here.
 )
 
 // @title           Navy-NG API
@@ -66,7 +70,7 @@ func main() {
 	// 启动服务器
 	port := ":8081" // 使用不同的端口
 	log.Printf("Starting server on %s", port)
-	if err := r.Run(port); err != nil && err != http.ErrServerClosed {
+	if err := r.Run(port); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("Failed to run server: %v", err)
 	}
 }

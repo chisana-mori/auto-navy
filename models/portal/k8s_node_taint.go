@@ -1,6 +1,6 @@
 package portal
 
-// K8sNodeTaint 表示 Kubernetes 节点污点信息
+// K8sNodeTaint 表示 Kubernetes 节点污点信息.
 type K8sNodeTaint struct {
 	BaseModel
 	Key     string `gorm:"column:key;type:varchar(191)" json:"key"`         // 污点key
@@ -11,7 +11,7 @@ type K8sNodeTaint struct {
 	Node    *K8sNode `gorm:"foreignKey:NodeID" json:"node,omitempty"`      // 关联的节点信息
 }
 
-// TableName 指定表名
+// TableName 指定表名.
 func (K8sNodeTaint) TableName() string {
 	return "k8s_node_taint"
 }

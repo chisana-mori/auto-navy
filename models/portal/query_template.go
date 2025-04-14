@@ -1,6 +1,6 @@
 package portal
 
-// QueryTemplate 查询模板
+// QueryTemplate 查询模板.
 type QueryTemplate struct {
 	BaseModel
 	Name        string `gorm:"column:name;type:varchar(255);not null" json:"name"`    // 模板名称
@@ -10,7 +10,7 @@ type QueryTemplate struct {
 	UpdatedBy   string `gorm:"column:updated_by;type:varchar(255)" json:"updated_by"` // 更新者
 }
 
-// TableName 返回表名
+// TableName 返回表名.
 func (QueryTemplate) TableName() string {
 	return "query_template"
 }

@@ -1,6 +1,9 @@
+/*
+Package portal 提供数据模型定义.
+*/
 package portal
 
-// Device 设备信息
+// Device 设备信息.
 type Device struct {
 	BaseModel
 	DeviceID     string    `gorm:"column:device_id;type:varchar(255);not null;index" json:"deviceId"`     // 设备ID
@@ -19,7 +22,7 @@ type Device struct {
 	Deleted      string    `gorm:"column:deleted;type:varchar(255)" json:"deleted,omitempty"`              // 软删除标记
 }
 
-// TableName 指定表名
+// TableName 指定表名.
 func (Device) TableName() string {
 	return "device"
 }

@@ -6,20 +6,20 @@ import (
 	"time"
 )
 
-// NavyTime 自定义时间类型
+// NavyTime 自定义时间类型.
 type NavyTime time.Time
 
 const (
 	timeFormat = "2006-01-02"
 )
 
-// MarshalJSON 实现json序列化接口
+// MarshalJSON 实现json序列化接口.
 func (t NavyTime) MarshalJSON() ([]byte, error) {
 	formatted := fmt.Sprintf("\"%s\"", time.Time(t).Format(timeFormat))
 	return []byte(formatted), nil
 }
 
-// UnmarshalJSON 实现json反序列化接口
+// UnmarshalJSON 实现json反序列化接口.
 func (t *NavyTime) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" {
 		return nil
@@ -34,12 +34,12 @@ func (t *NavyTime) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Value 实现 driver.Valuer 接口
+// Value 实现 driver.Valuer 接口.
 func (t NavyTime) Value() (driver.Value, error) {
 	return time.Time(t), nil
 }
 
-// Scan 实现 sql.Scanner 接口
+// Scan 实现 sql.Scanner 接口.
 func (t *NavyTime) Scan(value interface{}) error {
 	if value == nil {
 		return nil
@@ -53,7 +53,7 @@ func (t *NavyTime) Scan(value interface{}) error {
 	return nil
 }
 
-// String 实现 Stringer 接口
+// String 实现 Stringer 接口.
 func (t NavyTime) String() string {
 	return time.Time(t).Format(timeFormat)
 } 

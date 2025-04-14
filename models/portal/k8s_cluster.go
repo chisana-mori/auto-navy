@@ -2,7 +2,7 @@ package portal
 
 import "time"
 
-// K8sCluster K8s集群信息
+// K8sCluster K8s集群信息.
 type K8sCluster struct {
 	BaseModel
 	Name      string    `gorm:"column:name;type:varchar(255);not null" json:"name"`       // 集群名称
@@ -15,7 +15,7 @@ type K8sCluster struct {
 	Nodes     []K8sNode `gorm:"foreignKey:K8sClusterID" json:"nodes,omitempty"`          // 关联的节点列表
 }
 
-// TableName 指定表名
+// TableName 指定表名.
 func (K8sCluster) TableName() string {
 	return "k8s_cluster"
 } 
