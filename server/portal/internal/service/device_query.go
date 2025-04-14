@@ -14,6 +14,45 @@ import (
 	"navy-ng/models/portal"
 )
 
+// SQL 常量定义
+const (
+	// 表别名
+	TableAliasDevice    = "d"
+	TableAliasK8sNode   = "kn"
+	TableAliasNodeLabel = "nl"
+	TableAliasNodeTaint = "nt"
+
+	// 表连接SQL
+	SQLJoinK8sNode   = "INNER JOIN k8s_node %s ON LOWER(%s.device_id) = LOWER(%s.nodename)"
+	SQLJoinNodeLabel = "INNER JOIN k8s_node_label %s ON %s.id = %s.node_id AND %s.key = ? AND %s.created_at BETWEEN ? AND ?"
+	SQLJoinNodeTaint = "INNER JOIN k8s_node_taint %s ON %s.id = %s.node_id AND %s.key = ? AND %s.created_at BETWEEN ? AND ?"
+
+	// 查询条件SQL模板
+	SQLConditionEqual       = "%s.value = ?"
+	SQLConditionNotEqual    = "%s.value != ? OR %s.value IS NULL"
+	SQLConditionContains    = "%s.value LIKE ?"
+	SQLConditionNotContains = "%s.value NOT LIKE ? OR %s.value IS NULL"
+	SQLConditionExists      = "%s.value IS NOT NULL"
+	SQLConditionNotExists   = "%s.value IS NULL"
+	SQLConditionIn          = "%s.value IN (?)"
+	SQLConditionNotIn       = "%s.value NOT IN (?) OR %s.value IS NULL"
+
+	// 设备字段映射
+	DeviceFieldMachineType  = "machine_type"
+	DeviceFieldAppID        = "app_id"
+	DeviceFieldResourcePool = "resource_pool"
+	DeviceFieldDeviceID     = "device_id"
+	DeviceFieldIP           = "ip"
+	DeviceFieldCluster      = "cluster"
+	DeviceFieldRole         = "role"
+	DeviceFieldArch         = "arch"
+	DeviceFieldIDC          = "idc"
+	DeviceFieldRoom         = "room"
+	DeviceFieldDatacenter   = "datacenter"
+	DeviceFieldCabinet      = "cabinet"
+	DeviceFieldNetwork      = "network"
+)
+
 // camelToSnake 将驼峰命名法转换为下划线命名法
 func camelToSnake(s string) string {
 	// 在大写字母前添加下划线，然后将所有字母转换为小写
@@ -67,7 +106,6 @@ func isValidColumnName(name string) bool {
 	// Add more checks if needed (e.g., blacklist SQL keywords)
 	return true
 }
-
 
 // applyDeviceFilter 应用设备字段筛选
 func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
@@ -157,25 +195,26 @@ type DeviceFieldValues struct {
 	Field  string         `json:"field"`
 	Values []FilterOption `json:"values"`
 }
+
 // deviceFieldColumnMap maps frontend keys to database column names for the device table
 var deviceFieldColumnMap = map[string]string{
-	"machineType":  "d.machine_type",
-	"machine_type": "d.machine_type",
-	"appId":        "d.app_id",
-	"app_id":       "d.app_id",
-	"resourcePool": "d.resource_pool",
-	"resource_pool":"d.resource_pool",
-	"deviceId":     "d.device_id",
-	"device_id":    "d.device_id",
-	"ip":           "d.ip",
-	"cluster":      "d.cluster",
-	"role":         "d.role",
-	"arch":         "d.arch",
-	"idc":          "d.idc",
-	"room":         "d.room",
-	"datacenter":   "d.datacenter",
-	"cabinet":      "d.cabinet",
-	"network":      "d.network",
+	"machineType":   "d.machine_type",
+	"machine_type":  "d.machine_type",
+	"appId":         "d.app_id",
+	"app_id":        "d.app_id",
+	"resourcePool":  "d.resource_pool",
+	"resource_pool": "d.resource_pool",
+	"deviceId":      "d.device_id",
+	"device_id":     "d.device_id",
+	"ip":            "d.ip",
+	"cluster":       "d.cluster",
+	"role":          "d.role",
+	"arch":          "d.arch",
+	"idc":           "d.idc",
+	"room":          "d.room",
+	"datacenter":    "d.datacenter",
+	"cabinet":       "d.cabinet",
+	"network":       "d.network",
 	// Add other direct mappings if needed
 }
 
@@ -250,8 +289,8 @@ func NewDeviceQueryService(db *gorm.DB) *DeviceQueryService {
 }
 
 // GetFilterOptions 获取筛选选项
-func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]interface{}, error) {
-	options := make(map[string]interface{})
+func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]any, error) {
+	options := make(map[string]any)
 
 	todayStart := now.BeginningOfDay()
 	todayEnd := now.EndOfDay()
@@ -465,7 +504,6 @@ func (s *DeviceQueryService) applyFilterGroups(query *gorm.DB, groups []FilterGr
 	return finalQuery
 }
 
-
 // executeCountQuery executes a COUNT query on the provided GORM query object.
 // It uses a new session to avoid modifying the original query object which might be used for fetching data later.
 func (s *DeviceQueryService) executeCountQuery(query *gorm.DB) (int64, error) {
@@ -522,7 +560,6 @@ func mapDevicesToResponse(devices []portal.Device) []DeviceResponse {
 	return responses
 }
 
-
 // QueryDevices 查询设备 (Refactored)
 func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryRequest) (*DeviceListResponse, error) {
 	// 1. Determine if JOIN with k8s_node is needed
@@ -558,94 +595,81 @@ func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryR
 	}, nil
 }
 
+// escapeValue 转义特殊字符
+func escapeValue(value string) string {
+	escaped := strings.ReplaceAll(value, "%", "\\%")
+	return strings.ReplaceAll(escaped, "_", "\\_")
+}
+
+// splitAndTrimValues 将逗号分隔的字符串分割并去除空格
+func splitAndTrimValues(value string) []string {
+	values := strings.Split(value, ",")
+	for i, v := range values {
+		values[i] = strings.TrimSpace(v)
+	}
+	return values
+}
+
+// applyValueCondition 应用值条件
+func (s *DeviceQueryService) applyValueCondition(query *gorm.DB, block FilterBlock, tableAlias string) *gorm.DB {
+	switch block.ConditionType {
+	case ConditionTypeEqual:
+		return query.Where(fmt.Sprintf(SQLConditionEqual, tableAlias), block.Value)
+	case ConditionTypeNotEqual:
+		return query.Where(fmt.Sprintf(SQLConditionNotEqual, tableAlias, tableAlias), block.Value)
+	case ConditionTypeContains:
+		escapedValue := escapeValue(block.Value)
+		return query.Where(fmt.Sprintf(SQLConditionContains, tableAlias), "%"+escapedValue+"%")
+	case ConditionTypeNotContains:
+		escapedValue := escapeValue(block.Value)
+		return query.Where(fmt.Sprintf(SQLConditionNotContains, tableAlias, tableAlias), "%"+escapedValue+"%")
+	case ConditionTypeExists:
+		return query.Where(fmt.Sprintf(SQLConditionExists, tableAlias))
+	case ConditionTypeNotExists:
+		return query.Where(fmt.Sprintf(SQLConditionNotExists, tableAlias))
+	case ConditionTypeIn:
+		values := splitAndTrimValues(block.Value)
+		return query.Where(fmt.Sprintf(SQLConditionIn, tableAlias), values)
+	case ConditionTypeNotIn:
+		values := splitAndTrimValues(block.Value)
+		return query.Where(fmt.Sprintf(SQLConditionNotIn, tableAlias, tableAlias), values)
+	default:
+		return query
+	}
+}
+
 // applyNodeLabelFilter 应用节点标签筛选
 func (s *DeviceQueryService) applyNodeLabelFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
-	// 预处理LIKE查询的值，转义特殊字符
-	escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
-	escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
-
 	// 获取当天的开始和结束时间
 	todayStart := now.BeginningOfDay()
 	todayEnd := now.EndOfDay()
 
 	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
 	// 并且只查询当天的标签数据
-	query = query.Joins("INNER JOIN k8s_node_label nl ON kn.id = nl.node_id AND nl.key = ? AND nl.created_at BETWEEN ? AND ?",
-		block.Key, todayStart, todayEnd)
+	query = query.Joins(
+		fmt.Sprintf(SQLJoinNodeLabel, TableAliasNodeLabel, TableAliasK8sNode, TableAliasNodeLabel, TableAliasNodeLabel, TableAliasNodeLabel),
+		block.Key, todayStart, todayEnd,
+	)
 
-	switch block.ConditionType {
-	case ConditionTypeEqual:
-		return query.Where("nl.value = ?", block.Value)
-	case ConditionTypeNotEqual:
-		return query.Where("nl.value != ? OR nl.value IS NULL", block.Value)
-	case ConditionTypeContains:
-		return query.Where("nl.value LIKE ?", "%"+escapedValue+"%")
-	case ConditionTypeNotContains:
-		return query.Where("nl.value NOT LIKE ? OR nl.value IS NULL", "%"+escapedValue+"%")
-	case ConditionTypeExists:
-		return query.Where("nl.value IS NOT NULL")
-	case ConditionTypeNotExists:
-		return query.Where("nl.value IS NULL")
-	case ConditionTypeIn:
-		values := strings.Split(block.Value, ",")
-		for i, v := range values {
-			values[i] = strings.TrimSpace(v)
-		}
-		return query.Where("nl.value IN (?)", values)
-	case ConditionTypeNotIn:
-		values := strings.Split(block.Value, ",")
-		for i, v := range values {
-			values[i] = strings.TrimSpace(v)
-		}
-		return query.Where("nl.value NOT IN (?) OR nl.value IS NULL", values)
-	default:
-		return query
-	}
+	// 应用值条件
+	return s.applyValueCondition(query, block, TableAliasNodeLabel)
 }
 
 // applyTaintFilter 应用污点筛选
 func (s *DeviceQueryService) applyTaintFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
-	// 预处理LIKE查询的值，转义特殊字符
-	escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
-	escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
-
 	// 获取当天的开始和结束时间
 	todayStart := now.BeginningOfDay()
 	todayEnd := now.EndOfDay()
 
 	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
 	// 并且只查询当天的污点数据
-	query = query.Joins("INNER JOIN k8s_node_taint nt ON kn.id = nt.node_id AND nt.key = ? AND nt.created_at BETWEEN ? AND ?",
-		block.Key, todayStart, todayEnd)
+	query = query.Joins(
+		fmt.Sprintf(SQLJoinNodeTaint, TableAliasNodeTaint, TableAliasK8sNode, TableAliasNodeTaint, TableAliasNodeTaint, TableAliasNodeTaint),
+		block.Key, todayStart, todayEnd,
+	)
 
-	switch block.ConditionType {
-	case ConditionTypeEqual:
-		return query.Where("nt.value = ?", block.Value)
-	case ConditionTypeNotEqual:
-		return query.Where("nt.value != ? OR nt.value IS NULL", block.Value)
-	case ConditionTypeContains:
-		return query.Where("nt.value LIKE ?", "%"+escapedValue+"%")
-	case ConditionTypeNotContains:
-		return query.Where("nt.value NOT LIKE ? OR nt.value IS NULL", "%"+escapedValue+"%")
-	case ConditionTypeExists:
-		return query.Where("nt.value IS NOT NULL")
-	case ConditionTypeNotExists:
-		return query.Where("nt.value IS NULL")
-	case ConditionTypeIn:
-		values := strings.Split(block.Value, ",")
-		for i, v := range values {
-			values[i] = strings.TrimSpace(v)
-		}
-		return query.Where("nt.value IN (?)", values)
-	case ConditionTypeNotIn:
-		values := strings.Split(block.Value, ",")
-		for i, v := range values {
-			values[i] = strings.TrimSpace(v)
-		}
-		return query.Where("nt.value NOT IN (?) OR nt.value IS NULL", values)
-	default:
-		return query
-	}
+	// 应用值条件
+	return s.applyValueCondition(query, block, TableAliasNodeTaint)
 }
 
 // SaveQueryTemplate 保存查询模板

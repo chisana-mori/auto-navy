@@ -29,6 +29,8 @@ navy-ng/
 │           ├── routers/   # Gin路由定义与控制器
 │           └── service/   # 业务逻辑实现
 │
+├── job/                   # 巡检任务job
+│   └── email/             # 任务job集合，每个job对应发送一种类型的邮件
 ├── web/                   # 前端应用层
 │   └── navy-fe/           # React前端项目
 │
