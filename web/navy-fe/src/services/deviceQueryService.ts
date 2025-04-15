@@ -20,17 +20,32 @@ export async function getFilterOptions(): Promise<Record<string, FilterOption[]>
   // 确保设备字段选项存在
   if (!result.deviceFields) {
     result.deviceFields = [
+      { id: 'ci_code', label: '设备编码', value: 'ci_code' },
       { id: 'ip', label: 'IP地址', value: 'ip' },
-      { id: 'machineType', label: '机器类型', value: 'machineType' },
-      { id: 'role', label: '集群角色', value: 'role' },
-      { id: 'arch', label: '架构', value: 'arch' },
+      { id: 'arch_type', label: 'CPU架构', value: 'arch_type' },
       { id: 'idc', label: 'IDC', value: 'idc' },
-      { id: 'room', label: 'Room', value: 'room' },
-      { id: 'datacenter', label: '机房', value: 'datacenter' },
-      { id: 'cabinet', label: '机柜号', value: 'cabinet' },
-      { id: 'network', label: '网络区域', value: 'network' },
-      { id: 'appId', label: 'APPID', value: 'appId' },
-      { id: 'resourcePool', label: '资源池/产品', value: 'resourcePool' }
+      { id: 'room', label: '机房', value: 'room' },
+      { id: 'cabinet', label: '所属机柜', value: 'cabinet' },
+      { id: 'cabinet_no', label: '机柜编号', value: 'cabinet_no' },
+      { id: 'infra_type', label: '网络类型', value: 'infra_type' },
+      { id: 'is_localization', label: '是否国产化', value: 'is_localization' },
+      { id: 'net_zone', label: '网络区域', value: 'net_zone' },
+      { id: 'group', label: '机器类别', value: 'group' },
+      { id: 'appid', label: 'APPID', value: 'appid' },
+      { id: 'os_create_time', label: '操作系统创建时间', value: 'os_create_time' },
+      { id: 'cpu', label: 'CPU数量', value: 'cpu' },
+      { id: 'memory', label: '内存大小', value: 'memory' },
+      { id: 'model', label: '型号', value: 'model' },
+      { id: 'kvm_ip', label: 'KVM IP', value: 'kvm_ip' },
+      { id: 'os', label: '操作系统', value: 'os' },
+      { id: 'company', label: '厂商', value: 'company' },
+      { id: 'os_name', label: '操作系统名称', value: 'os_name' },
+      { id: 'os_issue', label: '操作系统版本', value: 'os_issue' },
+      { id: 'os_kernel', label: '操作系统内核', value: 'os_kernel' },
+      { id: 'status', label: '状态', value: 'status' },
+      { id: 'role', label: '角色', value: 'role' },
+      { id: 'cluster', label: '所属集群', value: 'cluster' },
+      { id: 'cluster_id', label: '集群ID', value: 'cluster_id' }
     ];
   }
 
@@ -51,6 +66,14 @@ export async function getTaintValues(key: string): Promise<string[]> {
   return request(`${BASE_URL}/taint-values`, {
     method: 'GET',
     params: { key },
+  });
+}
+
+// 获取设备字段值
+export async function getDeviceFieldValues(field: string): Promise<string[]> {
+  return request(`${BASE_URL}/device-field-values`, {
+    method: 'GET',
+    params: { field },
   });
 }
 

@@ -36,20 +36,32 @@ func GenerateDevicesFromK8sNodes(db *gorm.DB) error {
 
 		// 创建设备数据
 		device := portal.Device{
-			DeviceID:     node.NodeName,
-			IP:           node.HostIP,
-			MachineType:  getNodeMachineType(node),
-			Cluster:      cluster.Name,
-			Role:         node.Role,
-			Arch:         "x86_64",
-			IDC:          getNodeIDC(node, cluster),
-			Room:         getNodeRoom(node, cluster),
-			Datacenter:   cluster.Region,
-			Cabinet:      getNodeCabinet(node),
-			Network:      getNodeNetwork(node, cluster),
-			AppID:        "k8s-" + cluster.Name,
-			ResourcePool: "kubernetes",
-			Deleted:      "",
+			CICode:         node.NodeName,
+			IP:             node.HostIP,
+			Group:          getNodeMachineType(node),
+			Cluster:        cluster.Name,
+			Role:           node.Role,
+			ArchType:       "x86_64",
+			IDC:            getNodeIDC(node, cluster),
+			Room:           getNodeRoom(node, cluster),
+			Cabinet:        getNodeCabinet(node),
+			CabinetNO:      "01",
+			InfraType:      "kubernetes",
+			IsLocalization: false,
+			NetZone:        getNodeNetwork(node, cluster),
+			AppID:          "k8s-" + cluster.Name,
+			OsCreateTime:   time.Now().Format("2006-01-02"),
+			CPU:            8.0,
+			Memory:         16.0,
+			Model:          "K8s Node",
+			KvmIP:          "",
+			OS:             "Linux",
+			Company:        "Kubernetes",
+			OSName:         "Linux",
+			OSIssue:        "1.0",
+			OSKernel:       "5.4.0",
+			Status:         node.Status,
+			ClusterID:      int(cluster.ID),
 		}
 
 		devices = append(devices, device)
@@ -63,7 +75,7 @@ func GenerateDevicesFromK8sNodes(db *gorm.DB) error {
 		device.UpdatedAt = portal.NavyTime(now)
 
 		if err := db.Create(&device).Error; err != nil {
-			log.Printf("Warning: failed to create device %s: %v", device.DeviceID, err)
+			log.Printf("Warning: failed to create device %s: %v", device.CICode, err)
 		}
 	}
 

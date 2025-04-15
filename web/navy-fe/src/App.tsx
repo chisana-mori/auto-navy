@@ -9,6 +9,7 @@ import OpsManagement from './components/Ops/OpsManagement';
 import DeviceManagement from './components/Device/DeviceManagement';
 import DeviceDetail from './components/Device/DeviceDetail';
 import DeviceQuerySimple from './components/Device/DeviceQuerySimple';
+import DeviceCenter from './components/Device/DeviceCenter';
 
 const { Header, Content, Sider } = Layout;
 const { Title } = Typography;
@@ -108,14 +109,8 @@ const App: React.FC = () => {
               {
                 key: '6',
                 icon: <DesktopOutlined />,
-                label: '设备管理',
+                label: '设备中心',
                 onClick: () => handleMenuClick('6')
-              },
-              {
-                key: '7',
-                icon: <DatabaseOutlined />,
-                label: '设备查询器',
-                onClick: () => handleMenuClick('7')
               },
               {
                 key: '3',
@@ -139,8 +134,9 @@ const App: React.FC = () => {
               <Route path="/calico" element={<CalicoNetworkTopology />} />
               <Route path="/k8s" element={<div>K8s 集群管理（待开发）</div>} />
               <Route path="/ops" element={<OpsManagement />} />
-              <Route path="/device" element={<DeviceManagement />} />
-              <Route path="/device/:id" element={<DeviceDetail />} />
+              <Route path="/device" element={<DeviceCenter />} />
+              <Route path="/device-management" element={<DeviceManagement />} />
+              <Route path="/device/:id/detail" element={<DeviceDetail />} />
               <Route path="/device-query" element={<DeviceQuerySimple />} />
               <Route path="/settings" element={<div>系统设置（待开发）</div>} />
             </Routes>

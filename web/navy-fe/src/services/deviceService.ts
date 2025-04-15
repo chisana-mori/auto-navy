@@ -33,3 +33,11 @@ export async function updateDeviceRole(id: number, role: string): Promise<any> {
     data: { role },
   });
 }
+
+// 更新设备用途
+export async function updateDeviceGroup(id: number, group: string): Promise<any> {
+  return request(`${BASE_URL}/${id}/group`, {
+    method: 'PATCH',
+    data: { group },
+  });
+}

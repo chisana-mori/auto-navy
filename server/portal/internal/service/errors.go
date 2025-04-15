@@ -33,6 +33,9 @@ const (
 	ErrCodeBadRequest   = 400
 	ErrCodeServerError  = 500
 	ErrCodeUnauthorized = 401
+
+	// 错误消息模板
+	ErrRecordNotFoundMsg = "%s with ID %d not found"
 )
 
 // NewNotFoundError 创建未找到错误
@@ -75,4 +78,4 @@ func HandleDBError(err error, resource string, id int64) error {
 		return NewNotFoundError(resource, id)
 	}
 	return NewServerError(fmt.Sprintf("database error when operating %s", resource), err)
-} 
+}

@@ -28,9 +28,9 @@ type ClientConnection struct {
 
 // JobExecution represents an active job execution
 type JobExecution struct {
-	JobID    int64
-	Manager  *WebSocketManager
-	Cancel   context.CancelFunc
+	JobID   int64
+	Manager *WebSocketManager
+	Cancel  context.CancelFunc
 }
 
 // NewOpsJobService creates a new OpsJobService.
@@ -48,17 +48,7 @@ const (
 )
 
 // GetOpsJob retrieves a single OpsJob by ID.
-// @Summary Get operation job information by ID
-// @Description Get detailed information of an operation job by its ID
-// @Tags OpsJob
-// @Accept json
-// @Produce json
-// @Param id path int true "Operation Job ID"
-// @Success 200 {object} OpsJobResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /ops/job/{id} [get]
+
 func (s *OpsJobService) GetOpsJob(ctx context.Context, id int64) (*OpsJobResponse, error) {
 	var model portal.OpsJob
 	err := s.db.WithContext(ctx).Where("id = ? AND deleted = ?", id, EmptyString).First(&model).Error
@@ -69,16 +59,7 @@ func (s *OpsJobService) GetOpsJob(ctx context.Context, id int64) (*OpsJobRespons
 }
 
 // ListOpsJobs retrieves a list of OpsJobs based on query parameters.
-// @Summary List operation jobs
-// @Description Get a list of operation jobs with filtering and pagination
-// @Tags OpsJob
-// @Accept json
-// @Produce json
-// @Param query query OpsJobQuery true "Query parameters"
-// @Success 200 {object} OpsJobListResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /ops/job [get]
+
 func (s *OpsJobService) ListOpsJobs(ctx context.Context, query *OpsJobQuery) (*OpsJobListResponse, error) {
 	var models []portal.OpsJob
 	var total int64
@@ -123,16 +104,7 @@ func (s *OpsJobService) ListOpsJobs(ctx context.Context, query *OpsJobQuery) (*O
 }
 
 // CreateOpsJob creates a new OpsJob.
-// @Summary Create a new operation job
-// @Description Create a new operation job with the provided information
-// @Tags OpsJob
-// @Accept json
-// @Produce json
-// @Param job body OpsJobCreateDTO true "Operation Job information"
-// @Success 200 {object} OpsJobResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /ops/job [post]
+
 func (s *OpsJobService) CreateOpsJob(ctx context.Context, dto *OpsJobCreateDTO) (*OpsJobResponse, error) {
 	now := time.Now()
 	model := &portal.OpsJob{
@@ -176,9 +148,9 @@ func (s *OpsJobService) StartJob(jobID int64, conn *websocket.Conn) error {
 	// Create a new job execution context
 	ctx, cancel := context.WithCancel(context.Background())
 	jobExec = &JobExecution{
-		JobID:    jobID,
-		Manager:  NewWebSocketManager(),
-		Cancel:   cancel,
+		JobID:   jobID,
+		Manager: NewWebSocketManager(),
+		Cancel:  cancel,
 	}
 	jobExec.Manager.AddClient(client)
 	s.activeJobs[jobID] = jobExec

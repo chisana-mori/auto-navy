@@ -7,17 +7,32 @@ export enum FilterType {
 
 // 设备字段类型
 export enum DeviceFieldType {
+  CICode = 'ciCode',           // 设备编码
   IP = 'ip',                   // IP地址
-  MachineType = 'machineType', // 机器类型
-  Role = 'role',               // 集群角色
-  Arch = 'arch',               // 架构
+  ArchType = 'archType',       // CPU架构
   IDC = 'idc',                 // IDC
-  Room = 'room',               // Room
-  Datacenter = 'datacenter',   // 机房
-  Cabinet = 'cabinet',         // 机柜号
-  Network = 'network',         // 网络区域
+  Room = 'room',               // 机房
+  Cabinet = 'cabinet',         // 所属机柜
+  CabinetNO = 'cabinetNO',     // 机柜编号
+  InfraType = 'infraType',     // 网络类型
+  IsLocalization = 'isLocalization', // 是否国产化
+  NetZone = 'netZone',         // 网络区域
+  Group = 'group',             // 机器类别
   AppId = 'appId',             // APPID
-  ResourcePool = 'resourcePool' // 资源池
+  OsCreateTime = 'osCreateTime', // 操作系统创建时间
+  CPU = 'cpu',                 // CPU数量
+  Memory = 'memory',           // 内存大小
+  Model = 'model',             // 型号
+  KvmIP = 'kvmIp',             // KVM IP
+  OS = 'os',                   // 操作系统
+  Company = 'company',         // 厂商
+  OSName = 'osName',           // 操作系统名称
+  OSIssue = 'osIssue',         // 操作系统版本
+  OSKernel = 'osKernel',       // 操作系统内核
+  Status = 'status',           // 状态
+  Role = 'role',               // 角色
+  Cluster = 'cluster',         // 所属集群
+  ClusterID = 'clusterId'      // 集群ID
 }
 
 // 条件类型
@@ -50,6 +65,7 @@ export interface FilterBlock {
   id: string;                  // 筛选块ID
   type: FilterType;            // 筛选类型
   conditionType: ConditionType; // 条件类型
+  field?: string;              // 字段
   key?: string;                // 键
   value?: string | string[];   // 值（单选或多选）
   operator: LogicalOperator;   // 与下一个条件的逻辑关系

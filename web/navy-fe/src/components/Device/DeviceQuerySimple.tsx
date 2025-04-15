@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -21,7 +21,7 @@ import {
   SaveOutlined,
   SearchOutlined,
   DeleteOutlined,
-  EditOutlined,
+  // EditOutlined, // Removed as it's unused
   PlayCircleOutlined,
   ToolOutlined
 } from '@ant-design/icons';
@@ -72,14 +72,46 @@ const DeviceQuerySimple: React.FC = () => {
   const [taintValues, setTaintValues] = useState<Record<string, FilterOption[]>>({});
   const [loadingValues, setLoadingValues] = useState(false);
 
-  // 初始化
-  useEffect(() => {
-    fetchFilterOptions();
-    fetchTemplates();
-  }, []);
+  // --- Data Fetching Callbacks ---
 
-  // 获取筛选选项
-  const fetchFilterOptions = async () => {
+  // 获取标签值 (useCallback)
+  const fetchLabelValues = useCallback(async (key: string) => {
+    if (!key) return;
+    try {
+      setLoadingValues(true);
+      const response = await getLabelValues(key);
+      if (Array.isArray(response)) {
+        const options = response as unknown as FilterOption[];
+        setLabelValues(prev => ({ ...prev, [key]: options }));
+      }
+    } catch (error) {
+      console.error('获取标签值失败:', error);
+      message.error('获取标签值失败');
+    } finally {
+      setLoadingValues(false);
+    }
+  }, [setLoadingValues, setLabelValues]); // Dependencies for useCallback
+
+  // 获取污点值 (useCallback)
+  const fetchTaintValues = useCallback(async (key: string) => {
+    if (!key) return;
+    try {
+      setLoadingValues(true);
+      const response = await getTaintValues(key);
+      if (Array.isArray(response)) {
+        const options = response as unknown as FilterOption[];
+        setTaintValues(prev => ({ ...prev, [key]: options }));
+      }
+    } catch (error) {
+      console.error('获取污点值失败:', error);
+      message.error('获取污点值失败');
+    } finally {
+      setLoadingValues(false);
+    }
+  }, [setLoadingValues, setTaintValues]); // Dependencies for useCallback
+
+  // 获取筛选选项 (useCallback)
+  const fetchFilterOptions = useCallback(async () => {
     try {
       const options = await getFilterOptions();
       console.log('获取到的筛选选项:', options);
@@ -101,51 +133,13 @@ const DeviceQuerySimple: React.FC = () => {
       console.error('获取筛选选项失败:', error);
       message.error('获取筛选选项失败');
     }
-  };
+  }, [setFilterOptions, fetchLabelValues, fetchTaintValues]); // Dependencies for useCallback
 
-  // 获取标签值
-  const fetchLabelValues = async (key: string) => {
-    if (!key) return;
-
-    try {
-      setLoadingValues(true);
-      const response = await getLabelValues(key);
-      if (Array.isArray(response)) {
-        const options = response as unknown as FilterOption[];
-        setLabelValues(prev => ({
-          ...prev,
-          [key]: options
-        }));
-      }
-    } catch (error) {
-      console.error('获取标签值失败:', error);
-      message.error('获取标签值失败');
-    } finally {
-      setLoadingValues(false);
-    }
-  };
-
-  // 获取污点值
-  const fetchTaintValues = async (key: string) => {
-    if (!key) return;
-
-    try {
-      setLoadingValues(true);
-      const response = await getTaintValues(key);
-      if (Array.isArray(response)) {
-        const options = response as unknown as FilterOption[];
-        setTaintValues(prev => ({
-          ...prev,
-          [key]: options
-        }));
-      }
-    } catch (error) {
-      console.error('获取污点值失败:', error);
-      message.error('获取污点值失败');
-    } finally {
-      setLoadingValues(false);
-    }
-  };
+  // 初始化
+  useEffect(() => {
+    fetchFilterOptions();
+    fetchTemplates();
+  }, [fetchFilterOptions]); // Now fetchFilterOptions is stable
 
   // 获取模板列表
   const fetchTemplates = async () => {
@@ -258,16 +252,7 @@ const DeviceQuerySimple: React.FC = () => {
     );
   };
 
-  // 渲染设备字段筛选按钮
-  const renderDeviceFieldButton = (group: FilterGroup) => (
-    <Button
-      type="text"
-      icon={<DatabaseOutlined />}
-      onClick={() => addFilterBlock(group.id, FilterType.Device)}
-    >
-      设备字段
-    </Button>
-  );
+  // renderDeviceFieldButton removed as it's unused
 
   // 执行查询
   const handleQuery = async () => {
@@ -347,17 +332,7 @@ const DeviceQuerySimple: React.FC = () => {
     setTemplateModalVisible(true);
   };
 
-  // 编辑模板
-  const handleEditTemplate = (template: QueryTemplate) => {
-    setEditingTemplate(template);
-    templateForm.setFieldsValue({
-      name: template.name,
-      description: template.description || ''
-    });
-    // 确保groups不为null
-    setFilterGroups(template.groups || []);
-    setActiveTab('query');
-  };
+  // handleEditTemplate removed as it's unused
 
   // 提交保存模板
   const handleSubmitTemplate = async () => {
@@ -676,9 +651,9 @@ const DeviceQuerySimple: React.FC = () => {
   // 表格列定义
   const columns: ColumnsType<Device> = [
     {
-      title: '设备ID',
-      dataIndex: 'deviceId',
-      key: 'deviceId',
+      title: '设备编码',
+      dataIndex: 'ciCode',
+      key: 'ciCode',
       width: 180,
     },
     {
@@ -688,9 +663,9 @@ const DeviceQuerySimple: React.FC = () => {
       width: 150,
     },
     {
-      title: '机器类型',
-      dataIndex: 'machineType',
-      key: 'machineType',
+      title: '机器用途',
+      dataIndex: 'group',
+      key: 'group',
       width: 150,
     },
     {
@@ -706,9 +681,9 @@ const DeviceQuerySimple: React.FC = () => {
       width: 120,
     },
     {
-      title: '架构',
-      dataIndex: 'arch',
-      key: 'arch',
+      title: 'CPU架构',
+      dataIndex: 'archType',
+      key: 'archType',
       width: 100,
     },
     {
@@ -718,27 +693,15 @@ const DeviceQuerySimple: React.FC = () => {
       width: 100,
     },
     {
-      title: 'Room',
+      title: '机房',
       dataIndex: 'room',
       key: 'room',
       width: 120,
     },
     {
-      title: '机房',
-      dataIndex: 'datacenter',
-      key: 'datacenter',
-      width: 120,
-    },
-    {
-      title: '机柜号',
-      dataIndex: 'cabinet',
-      key: 'cabinet',
-      width: 120,
-    },
-    {
       title: '网络区域',
-      dataIndex: 'network',
-      key: 'network',
+      dataIndex: 'netZone',
+      key: 'netZone',
       width: 120,
     },
     {
@@ -748,10 +711,11 @@ const DeviceQuerySimple: React.FC = () => {
       width: 120,
     },
     {
-      title: '资源池',
-      dataIndex: 'resourcePool',
-      key: 'resourcePool',
-      width: 120,
+      title: '是否国产化',
+      dataIndex: 'isLocalization',
+      key: 'isLocalization',
+      width: 100,
+      render: (value: boolean) => (value ? '是' : '否'),
     },
     {
       title: '操作',
@@ -874,16 +838,7 @@ const DeviceQuerySimple: React.FC = () => {
               </div>
 
               <div className="query-actions">
-                <Button
-                  icon={<PlusOutlined />}
-                  onClick={addFilterGroup}
-                >
-                  添加筛选组
-                </Button>
                 <Button onClick={handleReset}>重置</Button>
-                <Button onClick={handleSaveTemplate} icon={<SaveOutlined />}>
-                  保存为模板
-                </Button>
                 <Button
                   type="primary"
                   onClick={handleQuery}
@@ -891,6 +846,15 @@ const DeviceQuerySimple: React.FC = () => {
                   icon={<SearchOutlined />}
                 >
                   执行查询
+                </Button>
+                <Button
+                  icon={<PlusOutlined />}
+                  onClick={addFilterGroup}
+                >
+                  添加筛选组
+                </Button>
+                <Button onClick={handleSaveTemplate} icon={<SaveOutlined />}>
+                  保存为模板
                 </Button>
               </div>
             </div>

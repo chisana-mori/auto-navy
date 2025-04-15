@@ -12,12 +12,13 @@ type SecurityReportData struct {
 
 // SecurityCheckResult 安全检查结果
 type SecurityCheckResult struct {
-	NodeType  string
-	NodeName  string
-	CheckType string
-	ItemName  string
-	ItemValue string
-	Status    bool
+	NodeType      string
+	NodeName      string
+	CheckType     string
+	ItemName      string
+	ItemValue     string
+	Status        bool
+	FixSuggestion string // 修复建议
 }
 
 // EmailTemplateData 邮件模板数据
@@ -36,6 +37,11 @@ type EmailTemplateData struct {
 
 	// 异常节点详情
 	AbnormalDetails []AbnormalDetail
+	// 集群健康度概览
+	ClusterHealthSummary []ClusterHealthInfo
+
+	// 检查项失败概览 (模拟热力图)
+	CheckItemFailureSummary []CheckItemFailureInfo
 }
 
 // MissingNode 巡检失败节点信息
@@ -55,6 +61,24 @@ type AbnormalDetail struct {
 
 // FailedItem 失败的检查项
 type FailedItem struct {
-	ItemName  string
-	ItemValue string
+	ItemName      string
+	ItemValue     string
+	FixSuggestion string // 修复建议
+}
+
+// ClusterHealthInfo 集群健康信息
+type ClusterHealthInfo struct {
+	ClusterName   string
+	StatusColor   string // e.g., "green", "yellow", "red"
+	AbnormalNodes int
+	FailedChecks  int
+	Exists        bool   // 集群在S3中是否存在
+	AnchorID      string // 错误详情页面的锚点ID
+}
+
+// CheckItemFailureInfo 检查项失败信息 (用于模拟热力图)
+type CheckItemFailureInfo struct {
+	ItemName      string
+	TotalFailures int
+	HeatColor     string // e.g., "heat-level-1", "heat-level-2", "heat-level-high"
 }

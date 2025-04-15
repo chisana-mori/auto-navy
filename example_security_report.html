@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f4f8fb;
+            color: #222;
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 850px;
+            margin: 30px auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(44,62,80,0.08);
+            padding: 32px 36px 36px 36px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 18px;
+            margin-bottom: 32px;
+        }
+        .logo {
+            width: 48px;
+            height: 48px;
+            margin-right: 18px;
+        }
+        .title {
+            font-size: 2.1em;
+            color: #3498db;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .report-date {
+            color: #666;
+            font-size: 1em;
+        }
+        .section {
+            margin-bottom: 36px;
+            padding: 24px 20px 20px 20px;
+            background: #f9fafd;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(52,152,219,0.06);
+            border: 1px solid rgba(52,152,219,0.08);
+        }
+        .section-title {
+            color: #2c3e50;
+            border-left: 5px solid #3498db;
+            padding-left: 12px;
+            font-size: 1.25em;
+            margin-bottom: 18px;
+            font-weight: 600;
+        }
+        /* 汇总行样式 */
+        .summary-row {
+            margin-bottom: 20px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid #eee;
+            overflow: hidden;
+        }
+        .summary-row-title {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        .summary-row-icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+            color: #3498db;
+        }
+        .summary-row-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        .summary-row-cards {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 15px;
+            gap: 15px;
+        }
+
+        /* 汇总卡片样式 */
+        .summary-card {
+            flex: 1 1 200px;
+            min-width: 150px;
+            background: #f9fafd;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            border: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+        }
+        .summary-card-icon {
+            font-size: 2em;
+            margin-right: 15px;
+            color: #3498db;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .summary-card-content {
+            flex: 1;
+            text-align: center;
+        }
+        .summary-card-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .summary-card-label {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .summary-card.status-normal {
+            border-left: 4px solid #27ae60;
+            background: #f0fff4;
+        }
+        .summary-card.status-normal .summary-card-value {
+            color: #27ae60;
+        }
+        .summary-card.status-error {
+            border-left: 4px solid #e74c3c;
+            background: #fff5f5;
+        }
+        .summary-card.status-error .summary-card-value {
+            color: #e74c3c;
+        }
+
+        /* 保留旧的样式以兼容其他部分 */
+        .summary-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+        }
+        .summary-item {
+            flex: 1 1 180px;
+            background: #eaf6ff;
+            border-radius: 6px;
+            padding: 16px 12px;
+            margin: 0;
+            font-size: 1.08em;
+            box-shadow: 0 1px 4px rgba(52,152,219,0.06);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .summary-item .icon {
+            font-size: 1.3em;
+        }
+        .status-normal { color: #27ae60; font-weight: bold;}
+        .status-error { color: #c0392b; font-weight: bold;}
+        .status-warning { color: #f39c12; font-weight: bold;}
+        .status-suggestion { color: #3498db; font-style: italic; }
+        .summary-item.status-error { background: #ffeaea; }
+        .summary-item.status-normal { background: #eafaf1; }
+        .summary-item.status-warning { background: #fff7e6; }
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 15px 0;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 6px rgba(52,152,219,0.08);
+            border: 1px solid rgba(52,152,219,0.1);
+        }
+        th, td {
+            padding: 14px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e3e8ee;
+        }
+        th {
+            background-color: #f2f6fa;
+            color: #2c3e50;
+            font-weight: 600;
+            border-top: none;
+            position: relative;
+        }
+        th:first-child {
+            border-top-left-radius: 8px;
+        }
+        th:last-child {
+            border-top-right-radius: 8px;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:last-child td:first-child {
+            border-bottom-left-radius: 8px;
+        }
+        tr:last-child td:last-child {
+            border-bottom-right-radius: 8px;
+        }
+        tr:hover {
+            background-color: #f5faff;
+        }
+        .abnormal-card {
+            background: #fff8f8;
+            border-left: 6px solid #c0392b;
+            border-radius: 8px;
+            margin-bottom: 22px;
+            padding: 18px 18px 12px 18px;
+            box-shadow: 0 2px 8px rgba(192,57,43,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .abnormal-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(192,57,43,0.15);
+        }
+        .abnormal-title {
+            color: #c0392b;
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+        .abnormal-title:before {
+            content: '⚠️';
+            margin-right: 8px;
+            font-size: 1.2em;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #888;
+            font-size: 0.98em;
+        }
+        .tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.95em;
+            color: #fff;
+            background: #c0392b;
+            margin-left: 8px;
+        }
+
+        .health-status-cell {
+            padding: 6px 12px;
+            border-radius: 20px;
+            color: #fff;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.9em;
+            display: inline-block;
+            min-width: 80px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .health-red {
+            background-color: #c0392b;
+            background-image: linear-gradient(45deg, #c0392b, #e74c3c);
+        }
+        .health-yellow {
+            background-color: #f39c12;
+            background-image: linear-gradient(45deg, #f39c12, #f1c40f);
+            color: #333;
+        }
+        .health-green {
+            background-color: #27ae60;
+            background-image: linear-gradient(45deg, #27ae60, #2ecc71);
+        }
+
+        .heatmap-table td {
+            text-align: center;
+            padding: 8px 5px; /* Reduced padding */
+            font-size: 0.95em;
+            border: 1px solid #eee; /* Add cell borders */
+        }
+        .heatmap-table th {
+             text-align: center;
+             padding: 10px 5px;
+        }
+        .heatmap-cell {
+            color: #333; /* Default text color */
+            font-weight: normal;
+        }
+        /* Define color scale (example with 3 levels + high) */
+        .heat-level-1 { background-color: #fee; color: #a00; } /* Light red for low failures (1-2) */
+        .heat-level-2 { background-color: #fdd; color: #800; font-weight: bold; } /* Medium red (3-5) */
+        .heat-level-high { background-color: #c0392b; color: #fff; font-weight: bold; } /* High failures (>5) */
+         /* Add more levels if needed */
+         .check-item-name {
+             text-align: left;
+             font-weight: 500;
+             padding-left: 10px !important; /* Ensure left padding */
+         }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <span class="title">安全巡检报告</span>
+            </div>
+            <div class="report-date">
+                生成时间: 2024-05-15 10:30:45
+            </div>
+        </div>
+
+        <!-- 统计图表区域 -->
+        <div style="width:100%;display:flex;justify-content:center;margin-bottom:30px;">
+            <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:20px;max-width:800px;">
+                <!-- 节点状态饼图 -->
+                <div style="background:#fff;border-radius:10px;padding:15px;box-shadow:0 2px 10px rgba(0,0,0,0.05);border:1px solid #eee;width:300px;">
+                    <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#444;">节点状态</div>
+                    <svg width="300" height="180" viewBox="0 0 300 180">
+                        <!-- 饼图 -->
+                        <g transform="translate(150, 90)">
+                            <!-- 正常节点扇区 (84%) -->
+                            <path d="M 0 0 L 0 -70 A 70 70 0 1 1 -12.2 69.0 Z" fill="#27ae60" opacity="0.9"/>
+
+                            <!-- 异常节点扇区 (16%) -->
+                            <path d="M 0 0 L -12.2 69.0 A 70 70 0 0 1 0 -70 Z" fill="#e74c3c" opacity="0.9"/>
+
+                            <!-- 中心白色圆形 -->
+                            <circle cx="0" cy="0" r="45" fill="white" stroke="#eee" stroke-width="1"/>
+
+                            <!-- 中心文字 -->
+                            <text x="0" y="0" font-size="16" fill="#333" text-anchor="middle" dominant-baseline="middle" font-weight="bold">50</text>
+                            <text x="0" y="20" font-size="12" fill="#666" text-anchor="middle" dominant-baseline="middle">节点总数</text>
+                        </g>
+
+                        <!-- 图例 -->
+                        <g transform="translate(20, 150)">
+                            <rect x="0" y="0" width="12" height="12" fill="#27ae60" rx="2"/>
+                            <text x="20" y="10" font-size="12" fill="#333" dominant-baseline="middle">正常节点: 42 (84%)</text>
+                        </g>
+
+                        <g transform="translate(160, 150)">
+                            <rect x="0" y="0" width="12" height="12" fill="#e74c3c" rx="2"/>
+                            <text x="20" y="10" font-size="12" fill="#333" dominant-baseline="middle">异常节点: 8 (16%)</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- 检查项结果柱状图 -->
+                <div style="background:#fff;border-radius:10px;padding:15px;box-shadow:0 2px 10px rgba(0,0,0,0.05);border:1px solid #eee;width:300px;">
+                    <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#444;">检查项结果</div>
+                    <svg width="300" height="180" viewBox="0 0 300 180">
+                        <!-- 坐标轴 -->
+                        <line x1="50" y1="30" x2="50" y2="130" stroke="#ccc" stroke-width="1"/>
+                        <line x1="50" y1="130" x2="250" y2="130" stroke="#ccc" stroke-width="1"/>
+
+                        <!-- 通过项柱形 (75%) -->
+                        <rect x="100" y="40" width="40" height="90" fill="#27ae60" rx="3" opacity="0.9"/>
+                        <text x="120" y="150" font-size="12" fill="#333" text-anchor="middle">通过</text>
+                        <text x="120" y="30" font-size="14" fill="#27ae60" text-anchor="middle" font-weight="bold">135</text>
+
+                        <!-- 失败项柱形 (25%) -->
+                        <rect x="180" y="100" width="40" height="30" fill="#e74c3c" rx="3" opacity="0.9"/>
+                        <text x="200" y="150" font-size="12" fill="#333" text-anchor="middle">失败</text>
+                        <text x="200" y="90" font-size="14" fill="#e74c3c" text-anchor="middle" font-weight="bold">45</text>
+
+                        <!-- 总计标签 -->
+                        <text x="150" y="170" font-size="12" fill="#666" text-anchor="middle">总计检查项: 180</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">1. 巡检结果汇总</div>
+
+            <!-- 集群信息行 -->
+            <div class="summary-row">
+                <div class="summary-row-title">
+                    <div class="summary-row-icon">🗂</div>
+                    <div class="summary-row-label">集群信息</div>
+                </div>
+                <div class="summary-row-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">5</div>
+                            <div class="summary-card-label">集群数量</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 节点信息行 -->
+            <div class="summary-row">
+                <div class="summary-row-title">
+                    <div class="summary-row-icon">🖥</div>
+                    <div class="summary-row-label">节点信息</div>
+                </div>
+                <div class="summary-row-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">50</div>
+                            <div class="summary-card-label">节点总数</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-normal">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">42</div>
+                            <div class="summary-card-label">正常节点</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-error">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">8</div>
+                            <div class="summary-card-label">异常节点</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 巡检项信息行 -->
+            <div class="summary-row">
+                <div class="summary-row-title">
+                    <div class="summary-row-icon">🔍</div>
+                    <div class="summary-row-label">巡检项信息</div>
+                </div>
+                <div class="summary-row-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">180</div>
+                            <div class="summary-card-label">巡检项总数</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-normal">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">135</div>
+                            <div class="summary-card-label">通过项</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-error">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">45</div>
+                            <div class="summary-card-label">失败项</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="section">
+            <div class="section-title">集群健康度概览</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>集群名称</th>
+                        <th>健康状态</th>
+                        <th>异常节点数</th>
+                        <th>失败检查项数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="#cluster-cluster1">cluster1</a>
+                        </td>
+                        <td>
+                            <span class="health-status-cell health-red">
+                                严重
+                            </span>
+                        </td>
+                        <td class="status-error">3</td>
+                        <td class="status-warning">15</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <a href="#cluster-cluster2">cluster2</a>
+                            <span style="color: red; font-weight: bold;">（不存在）</span>
+                        </td>
+                        <td>
+                            <span class="health-status-cell health-red">
+                                严重
+                            </span>
+                        </td>
+                        <td class="status-error">0</td>
+                        <td class="status-warning">0</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <a href="#cluster-cluster3">cluster3</a>
+                        </td>
+                        <td>
+                            <span class="health-status-cell health-red">
+                                严重
+                            </span>
+                        </td>
+                        <td class="status-error">5</td>
+                        <td class="status-warning">30</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            cluster4
+                        </td>
+                        <td>
+                            <span class="health-status-cell health-green">
+                                正常
+                            </span>
+                        </td>
+                        <td>0</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            cluster5
+                        </td>
+                        <td>
+                            <span class="health-status-cell health-yellow">
+                                警告
+                            </span>
+                        </td>
+                        <td>0</td>
+                        <td class="status-warning">5</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+
+        <div class="section">
+            <div class="section-title">检查项失败热力图 (表格模拟)</div>
+            <table class="heatmap-table">
+                <thead>
+                    <tr>
+                        <th>检查项名称</th>
+                        <th>总失败次数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="check-item-name">kernel.sysrq</td>
+                        <td class="heatmap-cell heat-level-high">8</td>
+                    </tr>
+                    <tr>
+                        <td class="check-item-name">net.ipv4.tcp_syncookies</td>
+                        <td class="heatmap-cell heat-level-2">5</td>
+                    </tr>
+                    <tr>
+                        <td class="check-item-name">net.ipv4.conf.all.accept_redirects</td>
+                        <td class="heatmap-cell heat-level-2">4</td>
+                    </tr>
+                    <tr>
+                        <td class="check-item-name">fs.suid_dumpable</td>
+                        <td class="heatmap-cell heat-level-1">2</td>
+                    </tr>
+                    <tr>
+                        <td class="check-item-name">kernel.randomize_va_space</td>
+                        <td class="heatmap-cell heat-level-1">1</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p style="font-size:0.85em; color:#777; text-align:center; margin-top: 5px;">注：背景颜色深浅表示失败次数多少。</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">3. 异常节点详情 <span class="tag">高优先级</span></div>
+            <div class="abnormal-card" id="cluster-cluster1">
+                <div class="abnormal-title">cluster1 / master / node-master-01</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>kernel.sysrq</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">建议将参数设置为0，以防止未授权的系统调用</td>
+                    </tr>
+                    <tr>
+                        <td>net.ipv4.tcp_syncookies</td>
+                        <td class="status-error">0</td>
+                        <td class="status-suggestion">请将值修改为1，开启SYN Cookie保护机制</td>
+                    </tr>
+                    <tr>
+                        <td>net.ipv4.conf.all.accept_redirects</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">建议设置为0，禁止接受ICMP重定向消息</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card">
+                <div class="abnormal-title">cluster1 / worker / node-worker-02</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>kernel.sysrq</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">应该修复为0</td>
+                    </tr>
+                    <tr>
+                        <td>fs.suid_dumpable</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">应该修复为0</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card">
+                <div class="abnormal-title">cluster1 / worker / node-worker-05</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>net.ipv4.tcp_syncookies</td>
+                        <td class="status-error">0</td>
+                        <td class="status-suggestion">应该修复为1</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card" id="cluster-cluster3">
+                <div class="abnormal-title">cluster3 / master / node-master-01</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>kernel.sysrq</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">应该修复为0</td>
+                    </tr>
+                    <tr>
+                        <td>net.ipv4.tcp_syncookies</td>
+                        <td class="status-error">0</td>
+                        <td class="status-suggestion">应该修复为1</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card">
+                <div class="abnormal-title">cluster3 / worker / node-worker-01</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>kernel.sysrq</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">应该修复为0</td>
+                    </tr>
+                    <tr>
+                        <td>net.ipv4.conf.all.accept_redirects</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">应该修复为0</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card">
+                <div class="abnormal-title">cluster3 / worker / node-worker-03</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>kernel.sysrq</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">应该修复为0</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card">
+                <div class="abnormal-title">cluster3 / worker / node-worker-07</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>kernel.randomize_va_space</td>
+                        <td class="status-error">0</td>
+                        <td class="status-suggestion">应该修复为2</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card">
+                <div class="abnormal-title">cluster3 / worker / node-worker-09</div>
+                <table>
+                    <tr>
+                        <th>检查项</th>
+                        <th>当前值</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>net.ipv4.tcp_syncookies</td>
+                        <td class="status-error">0</td>
+                        <td class="status-suggestion">应该修复为1</td>
+                    </tr>
+                    <tr>
+                        <td>net.ipv4.conf.all.accept_redirects</td>
+                        <td class="status-error">1</td>
+                        <td class="status-suggestion">应该修复为0</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="abnormal-card" id="cluster-cluster2">
+                <div class="abnormal-title">cluster2 / 集群不存在</div>
+                <table>
+                    <tr>
+                        <th>问题描述</th>
+                        <th>状态</th>
+                        <th>修复建议</th>
+                    </tr>
+                    <tr>
+                        <td>集群在数据库中存在，但在S3存储中不存在</td>
+                        <td class="status-error">异常</td>
+                        <td class="status-suggestion">请检查集群配置或从数据库中删除该集群</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="footer">
+            本邮件由系统自动生成，如有疑问请联系安全运维团队。
+        </div>
+    </div>
+</body>
+</html>

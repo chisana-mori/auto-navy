@@ -1,9 +1,127 @@
 basePath: /fe-v1
 definitions:
+  service.ConditionType:
+    enum:
+    - equal
+    - notEqual
+    - contains
+    - notContains
+    - exists
+    - notExists
+    - in
+    - notIn
+    type: string
+    x-enum-comments:
+      ConditionTypeContains: 包含
+      ConditionTypeEqual: 等于
+      ConditionTypeExists: 存在
+      ConditionTypeIn: 在列表中
+      ConditionTypeNotContains: 不包含
+      ConditionTypeNotEqual: 不等于
+      ConditionTypeNotExists: 不存在
+      ConditionTypeNotIn: 不在列表中
+    x-enum-varnames:
+    - ConditionTypeEqual
+    - ConditionTypeNotEqual
+    - ConditionTypeContains
+    - ConditionTypeNotContains
+    - ConditionTypeExists
+    - ConditionTypeNotExists
+    - ConditionTypeIn
+    - ConditionTypeNotIn
+  service.DeviceListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/service.DeviceResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  service.DeviceQueryRequest:
+    properties:
+      groups:
+        description: 筛选组列表
+        items:
+          $ref: '#/definitions/service.FilterGroup'
+        type: array
+      page:
+        description: 页码
+        type: integer
+      size:
+        description: 每页数量
+        type: integer
+    type: object
+  service.DeviceResponse:
+    properties:
+      appId:
+        description: APPID
+        type: string
+      arch:
+        description: 架构
+        type: string
+      cabinet:
+        description: 机柜号
+        type: string
+      cluster:
+        description: 所属集群
+        type: string
+      createdAt:
+        description: 创建时间
+        type: string
+      datacenter:
+        description: 机房
+        type: string
+      deviceId:
+        description: 设备ID
+        type: string
+      id:
+        description: ID
+        type: integer
+      idc:
+        description: IDC
+        type: string
+      ip:
+        description: IP地址
+        type: string
+      machineType:
+        description: 机器类型
+        type: string
+      network:
+        description: 网络区域
+        type: string
+      resourcePool:
+        description: 资源池/产品
+        type: string
+      role:
+        description: 集群角色
+        type: string
+      room:
+        description: Room
+        type: string
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  service.DeviceRoleUpdateRequest:
+    properties:
+      role:
+        description: 新的角色值
+        type: string
+    required:
+    - role
+    type: object
   service.ErrorResponse:
     properties:
       error:
-        example: 错误信息
+        example: 操作失败
         type: string
     type: object
   service.F5InfoListResponse:
@@ -28,7 +146,7 @@ definitions:
         example: app-001
         type: string
       created_at:
-        example: "2024-01-01"
+        example: "2024-01-01T12:00:00Z"
         type: string
       domains:
         example: example.com,test.com
@@ -48,6 +166,9 @@ definitions:
       k8s_cluster_id:
         example: 1
         type: integer
+      k8s_cluster_name:
+        example: 生产集群
+        type: string
       name:
         example: f5-test
         type: string
@@ -67,7 +188,7 @@ definitions:
         example: active
         type: string
       updated_at:
-        example: "2024-01-01"
+        example: "2024-01-02T12:00:00Z"
         type: string
       vip:
         example: 192.168.1.1
@@ -120,10 +241,160 @@ definitions:
     - port
     - vip
     type: object
-  service.SuccessResponse:
+  service.FilterBlock:
     properties:
-      message:
-        example: success
+      conditionType:
+        allOf:
+        - $ref: '#/definitions/service.ConditionType'
+        description: 条件类型
+      id:
+        description: 筛选块ID
+        type: string
+      key:
+        description: 键
+        type: string
+      operator:
+        allOf:
+        - $ref: '#/definitions/service.LogicalOperator'
+        description: 与下一个条件的逻辑关系
+      type:
+        allOf:
+        - $ref: '#/definitions/service.FilterType'
+        description: 筛选类型
+      value:
+        description: 值
+        type: string
+    type: object
+  service.FilterGroup:
+    properties:
+      blocks:
+        description: 筛选块列表
+        items:
+          $ref: '#/definitions/service.FilterBlock'
+        type: array
+      id:
+        description: 筛选组ID
+        type: string
+      operator:
+        allOf:
+        - $ref: '#/definitions/service.LogicalOperator'
+        description: 与下一个组的逻辑关系
+    type: object
+  service.FilterOptionResponse:
+    properties:
+      dbColumn:
+        example: d.ip
+        type: string
+      id:
+        example: ip
+        type: string
+      label:
+        example: IP地址
+        type: string
+      value:
+        example: ip
+        type: string
+    type: object
+  service.FilterType:
+    enum:
+    - nodeLabel
+    - taint
+    - device
+    type: string
+    x-enum-comments:
+      FilterTypeDevice: 设备字段
+      FilterTypeNodeLabel: 节点标签
+      FilterTypeTaint: 污点
+    x-enum-varnames:
+    - FilterTypeNodeLabel
+    - FilterTypeTaint
+    - FilterTypeDevice
+  service.LogicalOperator:
+    enum:
+    - and
+    - or
+    type: string
+    x-enum-comments:
+      LogicalOperatorAnd: 与
+      LogicalOperatorOr: 或
+    x-enum-varnames:
+    - LogicalOperatorAnd
+    - LogicalOperatorOr
+  service.OpsJobCreateDTO:
+    properties:
+      description:
+        example: 部署应用到生产环境
+        type: string
+      name:
+        example: deploy-app
+        type: string
+    required:
+    - name
+    type: object
+  service.OpsJobListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/service.OpsJobResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  service.OpsJobResponse:
+    properties:
+      created_at:
+        example: "2024-01-01T12:00:00Z"
+        type: string
+      description:
+        example: 部署应用到生产环境
+        type: string
+      end_time:
+        example: "2024-01-01T12:30:00Z"
+        type: string
+      id:
+        example: 1
+        type: integer
+      log_content:
+        example: Starting deployment...
+        type: string
+      name:
+        example: deploy-app
+        type: string
+      progress:
+        example: 50
+        type: integer
+      start_time:
+        example: "2024-01-01T12:00:00Z"
+        type: string
+      status:
+        example: running
+        type: string
+      updated_at:
+        example: "2024-01-01T12:30:00Z"
+        type: string
+    type: object
+  service.QueryTemplate:
+    properties:
+      description:
+        description: 模板描述
+        type: string
+      groups:
+        description: 筛选组列表
+        items:
+          $ref: '#/definitions/service.FilterGroup'
+        type: array
+      id:
+        description: 模板ID
+        type: integer
+      name:
+        description: 模板名称
         type: string
     type: object
 host: localhost:8080
@@ -140,38 +411,410 @@ info:
   title: Navy-NG API
   version: "1.0"
 paths:
-  /f5:
+  /device:
     get:
       consumes:
       - application/json
-      description: 分页获取F5信息列表
+      description: 获取设备列表，支持分页和关键字搜索
       parameters:
       - description: 页码
         in: query
-        minimum: 1
         name: page
-        required: true
         type: integer
       - description: 每页数量
         in: query
-        maximum: 100
-        minimum: 1
         name: size
+        type: integer
+      - description: 搜索关键字
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取设备列表
+          schema:
+            $ref: '#/definitions/service.DeviceListResponse'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取设备列表失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取设备列表
+      tags:
+      - 设备管理
+  /device-query/filter-options:
+    get:
+      consumes:
+      - application/json
+      description: 获取设备筛选项，包括设备字段、节点标签和节点污点
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取筛选项
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/service.FilterOptionResponse'
+              type: array
+            type: object
+        "500":
+          description: 获取筛选项失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取设备筛选项
+      tags:
+      - 设备查询
+  /device-query/label-values:
+    get:
+      consumes:
+      - application/json
+      description: 根据标签键获取节点标签的可选值列表
+      parameters:
+      - description: 标签键
+        in: query
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取标签值
+          schema:
+            items:
+              $ref: '#/definitions/service.FilterOptionResponse'
+            type: array
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取标签值失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取节点标签可选值
+      tags:
+      - 设备查询
+  /device-query/query:
+    post:
+      consumes:
+      - application/json
+      description: 根据复杂条件查询设备，支持设备字段、节点标签和节点污点筛选
+      parameters:
+      - description: 查询条件
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/service.DeviceQueryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功查询设备
+          schema:
+            $ref: '#/definitions/service.DeviceListResponse'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 查询设备失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 查询设备
+      tags:
+      - 设备查询
+  /device-query/taint-values:
+    get:
+      consumes:
+      - application/json
+      description: 根据污点键获取节点污点的可选值列表
+      parameters:
+      - description: 污点键
+        in: query
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取污点值
+          schema:
+            items:
+              $ref: '#/definitions/service.FilterOptionResponse'
+            type: array
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取污点值失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取节点污点可选值
+      tags:
+      - 设备查询
+  /device-query/templates:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有设备查询模板列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取模板列表
+          schema:
+            items:
+              $ref: '#/definitions/service.QueryTemplate'
+            type: array
+        "500":
+          description: 获取模板列表失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取查询模板列表
+      tags:
+      - 设备查询
+    post:
+      consumes:
+      - application/json
+      description: 保存设备查询模板，方便后续复用
+      parameters:
+      - description: 模板信息
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/service.QueryTemplate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 模板保存成功
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 保存模板失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 保存查询模板
+      tags:
+      - 设备查询
+  /device-query/templates/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据模板ID删除设备查询模板
+      parameters:
+      - description: 模板ID
+        in: path
+        name: id
         required: true
         type: integer
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: 模板删除成功
           schema:
-            $ref: '#/definitions/service.F5InfoListResponse'
+            additionalProperties:
+              type: string
+            type: object
         "400":
-          description: Bad Request
+          description: 参数错误
           schema:
             $ref: '#/definitions/service.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: 删除模板失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 删除查询模板
+      tags:
+      - 设备查询
+    get:
+      consumes:
+      - application/json
+      description: 根据模板ID获取设备查询模板详情
+      parameters:
+      - description: 模板ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取模板详情
+          schema:
+            $ref: '#/definitions/service.QueryTemplate'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取模板详情失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取查询模板详情
+      tags:
+      - 设备查询
+  /device/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据设备ID获取设备详情
+      parameters:
+      - description: 设备ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取设备详情
+          schema:
+            $ref: '#/definitions/service.DeviceResponse'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: 设备不存在
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取设备详情失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取设备详情
+      tags:
+      - 设备管理
+  /device/{id}/role:
+    patch:
+      consumes:
+      - application/json
+      description: 根据设备ID更新设备的集群角色
+      parameters:
+      - description: 设备ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 角色更新信息
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/service.DeviceRoleUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 角色更新成功
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: 设备不存在
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 更新角色失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 更新设备角色
+      tags:
+      - 设备管理
+  /device/export:
+    get:
+      consumes:
+      - application/json
+      description: 导出所有设备信息为CSV文件，包含设备的全部字段
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: device_info.csv
+          schema:
+            type: file
+        "500":
+          description: 导出设备信息失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 导出设备信息
+      tags:
+      - 设备管理
+  /f5:
+    get:
+      consumes:
+      - application/json
+      description: 获取F5信息列表，支持分页和多条件筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        required: true
+        type: integer
+      - description: F5名称
+        in: query
+        name: name
+        type: string
+      - description: VIP地址
+        in: query
+        name: vip
+        type: string
+      - description: 端口
+        in: query
+        name: port
+        type: string
+      - description: 应用ID
+        in: query
+        name: appid
+        type: string
+      - description: 状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取F5信息列表
+          schema:
+            $ref: '#/definitions/service.F5InfoListResponse'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取F5信息列表失败
           schema:
             $ref: '#/definitions/service.ErrorResponse'
       summary: 获取F5信息列表
@@ -181,7 +824,7 @@ paths:
     delete:
       consumes:
       - application/json
-      description: 软删除F5信息
+      description: 根据ID删除F5信息，删除后无法恢复
       parameters:
       - description: F5信息ID
         in: path
@@ -192,15 +835,21 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: F5信息删除成功
           schema:
-            $ref: '#/definitions/service.SuccessResponse'
+            additionalProperties:
+              type: string
+            type: object
         "400":
-          description: Bad Request
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: F5信息不存在
           schema:
             $ref: '#/definitions/service.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: 删除F5信息失败
           schema:
             $ref: '#/definitions/service.ErrorResponse'
       summary: 删除F5信息
@@ -209,7 +858,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 根据ID获取F5信息详情
+      description: 根据ID获取F5信息的详细信息
       parameters:
       - description: F5信息ID
         in: path
@@ -220,33 +869,37 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: 成功获取F5信息详情
           schema:
             $ref: '#/definitions/service.F5InfoResponse'
         "400":
-          description: Bad Request
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: F5信息不存在
           schema:
             $ref: '#/definitions/service.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: 获取F5信息详情失败
           schema:
             $ref: '#/definitions/service.ErrorResponse'
-      summary: 获取单个F5信息
+      summary: 获取F5信息详情
       tags:
       - F5管理
     put:
       consumes:
       - application/json
-      description: 更新F5信息
+      description: 根据ID更新F5信息的各项属性
       parameters:
       - description: F5信息ID
         in: path
         name: id
         required: true
         type: integer
-      - description: 更新参数
+      - description: F5信息更新内容
         in: body
-        name: body
+        name: data
         required: true
         schema:
           $ref: '#/definitions/service.F5InfoUpdateDTO'
@@ -254,18 +907,158 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: F5信息更新成功
           schema:
-            $ref: '#/definitions/service.SuccessResponse'
+            additionalProperties:
+              type: string
+            type: object
         "400":
-          description: Bad Request
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: F5信息不存在
           schema:
             $ref: '#/definitions/service.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: 更新F5信息失败
           schema:
             $ref: '#/definitions/service.ErrorResponse'
       summary: 更新F5信息
       tags:
       - F5管理
+  /ops/job:
+    get:
+      consumes:
+      - application/json
+      description: 获取运维任务列表，支持分页和条件筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 任务名称
+        in: query
+        name: name
+        type: string
+      - description: 任务状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取任务列表
+          schema:
+            $ref: '#/definitions/service.OpsJobListResponse'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取任务列表失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取运维任务列表
+      tags:
+      - 运维任务
+    post:
+      consumes:
+      - application/json
+      description: 创建新的运维任务，并返回创建的任务信息
+      parameters:
+      - description: 任务信息
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/service.OpsJobCreateDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 任务创建成功
+          schema:
+            $ref: '#/definitions/service.OpsJobResponse'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 创建任务失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 创建运维任务
+      tags:
+      - 运维任务
+  /ops/job/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据任务ID获取运维任务的详细信息
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取任务详情
+          schema:
+            $ref: '#/definitions/service.OpsJobResponse'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: 任务不存在
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: 获取任务详情失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取运维任务详情
+      tags:
+      - 运维任务
+  /ops/job/{id}/ws:
+    get:
+      consumes:
+      - application/json
+      description: 建立WebSocket连接以实时获取运维任务的状态更新和日志
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: 升级为WebSocket协议
+          schema:
+            type: string
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: WebSocket连接失败
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 运维任务WebSocket连接
+      tags:
+      - 运维任务
+securityDefinitions:
+  BasicAuth:
+    type: basic
 swagger: "2.0"

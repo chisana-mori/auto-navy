@@ -1,0 +1,1561 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Navy-NG 管理平台 API 文档",
+        "title": "Navy-NG API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/fe-v1",
+    "paths": {
+        "/device": {
+            "get": {
+                "description": "获取设备列表，支持分页和关键字搜索",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "获取设备列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键字",
+                        "name": "keyword",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取设备列表",
+                        "schema": {
+                            "$ref": "#/definitions/service.DeviceListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取设备列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device-query/filter-options": {
+            "get": {
+                "description": "获取设备筛选项，包括设备字段、节点标签和节点污点",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "获取设备筛选项",
+                "responses": {
+                    "200": {
+                        "description": "成功获取筛选项",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/service.FilterOptionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "获取筛选项失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device-query/label-values": {
+            "get": {
+                "description": "根据标签键获取节点标签的可选值列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "获取节点标签可选值",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "标签键",
+                        "name": "key",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取标签值",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.FilterOptionResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取标签值失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device-query/query": {
+            "post": {
+                "description": "根据复杂条件查询设备，支持设备字段、节点标签和节点污点筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "查询设备",
+                "parameters": [
+                    {
+                        "description": "查询条件",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.DeviceQueryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功查询设备",
+                        "schema": {
+                            "$ref": "#/definitions/service.DeviceListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "查询设备失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device-query/taint-values": {
+            "get": {
+                "description": "根据污点键获取节点污点的可选值列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "获取节点污点可选值",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "污点键",
+                        "name": "key",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取污点值",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.FilterOptionResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取污点值失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device-query/templates": {
+            "get": {
+                "description": "获取所有设备查询模板列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "获取查询模板列表",
+                "responses": {
+                    "200": {
+                        "description": "成功获取模板列表",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.QueryTemplate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "获取模板列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "保存设备查询模板，方便后续复用",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "保存查询模板",
+                "parameters": [
+                    {
+                        "description": "模板信息",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.QueryTemplate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "模板保存成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "保存模板失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device-query/templates/{id}": {
+            "get": {
+                "description": "根据模板ID获取设备查询模板详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "获取查询模板详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模板ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取模板详情",
+                        "schema": {
+                            "$ref": "#/definitions/service.QueryTemplate"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取模板详情失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "根据模板ID删除设备查询模板",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备查询"
+                ],
+                "summary": "删除查询模板",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模板ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "模板删除成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "删除模板失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device/export": {
+            "get": {
+                "description": "导出所有设备信息为CSV文件，包含设备的全部字段",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "导出设备信息",
+                "responses": {
+                    "200": {
+                        "description": "device_info.csv",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "500": {
+                        "description": "导出设备信息失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device/{id}": {
+            "get": {
+                "description": "根据设备ID获取设备详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "获取设备详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "设备ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取设备详情",
+                        "schema": {
+                            "$ref": "#/definitions/service.DeviceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "设备不存在",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取设备详情失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/device/{id}/role": {
+            "patch": {
+                "description": "根据设备ID更新设备的集群角色",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "更新设备角色",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "设备ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "角色更新信息",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.DeviceRoleUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "角色更新成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "设备不存在",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "更新角色失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/f5": {
+            "get": {
+                "description": "获取F5信息列表，支持分页和多条件筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "获取F5信息列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "F5名称",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "VIP地址",
+                        "name": "vip",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "端口",
+                        "name": "port",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "应用ID",
+                        "name": "appid",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "状态",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取F5信息列表",
+                        "schema": {
+                            "$ref": "#/definitions/service.F5InfoListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取F5信息列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/f5/{id}": {
+            "get": {
+                "description": "根据ID获取F5信息的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "获取F5信息详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "F5信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取F5信息详情",
+                        "schema": {
+                            "$ref": "#/definitions/service.F5InfoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "F5信息不存在",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取F5信息详情失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "根据ID更新F5信息的各项属性",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "更新F5信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "F5信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "F5信息更新内容",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.F5InfoUpdateDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "F5信息更新成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "F5信息不存在",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "更新F5信息失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "根据ID删除F5信息，删除后无法恢复",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "删除F5信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "F5信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "F5信息删除成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "F5信息不存在",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "删除F5信息失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ops/job": {
+            "get": {
+                "description": "获取运维任务列表，支持分页和条件筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "运维任务"
+                ],
+                "summary": "获取运维任务列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "任务名称",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "任务状态",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取任务列表",
+                        "schema": {
+                            "$ref": "#/definitions/service.OpsJobListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取任务列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的运维任务，并返回创建的任务信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "运维任务"
+                ],
+                "summary": "创建运维任务",
+                "parameters": [
+                    {
+                        "description": "任务信息",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.OpsJobCreateDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "任务创建成功",
+                        "schema": {
+                            "$ref": "#/definitions/service.OpsJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "创建任务失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ops/job/{id}": {
+            "get": {
+                "description": "根据任务ID获取运维任务的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "运维任务"
+                ],
+                "summary": "获取运维任务详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取任务详情",
+                        "schema": {
+                            "$ref": "#/definitions/service.OpsJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "任务不存在",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "获取任务详情失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ops/job/{id}/ws": {
+            "get": {
+                "description": "建立WebSocket连接以实时获取运维任务的状态更新和日志",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "运维任务"
+                ],
+                "summary": "运维任务WebSocket连接",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "升级为WebSocket协议",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "WebSocket连接失败",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "service.ConditionType": {
+            "type": "string",
+            "enum": [
+                "equal",
+                "notEqual",
+                "contains",
+                "notContains",
+                "exists",
+                "notExists",
+                "in",
+                "notIn"
+            ],
+            "x-enum-comments": {
+                "ConditionTypeContains": "包含",
+                "ConditionTypeEqual": "等于",
+                "ConditionTypeExists": "存在",
+                "ConditionTypeIn": "在列表中",
+                "ConditionTypeNotContains": "不包含",
+                "ConditionTypeNotEqual": "不等于",
+                "ConditionTypeNotExists": "不存在",
+                "ConditionTypeNotIn": "不在列表中"
+            },
+            "x-enum-varnames": [
+                "ConditionTypeEqual",
+                "ConditionTypeNotEqual",
+                "ConditionTypeContains",
+                "ConditionTypeNotContains",
+                "ConditionTypeExists",
+                "ConditionTypeNotExists",
+                "ConditionTypeIn",
+                "ConditionTypeNotIn"
+            ]
+        },
+        "service.DeviceListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.DeviceResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "service.DeviceQueryRequest": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "description": "筛选组列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FilterGroup"
+                    }
+                },
+                "page": {
+                    "description": "页码",
+                    "type": "integer"
+                },
+                "size": {
+                    "description": "每页数量",
+                    "type": "integer"
+                }
+            }
+        },
+        "service.DeviceResponse": {
+            "type": "object",
+            "properties": {
+                "appId": {
+                    "description": "APPID",
+                    "type": "string"
+                },
+                "arch": {
+                    "description": "架构",
+                    "type": "string"
+                },
+                "cabinet": {
+                    "description": "机柜号",
+                    "type": "string"
+                },
+                "cluster": {
+                    "description": "所属集群",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "datacenter": {
+                    "description": "机房",
+                    "type": "string"
+                },
+                "deviceId": {
+                    "description": "设备ID",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID",
+                    "type": "integer"
+                },
+                "idc": {
+                    "description": "IDC",
+                    "type": "string"
+                },
+                "ip": {
+                    "description": "IP地址",
+                    "type": "string"
+                },
+                "machineType": {
+                    "description": "机器类型",
+                    "type": "string"
+                },
+                "network": {
+                    "description": "网络区域",
+                    "type": "string"
+                },
+                "resourcePool": {
+                    "description": "资源池/产品",
+                    "type": "string"
+                },
+                "role": {
+                    "description": "集群角色",
+                    "type": "string"
+                },
+                "room": {
+                    "description": "Room",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "service.DeviceRoleUpdateRequest": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "description": "新的角色值",
+                    "type": "string"
+                }
+            }
+        },
+        "service.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "操作失败"
+                }
+            }
+        },
+        "service.F5InfoListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.F5InfoResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "service.F5InfoResponse": {
+            "type": "object",
+            "properties": {
+                "appid": {
+                    "type": "string",
+                    "example": "app-001"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T12:00:00Z"
+                },
+                "domains": {
+                    "type": "string",
+                    "example": "example.com,test.com"
+                },
+                "grafana_params": {
+                    "type": "string",
+                    "example": "http://grafana.example.com"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "ignored": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "instance_group": {
+                    "type": "string",
+                    "example": "group-1"
+                },
+                "k8s_cluster_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "k8s_cluster_name": {
+                    "type": "string",
+                    "example": "生产集群"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "f5-test"
+                },
+                "pool_members": {
+                    "type": "string",
+                    "example": "192.168.1.10:80,192.168.1.11:80"
+                },
+                "pool_name": {
+                    "type": "string",
+                    "example": "pool-1"
+                },
+                "pool_status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "port": {
+                    "type": "string",
+                    "example": "80"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-02T12:00:00Z"
+                },
+                "vip": {
+                    "type": "string",
+                    "example": "192.168.1.1"
+                }
+            }
+        },
+        "service.F5InfoUpdateDTO": {
+            "type": "object",
+            "required": [
+                "appid",
+                "name",
+                "port",
+                "vip"
+            ],
+            "properties": {
+                "appid": {
+                    "type": "string",
+                    "example": "app-001"
+                },
+                "domains": {
+                    "type": "string",
+                    "example": "example.com,test.com"
+                },
+                "grafana_params": {
+                    "type": "string",
+                    "example": "http://grafana.example.com"
+                },
+                "ignored": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "instance_group": {
+                    "type": "string",
+                    "example": "group-1"
+                },
+                "k8s_cluster_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "f5-test"
+                },
+                "pool_members": {
+                    "type": "string",
+                    "example": "192.168.1.10:80,192.168.1.11:80"
+                },
+                "pool_name": {
+                    "type": "string",
+                    "example": "pool-1"
+                },
+                "pool_status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "port": {
+                    "type": "string",
+                    "example": "80"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "vip": {
+                    "type": "string",
+                    "example": "192.168.1.1"
+                }
+            }
+        },
+        "service.FilterBlock": {
+            "type": "object",
+            "properties": {
+                "conditionType": {
+                    "description": "条件类型",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.ConditionType"
+                        }
+                    ]
+                },
+                "id": {
+                    "description": "筛选块ID",
+                    "type": "string"
+                },
+                "key": {
+                    "description": "键",
+                    "type": "string"
+                },
+                "operator": {
+                    "description": "与下一个条件的逻辑关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.LogicalOperator"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "筛选类型",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.FilterType"
+                        }
+                    ]
+                },
+                "value": {
+                    "description": "值",
+                    "type": "string"
+                }
+            }
+        },
+        "service.FilterGroup": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "description": "筛选块列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FilterBlock"
+                    }
+                },
+                "id": {
+                    "description": "筛选组ID",
+                    "type": "string"
+                },
+                "operator": {
+                    "description": "与下一个组的逻辑关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.LogicalOperator"
+                        }
+                    ]
+                }
+            }
+        },
+        "service.FilterOptionResponse": {
+            "type": "object",
+            "properties": {
+                "dbColumn": {
+                    "type": "string",
+                    "example": "d.ip"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "ip"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "IP地址"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "ip"
+                }
+            }
+        },
+        "service.FilterType": {
+            "type": "string",
+            "enum": [
+                "nodeLabel",
+                "taint",
+                "device"
+            ],
+            "x-enum-comments": {
+                "FilterTypeDevice": "设备字段",
+                "FilterTypeNodeLabel": "节点标签",
+                "FilterTypeTaint": "污点"
+            },
+            "x-enum-varnames": [
+                "FilterTypeNodeLabel",
+                "FilterTypeTaint",
+                "FilterTypeDevice"
+            ]
+        },
+        "service.LogicalOperator": {
+            "type": "string",
+            "enum": [
+                "and",
+                "or"
+            ],
+            "x-enum-comments": {
+                "LogicalOperatorAnd": "与",
+                "LogicalOperatorOr": "或"
+            },
+            "x-enum-varnames": [
+                "LogicalOperatorAnd",
+                "LogicalOperatorOr"
+            ]
+        },
+        "service.OpsJobCreateDTO": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "部署应用到生产环境"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "deploy-app"
+                }
+            }
+        },
+        "service.OpsJobListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.OpsJobResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "service.OpsJobResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T12:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "部署应用到生产环境"
+                },
+                "end_time": {
+                    "type": "string",
+                    "example": "2024-01-01T12:30:00Z"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "log_content": {
+                    "type": "string",
+                    "example": "Starting deployment..."
+                },
+                "name": {
+                    "type": "string",
+                    "example": "deploy-app"
+                },
+                "progress": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "start_time": {
+                    "type": "string",
+                    "example": "2024-01-01T12:00:00Z"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "running"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-01T12:30:00Z"
+                }
+            }
+        },
+        "service.QueryTemplate": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "模板描述",
+                    "type": "string"
+                },
+                "groups": {
+                    "description": "筛选组列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FilterGroup"
+                    }
+                },
+                "id": {
+                    "description": "模板ID",
+                    "type": "integer"
+                },
+                "name": {
+                    "description": "模板名称",
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BasicAuth": {
+            "type": "basic"
+        }
+    }
+}

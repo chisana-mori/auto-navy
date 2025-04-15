@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Table, Card, Input, Button, message, Space, Modal, Select, Form } from 'antd';
+import { Table, Card, Input, Button, message, Space, Modal, Select, Form, Tag } from 'antd';
 import { CloudServerOutlined, DownloadOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table/interface';
-import { getDeviceList, downloadDeviceExcel, updateDeviceRole } from '../../services/deviceService';
+import { getDeviceList, downloadDeviceExcel, updateDeviceRole, updateDeviceGroup } from '../../services/deviceService';
 import type { Device, DeviceQuery } from '../../types/device';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/device-management.css';
@@ -80,21 +80,21 @@ const DeviceManagement: React.FC = () => {
     }
   };
 
-  // 打开角色标记对话框
+  // 打开用途标记对话框
   const showRoleModal = (device: Device) => {
     setSelectedDevice(device);
-    form.setFieldsValue({ role: device.role });
+    form.setFieldsValue({ group: device.group });
     setIsRoleModalVisible(true);
   };
 
-  // 关闭角色标记对话框
+  // 关闭用途标记对话框
   const handleRoleModalCancel = () => {
     setIsRoleModalVisible(false);
     setSelectedDevice(null);
     form.resetFields();
   };
 
-  // 提交角色更新
+  // 提交用途更新
   const handleRoleUpdate = async () => {
     if (!selectedDevice) return;
 
@@ -102,15 +102,15 @@ const DeviceManagement: React.FC = () => {
       const values = await form.validateFields();
       setRoleUpdateLoading(true);
 
-      await updateDeviceRole(selectedDevice.id, values.role);
-      message.success('设备角色更新成功');
+      await updateDeviceGroup(selectedDevice.id, values.group);
+      message.success('设备用途更新成功');
 
       // 刷新数据
       fetchData(pagination.current as number, pagination.pageSize as number, searchKeyword);
       handleRoleModalCancel();
     } catch (error) {
-      console.error('更新设备角色失败:', error);
-      message.error('更新设备角色失败');
+      console.error('更新设备用途失败:', error);
+      message.error('更新设备用途失败');
     } finally {
       setRoleUpdateLoading(false);
     }
@@ -144,9 +144,9 @@ const DeviceManagement: React.FC = () => {
   // 表格列定义
   const columns: ColumnsType<Device> = [
     {
-      title: '设备ID',
-      dataIndex: 'deviceId',
-      key: 'deviceId',
+      title: '设备编码',
+      dataIndex: 'ciCode',
+      key: 'ciCode',
       width: 150,
       ellipsis: true,
     },
@@ -158,11 +158,27 @@ const DeviceManagement: React.FC = () => {
       ellipsis: true,
     },
     {
-      title: '机器类型',
-      dataIndex: 'machineType',
-      key: 'machineType',
+      title: '机器用途',
+      dataIndex: 'group',
+      key: 'group',
       width: 120,
       ellipsis: true,
+      render: (text: string, record: Device) => (
+        <Space>
+          {text}
+          <Button
+            type="link"
+            size="small"
+            className="action-button"
+            onClick={(e) => {
+              e.stopPropagation();
+              showRoleModal(record);
+            }}
+          >
+            编辑
+          </Button>
+        </Space>
+      ),
     },
     {
       title: '所属集群',
@@ -179,9 +195,9 @@ const DeviceManagement: React.FC = () => {
       ellipsis: true,
     },
     {
-      title: '架构',
-      dataIndex: 'arch',
-      key: 'arch',
+      title: 'CPU架构',
+      dataIndex: 'archType',
+      key: 'archType',
       width: 80,
       ellipsis: true,
     },
@@ -193,26 +209,19 @@ const DeviceManagement: React.FC = () => {
       ellipsis: true,
     },
     {
-      title: 'Room',
+      title: 'ROOM',
       dataIndex: 'room',
       key: 'room',
-      width: 250,
+      width: 120,
       ellipsis: { showTitle: false },
       render: (text) => (
         <span title={text}>{text}</span>
       ),
     },
     {
-      title: '机柜号',
-      dataIndex: 'cabinet',
-      key: 'cabinet',
-      width: 120,
-      ellipsis: true,
-    },
-    {
       title: '网络区域',
-      dataIndex: 'network',
-      key: 'network',
+      dataIndex: 'netZone',
+      key: 'netZone',
       width: 100,
       ellipsis: true,
     },
@@ -224,37 +233,32 @@ const DeviceManagement: React.FC = () => {
       ellipsis: true,
     },
     {
-      title: '资源池/产品',
-      dataIndex: 'resourcePool',
-      key: 'resourcePool',
-      width: 120,
+      title: '是否国产化',
+      dataIndex: 'isLocalization',
+      key: 'isLocalization',
+      width: 100,
       ellipsis: true,
+      render: (value: boolean) => (
+        <Tag color={value ? 'green' : 'default'}>
+          {value ? '是' : '否'}
+        </Tag>
+      ),
     },
     {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 130,
+      width: 80,
       align: 'center',
       render: (_, record) => (
-        <Space size={4} wrap={false} className="action-space">
-          <Button
-            type="link"
-            size="small"
-            className="action-button"
-            onClick={() => navigate(`/device/${record.id}`)}
-          >
-            详情
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            className="action-button"
-            onClick={() => showRoleModal(record)}
-          >
-            标记
-          </Button>
-        </Space>
+        <Button
+          type="link"
+          size="small"
+          className="action-button"
+          onClick={() => navigate(`/device/${record.id}`)}
+        >
+          详情
+        </Button>
       ),
     },
   ];
@@ -323,13 +327,13 @@ const DeviceManagement: React.FC = () => {
           }}
           onChange={handleTableChange}
           size="middle"
-          scroll={{ x: 1700 }}
+          scroll={{ x: 1500 }}
         />
       </Card>
 
-      {/* 角色标记对话框 */}
+      {/* 用途编辑对话框 */}
       <Modal
-        title="标记设备角色"
+        title="编辑机器用途"
         open={isRoleModalVisible}
         onOk={handleRoleUpdate}
         onCancel={handleRoleModalCancel}
@@ -339,16 +343,24 @@ const DeviceManagement: React.FC = () => {
       >
         <Form form={form} layout="vertical">
           <Form.Item
-            name="role"
-            label="角色"
-            rules={[{ required: true, message: '请选择角色' }]}
+            name="group"
+            label="机器用途"
+            rules={[{ required: true, message: '请输入机器用途' }]}
           >
-            <Select placeholder="请选择设备角色">
-              <Select.Option value="x86">x86</Select.Option>
-              <Select.Option value="ARM">ARM</Select.Option>
-              <Select.Option value="master">master</Select.Option>
-              <Select.Option value="worker">worker</Select.Option>
-              <Select.Option value="etcd">etcd</Select.Option>
+            <Select
+              placeholder="请选择或输入机器用途"
+              showSearch
+              allowClear
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              <Select.Option value="qf-core601-flannel-2">qf-core601-flannel-2</Select.Option>
+              <Select.Option value="qf-core602-flannel-2">qf-core602-flannel-2</Select.Option>
+              <Select.Option value="qf-core603-flannel-2">qf-core603-flannel-2</Select.Option>
+              <Select.Option value="qf-core604-flannel-2">qf-core604-flannel-2</Select.Option>
+              <Select.Option value="qf-core605-flannel-2">qf-core605-flannel-2</Select.Option>
             </Select>
           </Form.Item>
         </Form>

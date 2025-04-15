@@ -28,46 +28,23 @@ const (
 	defaultPage = 1
 	defaultSize = 10
 	maxSize     = 100
-	// ErrRecordNotFoundMsg is the error message for record not found errors.
-	ErrRecordNotFoundMsg = "F5 info with id %d not found"
+	// f5InfoNotFoundMsg is the error message for F5 info record not found errors.
+	f5InfoNotFoundMsg = "F5 info with id %d not found"
 )
 
-// GetF5Info retrieves a single F5Info by ID.
-// @Summary Get F5 information by ID
-// @Description Get detailed information of an F5 instance by its ID
-// @Tags F5Info
-// @Accept json
-// @Produce json
-// @Param id path int true "F5 Info ID"
-// @Success 200 {object} F5InfoResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /f5/{id} [get]
 func (s *F5InfoService) GetF5Info(ctx context.Context, id int64) (*F5InfoResponse, error) {
 	var model portal.F5Info
 	err := s.db.WithContext(ctx).Preload("K8sCluster").
 		Where("id = ? AND deleted = ?", id, emptyString).First(&model).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf(ErrRecordNotFoundMsg, id)
+			return nil, fmt.Errorf(f5InfoNotFoundMsg, id)
 		}
 		return nil, fmt.Errorf("database error: %w", err)
 	}
 	return toF5InfoResponse(&model), nil
 }
 
-// ListF5Infos retrieves a list of F5Info based on query parameters.
-// @Summary List F5 information
-// @Description Get a list of F5 instances with filtering and pagination
-// @Tags F5Info
-// @Accept json
-// @Produce json
-// @Param query query F5InfoQuery true "Query parameters"
-// @Success 200 {object} F5InfoListResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /f5 [get]
 func (s *F5InfoService) ListF5Infos(ctx context.Context,
 	query *F5InfoQuery) (*F5InfoListResponse, error) {
 	var models []portal.F5Info
@@ -136,19 +113,6 @@ func (s *F5InfoService) ListF5Infos(ctx context.Context,
 	}, nil
 }
 
-// UpdateF5Info updates an existing F5Info.
-// @Summary Update F5 information
-// @Description Update an existing F5 instance by its ID
-// @Tags F5Info
-// @Accept json
-// @Produce json
-// @Param id path int true "F5 Info ID"
-// @Param f5_info body F5InfoUpdateDTO true "F5 Info data to update"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /f5/{id} [put]
 func (s *F5InfoService) UpdateF5Info(ctx context.Context, id int64,
 	dto *F5InfoUpdateDTO) error {
 	model := fromF5InfoUpdateDTO(dto)
@@ -157,7 +121,7 @@ func (s *F5InfoService) UpdateF5Info(ctx context.Context, id int64,
 	var existing portal.F5Info
 	if err := s.db.WithContext(ctx).First(&existing, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf(ErrRecordNotFoundMsg, id)
+			return fmt.Errorf(f5InfoNotFoundMsg, id)
 		}
 		return fmt.Errorf("database error when checking existence: %w", err)
 	}
@@ -174,17 +138,6 @@ func (s *F5InfoService) UpdateF5Info(ctx context.Context, id int64,
 	return nil
 }
 
-// DeleteF5Info marks an F5Info as deleted (soft delete).
-// @Summary Delete F5 information
-// @Description Mark an F5 instance as deleted by its ID (soft delete)
-// @Tags F5Info
-// @Accept json
-// @Produce json
-// @Param id path int true "F5 Info ID"
-// @Success 200 {object} SuccessResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /f5/{id} [delete]
 func (s *F5InfoService) DeleteF5Info(ctx context.Context, id int64) error {
 	result := s.db.WithContext(ctx).Model(&portal.F5Info{}).Where("id = ?", id).
 		Update("deleted", "1") // Assuming "1" marks as deleted
@@ -193,7 +146,7 @@ func (s *F5InfoService) DeleteF5Info(ctx context.Context, id int64) error {
 		return fmt.Errorf("failed to delete F5 info: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf(ErrRecordNotFoundMsg, id)
+		return fmt.Errorf(f5InfoNotFoundMsg, id)
 	}
 	return nil
 }
@@ -204,22 +157,22 @@ func toF5InfoResponse(m *portal.F5Info) *F5InfoResponse {
 		return nil
 	}
 	resp := &F5InfoResponse{
-		ID:             m.ID, // Removed unnecessary conversion int64(m.ID)
-		Name:           m.Name,
-		VIP:            m.VIP,
-		Port:           m.Port,
-		AppID:          m.AppID,
-		InstanceGroup:  m.InstanceGroup,
-		Status:         m.Status,
-		PoolName:       m.PoolName,
-		PoolStatus:     m.PoolStatus,
-		PoolMembers:    m.PoolMembers,
-		K8sClusterID:   m.K8sClusterID,
-		Domains:        m.Domains,
-		GrafanaParams:  m.GrafanaParams,
-		Ignored:        m.Ignored,
-		CreatedAt:      m.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:      m.UpdatedAt.Format(time.RFC3339),
+		ID:            m.ID, // Removed unnecessary conversion int64(m.ID)
+		Name:          m.Name,
+		VIP:           m.VIP,
+		Port:          m.Port,
+		AppID:         m.AppID,
+		InstanceGroup: m.InstanceGroup,
+		Status:        m.Status,
+		PoolName:      m.PoolName,
+		PoolStatus:    m.PoolStatus,
+		PoolMembers:   m.PoolMembers,
+		K8sClusterID:  m.K8sClusterID,
+		Domains:       m.Domains,
+		GrafanaParams: m.GrafanaParams,
+		Ignored:       m.Ignored,
+		CreatedAt:     m.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:     m.UpdatedAt.Format(time.RFC3339),
 	}
 
 	// Check if K8sCluster relation is valid (not zero value) and has a valid ID
@@ -251,12 +204,4 @@ func fromF5InfoUpdateDTO(dto *F5InfoUpdateDTO) *portal.F5Info {
 	}
 }
 
-// ErrorResponse 错误响应.
-type ErrorResponse struct {
-	Error string `json:"error" swagger:"description=错误信息"`
-}
-
-// SuccessResponse 成功响应.
-type SuccessResponse struct {
-	Message string `json:"message" example:"success" swagger:"description=成功信息"`
-}
+// 注意：删除了重复的 ErrorResponse 和 SuccessResponse 结构体

@@ -51,6 +51,86 @@
             margin-bottom: 18px;
             font-weight: 600;
         }
+        /* 汇总行样式 */
+        .summary-row {
+            margin-bottom: 20px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid #eee;
+            overflow: hidden;
+        }
+        .summary-row-title {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        .summary-row-icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+            color: #3498db;
+        }
+        .summary-row-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        .summary-row-cards {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 15px;
+            gap: 15px;
+        }
+
+        /* 汇总卡片样式 */
+        .summary-card {
+            flex: 1 1 200px;
+            min-width: 150px;
+            background: #f9fafd;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            border: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+        }
+        .summary-card-content {
+            flex: 1;
+            text-align: center;
+        }
+        .summary-card-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .summary-card-label {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .summary-card.status-normal {
+            border-left: 4px solid #27ae60;
+            background: #f0fff4;
+        }
+        .summary-card.status-normal .summary-card-value {
+            color: #27ae60;
+        }
+        .summary-card.status-error {
+            border-left: 4px solid #e74c3c;
+            background: #fff5f5;
+        }
+        .summary-card.status-error .summary-card-value {
+            color: #e74c3c;
+        }
+
+        /* 保留旧的样式以兼容其他部分 */
         .summary-list {
             display: flex;
             flex-wrap: wrap;
@@ -74,6 +154,7 @@
         .status-normal { color: #27ae60; font-weight: bold;}
         .status-error { color: #c0392b; font-weight: bold;}
         .status-warning { color: #f39c12; font-weight: bold;}
+        .status-suggestion { color: #3498db; font-style: italic; }
         .summary-item.status-error { background: #ffeaea; }
         .summary-item.status-normal { background: #eafaf1; }
         .summary-item.status-warning { background: #fff7e6; }
@@ -131,28 +212,255 @@
             background: #c0392b;
             margin-left: 8px;
         }
+
+        .health-status-cell {
+            padding: 6px 12px;
+            border-radius: 4px;
+            color: #fff;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .health-red { background-color: #c0392b; }
+        .health-yellow { background-color: #f39c12; color: #333; }
+        .health-green { background-color: #27ae60; }
+
+        .heatmap-table td {
+            text-align: center;
+            padding: 8px 5px; /* Reduced padding */
+            font-size: 0.95em;
+            border: 1px solid #eee; /* Add cell borders */
+        }
+        .heatmap-table th {
+             text-align: center;
+             padding: 10px 5px;
+        }
+        .heatmap-cell {
+            color: #333; /* Default text color */
+            font-weight: normal;
+        }
+        /* Define color scale (example with 3 levels + high) */
+        .heat-level-1 { background-color: #fee; color: #a00; } /* Light red for low failures (1-2) */
+        .heat-level-2 { background-color: #fdd; color: #800; font-weight: bold; } /* Medium red (3-5) */
+        .heat-level-high { background-color: #c0392b; color: #fff; font-weight: bold; } /* High failures (>5) */
+         /* Add more levels if needed */
+         .check-item-name {
+             text-align: left;
+             font-weight: 500;
+             padding-left: 10px !important; /* Ensure left padding */
+         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <!-- 可替换为公司LOGO -->
-            <img class="logo" src="https://img.icons8.com/color/96/000000/security-checked.png" alt="logo"/>
-            <span class="title">安全巡检报告</span>
+            <span class="title">安全基线巡检报告</span>
+        </div>
+
+        <!-- 统计图表区域 -->
+        <div style="width:100%;display:flex;justify-content:center;margin-bottom:30px;">
+            <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:20px;max-width:800px;">
+                <!-- 节点状态饼图 -->
+                <div style="background:#fff;border-radius:10px;padding:15px;box-shadow:0 2px 10px rgba(0,0,0,0.05);border:1px solid #eee;width:300px;">
+                    <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#444;">节点状态</div>
+                    <svg width="300" height="180" viewBox="0 0 300 180">
+                        <!-- 饼图 -->
+                        <g transform="translate(150, 90)">
+                            <!-- 正常节点扇区 -->
+                            <path d="M 0 0 L 0 -70 A 70 70 0 {{if gt .AbnormalNodes 0}}1,1{{else}}1,0{{end}} {{
+                                (-70*sin (div (mul .AbnormalNodes 360) (add .NormalNodes .AbnormalNodes) | mul 3.1416 | div 180)) | printf "%.1f"}},{{
+                                (70*cos (div (mul .AbnormalNodes 360) (add .NormalNodes .AbnormalNodes) | mul 3.1416 | div 180)) | printf "%.1f"}} Z" fill="#27ae60" opacity="0.9"/>
+
+                            <!-- 异常节点扇区 -->
+                            <path d="M 0 0 L {{
+                                (-70*sin (div (mul .AbnormalNodes 360) (add .NormalNodes .AbnormalNodes) | mul 3.1416 | div 180)) | printf "%.1f"}},{{
+                                (70*cos (div (mul .AbnormalNodes 360) (add .NormalNodes .AbnormalNodes) | mul 3.1416 | div 180)) | printf "%.1f"}} A 70 70 0 {{if gt .NormalNodes 0}}0,1{{else}}1,1{{end}} 0 -70 Z" fill="#e74c3c" opacity="0.9"/>
+
+                            <!-- 中心白色圆形 -->
+                            <circle cx="0" cy="0" r="45" fill="white" stroke="#eee" stroke-width="1"/>
+
+                            <!-- 中心文字 -->
+                            <text x="0" y="0" font-size="16" fill="#333" text-anchor="middle" dominant-baseline="middle" font-weight="bold">{{.TotalNodes}}</text>
+                            <text x="0" y="20" font-size="12" fill="#666" text-anchor="middle" dominant-baseline="middle">节点总数</text>
+                        </g>
+
+                        <!-- 图例 -->
+                        <g transform="translate(20, 150)">
+                            <rect x="0" y="0" width="12" height="12" fill="#27ae60" rx="2"/>
+                            <text x="20" y="10" font-size="12" fill="#333" dominant-baseline="middle">正常节点: {{.NormalNodes}} ({{div (mul .NormalNodes 100) (add .NormalNodes .AbnormalNodes) | printf "%.0f"}}%)</text>
+                        </g>
+
+                        <g transform="translate(160, 150)">
+                            <rect x="0" y="0" width="12" height="12" fill="#e74c3c" rx="2"/>
+                            <text x="20" y="10" font-size="12" fill="#333" dominant-baseline="middle">异常节点: {{.AbnormalNodes}} ({{div (mul .AbnormalNodes 100) (add .NormalNodes .AbnormalNodes) | printf "%.0f"}}%)</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- 检查项结果柱状图 -->
+                <div style="background:#fff;border-radius:10px;padding:15px;box-shadow:0 2px 10px rgba(0,0,0,0.05);border:1px solid #eee;width:300px;">
+                    <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#444;">检查项结果</div>
+                    <svg width="300" height="180" viewBox="0 0 300 180">
+                        <!-- 坐标轴 -->
+                        <line x1="50" y1="30" x2="50" y2="130" stroke="#ccc" stroke-width="1"/>
+                        <line x1="50" y1="130" x2="250" y2="130" stroke="#ccc" stroke-width="1"/>
+
+                        <!-- 通过项柱形 -->
+                        <rect x="100" y="{{add 130 (negate (mul 90 (div .PassedChecks .TotalChecks)))}}" width="40" height="{{mul 90 (div .PassedChecks .TotalChecks)}}" fill="#27ae60" rx="3" opacity="0.9"/>
+                        <text x="120" y="150" font-size="12" fill="#333" text-anchor="middle">通过</text>
+                        <text x="120" y="{{add 120 (negate (mul 90 (div .PassedChecks .TotalChecks)))}}" font-size="14" fill="#27ae60" text-anchor="middle" font-weight="bold">{{.PassedChecks}}</text>
+
+                        <!-- 失败项柱形 -->
+                        <rect x="180" y="{{add 130 (negate (mul 90 (div .FailedChecks .TotalChecks)))}}" width="40" height="{{mul 90 (div .FailedChecks .TotalChecks)}}" fill="#e74c3c" rx="3" opacity="0.9"/>
+                        <text x="200" y="150" font-size="12" fill="#333" text-anchor="middle">失败</text>
+                        <text x="200" y="{{add 120 (negate (mul 90 (div .FailedChecks .TotalChecks)))}}" font-size="14" fill="#e74c3c" text-anchor="middle" font-weight="bold">{{.FailedChecks}}</text>
+
+                        <!-- 总计标签 -->
+                        <text x="150" y="170" font-size="12" fill="#666" text-anchor="middle">总计检查项: {{.TotalChecks}}</text>
+                    </svg>
+                </div>
+            </div>
         </div>
 
         <div class="section">
             <div class="section-title">1. 巡检结果汇总</div>
-            <div class="summary-list">
-                <div class="summary-item"><span class="icon">🗂️</span> 集群数量：{{.TotalClusters}}</div>
-                <div class="summary-item"><span class="icon">🖥️</span> 节点总数：{{.TotalNodes}}</div>
-                <div class="summary-item status-normal"><span class="icon">✅</span> 正常节点：{{.NormalNodes}}</div>
-                <div class="summary-item status-error"><span class="icon">❌</span> 异常节点：{{.AbnormalNodes}}</div>
-                <div class="summary-item"><span class="icon">🔍</span> 巡检项总数：{{.TotalChecks}}</div>
-                <div class="summary-item status-normal"><span class="icon">✔️</span> 通过项：{{.PassedChecks}}</div>
-                <div class="summary-item status-error"><span class="icon">✖️</span> 失败项：{{.FailedChecks}}</div>
+
+            <!-- 集群信息行 -->
+            <div class="summary-row">
+                <div class="summary-row-title">
+                    <div class="summary-row-icon">🗂</div>
+                    <div class="summary-row-label">集群信息</div>
+                </div>
+                <div class="summary-row-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">{{.TotalClusters}}</div>
+                            <div class="summary-card-label">集群数量</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 节点信息行 -->
+            <div class="summary-row">
+                <div class="summary-row-title">
+                    <div class="summary-row-icon">🖥</div>
+                    <div class="summary-row-label">节点信息</div>
+                </div>
+                <div class="summary-row-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">{{.TotalNodes}}</div>
+                            <div class="summary-card-label">节点总数</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-normal">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">{{.NormalNodes}}</div>
+                            <div class="summary-card-label">正常节点</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-error">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">{{.AbnormalNodes}}</div>
+                            <div class="summary-card-label">异常节点</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 巡检项信息行 -->
+            <div class="summary-row">
+                <div class="summary-row-title">
+                    <div class="summary-row-icon">🔍</div>
+                    <div class="summary-row-label">巡检项信息</div>
+                </div>
+                <div class="summary-row-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">{{.TotalChecks}}</div>
+                            <div class="summary-card-label">巡检项总数</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-normal">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">{{.PassedChecks}}</div>
+                            <div class="summary-card-label">通过项</div>
+                        </div>
+                    </div>
+                    <div class="summary-card status-error">
+                        <div class="summary-card-content">
+                            <div class="summary-card-value">{{.FailedChecks}}</div>
+                            <div class="summary-card-label">失败项</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
+
+        {{if .ClusterHealthSummary}}
+        <div class="section">
+            <div class="section-title">安全风险预览</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>集群名称</th>
+                        <th>健康状态</th>
+                        <th>异常节点数</th>
+                        <th>失败检查项数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .ClusterHealthSummary}}
+                    <tr>
+                        <td>
+                            {{if or (not .Exists) (gt .AbnormalNodes 0)}}
+                                <a href="#{{.AnchorID}}">{{.ClusterName}}</a>
+                                {{if not .Exists}}
+                                    <span style="color: red; font-weight: bold;">（不存在）</span>
+                                {{end}}
+                            {{else}}
+                                {{.ClusterName}}
+                            {{end}}
+                        </td>
+                        <td>
+                            <span class="health-status-cell health-{{.StatusColor}}">
+                                {{if eq .StatusColor "red"}}严重{{else if eq .StatusColor "yellow"}}警告{{else}}正常{{end}}
+                            </span>
+                        </td>
+                        <td class="{{if gt .AbnormalNodes 0}}status-error{{end}}">{{.AbnormalNodes}}</td>
+                        <td class="{{if gt .FailedChecks 0}}status-warning{{end}}">{{.FailedChecks}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{end}}
+
+
+        {{if .CheckItemFailureSummary}}
+        <div class="section">
+            <div class="section-title">检查项失败热力图 (表格模拟)</div>
+            <table class="heatmap-table">
+                <thead>
+                    <tr>
+                        <th>检查项名称</th>
+                        <th>总失败次数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .CheckItemFailureSummary}}
+                    <tr>
+                        <td class="check-item-name">{{.ItemName}}</td>
+                        <td class="heatmap-cell {{.HeatColor}}">{{.TotalFailures}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            <p style="font-size:0.85em; color:#777; text-align:center; margin-top: 5px;">注：背景颜色深浅表示失败次数多少。</p>
+        </div>
+        {{end}}
 
         {{if .MissingNodes}}
         <div class="section">
@@ -178,17 +486,19 @@
         <div class="section">
             <div class="section-title">3. 异常节点详情 <span class="tag">高优先级</span></div>
             {{range .AbnormalDetails}}
-            <div class="abnormal-card">
+            <div class="abnormal-card" id="cluster-{{.ClusterName}}">
                 <div class="abnormal-title">{{.ClusterName}} / {{.NodeType}} / {{.NodeName}}</div>
                 <table>
                     <tr>
                         <th>检查项</th>
                         <th>当前值</th>
+                        <th>修复建议</th>
                     </tr>
                     {{range .FailedItems}}
                     <tr>
                         <td>{{.ItemName}}</td>
                         <td class="status-error">{{.ItemValue}}</td>
+                        <td class="status-suggestion">{{if .FixSuggestion}}{{.FixSuggestion}}{{else}}无修复建议{{end}}</td>
                     </tr>
                     {{end}}
                 </table>

@@ -20,14 +20,16 @@ var (
 	}
 
 	// 全局标志
-	mysqlDSN string
-	s3Bucket string
+	mysqlDSN  string
+	s3Bucket  string
+	sendEmail bool // 是否发送邮件
 )
 
 func init() {
 	// 全局标志
 	rootCmd.PersistentFlags().StringVar(&mysqlDSN, "mysql-dsn", "", "MySQL connection string (default: root:root@tcp(127.0.0.1:3306)/navy?charset=utf8mb4&parseTime=True&loc=Local)")
 	rootCmd.PersistentFlags().StringVar(&s3Bucket, "s3-bucket", "", "S3 bucket name")
+	rootCmd.PersistentFlags().BoolVar(&sendEmail, "send-email", false, "Send email report after security check")
 
 	// 添加子命令
 	rootCmd.AddCommand(choreCmd)
@@ -72,8 +74,32 @@ var securityCheckCmd = &cobra.Command{
 
 		// 创建并运行采集器
 		collector := security_check.NewS3ConfigCollector(s3Client, db, s3Bucket)
-		if err := collector.Run(cmd.Context()); err != nil {
+		clusterStatus, err := collector.Run(cmd.Context())
+		if err != nil {
 			return fmt.Errorf("failed to run security check collection: %w", err)
+		}
+
+		// 如果设置了邮件参数，则发送报告邮件
+		if sendEmail && smtpHost != "" && fromEmail != "" && toEmails != "" {
+			// 解析收件人列表
+			recipients := strings.Split(toEmails, ",")
+			if len(recipients) == 0 {
+				return fmt.Errorf("at least one recipient email is required")
+			}
+
+			// 创建并运行邮件发送器
+			sender := security_report.NewSecurityReportSender(
+				db,
+				smtpHost,
+				smtpPort,
+				smtpUser,
+				smtpPassword,
+				fromEmail,
+				recipients,
+			)
+			if err := sender.Run(cmd.Context(), clusterStatus); err != nil {
+				return fmt.Errorf("failed to send security report: %w", err)
+			}
 		}
 
 		return nil
@@ -116,7 +142,9 @@ var (
 				fromEmail,
 				recipients,
 			)
-			if err := sender.Run(cmd.Context()); err != nil {
+			// 创建空的集群状态映射，因为单独运行邮件发送器时没有集群状态信息
+			emptyClusterStatus := make(map[string]*security_check.ClusterStatus)
+			if err := sender.Run(cmd.Context(), emptyClusterStatus); err != nil {
 				return fmt.Errorf("failed to send security report: %w", err)
 			}
 
@@ -137,6 +165,14 @@ func init() {
 
 	// TODO: 添加更多的email子命令
 	// emailCmd.AddCommand(otherEmailCmd)
+
+	// 添加security-check命令的邮件相关标志
+	securityCheckCmd.Flags().StringVar(&smtpHost, "smtp-host", "", "SMTP server host")
+	securityCheckCmd.Flags().IntVar(&smtpPort, "smtp-port", 587, "SMTP server port")
+	securityCheckCmd.Flags().StringVar(&smtpUser, "smtp-user", "", "SMTP username")
+	securityCheckCmd.Flags().StringVar(&smtpPassword, "smtp-password", "", "SMTP password")
+	securityCheckCmd.Flags().StringVar(&fromEmail, "from", "", "Sender email address")
+	securityCheckCmd.Flags().StringVar(&toEmails, "to", "", "Comma-separated list of recipient email addresses")
 
 	// 添加security-report命令的标志
 	securityReportCmd.Flags().StringVar(&smtpHost, "smtp-host", "", "SMTP server host")

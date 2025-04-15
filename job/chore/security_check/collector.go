@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,19 +19,36 @@ type S3ConfigCollector struct {
 	s3Client *s3.Client
 	db       *gorm.DB
 	bucket   string
+	// 集群状态跟踪
+	clusterStatus map[string]*ClusterStatus
+}
+
+// ClusterStatus 集群状态
+type ClusterStatus struct {
+	Exists       bool     // 集群在S3中是否存在
+	HasFailures  bool     // 集群是否有失败项
+	FailureNodes []string // 有失败项的节点列表
 }
 
 // NewS3ConfigCollector 创建新的采集器实例
 func NewS3ConfigCollector(s3Client *s3.Client, db *gorm.DB, bucket string) *S3ConfigCollector {
 	return &S3ConfigCollector{
-		s3Client: s3Client,
-		db:       db,
-		bucket:   bucket,
+		s3Client:      s3Client,
+		db:            db,
+		bucket:        bucket,
+		clusterStatus: make(map[string]*ClusterStatus),
 	}
 }
 
 // ListClusters 列出所有集群
 func (c *S3ConfigCollector) ListClusters(ctx context.Context) ([]string, error) {
+	// 1. 从数据库获取集群列表
+	var dbClusters []portal.K8sCluster
+	if err := c.db.WithContext(ctx).Where("deleted = ''").Find(&dbClusters).Error; err != nil {
+		return nil, fmt.Errorf("failed to get clusters from database: %w", err)
+	}
+
+	// 2. 从 S3 获取集群目录
 	input := &s3.ListObjectsV2Input{
 		Bucket:    aws.String(c.bucket),
 		Delimiter: aws.String("/"),
@@ -39,17 +57,35 @@ func (c *S3ConfigCollector) ListClusters(ctx context.Context) ([]string, error) 
 
 	result, err := c.s3Client.ListObjectsV2(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list clusters: %w", err)
+		return nil, fmt.Errorf("failed to list clusters from S3: %w", err)
 	}
 
-	clusters := make([]string, 0)
+	// 3. 将 S3 目录转换为集群名称集合
+	s3Clusters := make(map[string]bool)
 	for _, prefix := range result.CommonPrefixes {
 		clusterName := strings.TrimPrefix(*prefix.Prefix, "cluster/")
 		clusterName = strings.TrimSuffix(clusterName, "/")
-		clusters = append(clusters, clusterName)
+		s3Clusters[clusterName] = true
 	}
 
-	return clusters, nil
+	// 4. 初始化所有数据库集群的状态
+	processClusters := make([]string, 0, len(dbClusters))
+	for _, cluster := range dbClusters {
+		// 初始化集群状态
+		c.clusterStatus[cluster.Name] = &ClusterStatus{
+			Exists:       s3Clusters[cluster.Name],
+			HasFailures:  false,
+			FailureNodes: make([]string, 0),
+		}
+
+		// 如果集群在 S3 中存在，添加到处理列表
+		if s3Clusters[cluster.Name] {
+			processClusters = append(processClusters, cluster.Name)
+		}
+	}
+
+	// 返回需要处理的集群列表
+	return processClusters, nil
 }
 
 // ProcessCluster 处理单个集群的配置检查
@@ -110,21 +146,113 @@ func (c *S3ConfigCollector) processNodeConfig(ctx context.Context, clusterName, 
 	}
 	defer output.Body.Close()
 
+	// 定义一个通用的正则表达式来匹配大多数格式
+	// 这个正则表达式可以匹配以下格式：
+	// 1. kube.conf文件权限：（ 644 ）,True
+	// 2. kube.conf文件权限：（ 777 ）,False.应该修复为644
+	// 3. kube.conf文件权限：777,False,建议修改为644
+	// 4. 其他类似格式
+	checkRegex := regexp.MustCompile(`^([^:]+):\s*(?:\(([^)]+)\)|([^,]+))\s*,\s*(True|False)(?:[.,]\s*(.*))?$`)
+
 	var checks []ConfigCheck
 	scanner := bufio.NewScanner(output.Body)
+	hasFailures := false
+
 	for scanner.Scan() {
 		line := scanner.Text()
-		parts := strings.Split(line, ":")
-		if len(parts) >= 2 {
-			name := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			status := strings.Contains(strings.ToLower(value), "true")
+		var name, value string
+		var status bool
+		var fixSuggestion string
+		var parsed bool
 
+		// 使用正则表达式解析行
+		matches := checkRegex.FindStringSubmatch(line)
+		if len(matches) >= 5 {
+			// 提取名称
+			name = strings.TrimSpace(matches[1])
+
+			// 提取值（可能在括号中或不在括号中）
+			if matches[2] != "" {
+				// 括号中的值
+				value = strings.TrimSpace(matches[2])
+			} else if matches[3] != "" {
+				// 非括号的值
+				value = strings.TrimSpace(matches[3])
+			}
+
+			// 提取状态
+			status = strings.EqualFold(matches[4], "true")
+
+			// 提取修复建议（如果有）
+			if len(matches) >= 6 && matches[5] != "" {
+				fixSuggestion = strings.TrimSpace(matches[5])
+			}
+
+			parsed = true
+		}
+
+		// 如果正则表达式匹配失败，尝试基本的分割方法
+		if !parsed {
+			parts := strings.Split(line, ":")
+			if len(parts) >= 2 {
+				name = strings.TrimSpace(parts[0])
+				valuePart := strings.TrimSpace(parts[1])
+
+				// 检查是否有逗号分隔的状态和修复建议
+				valueParts := strings.Split(valuePart, ",")
+				if len(valueParts) >= 2 {
+					value = strings.TrimSpace(valueParts[0])
+					status = strings.Contains(strings.ToLower(valueParts[1]), "true")
+
+					if len(valueParts) >= 3 {
+						fixSuggestion = strings.TrimSpace(valueParts[2])
+					}
+				} else {
+					// 如果没有逗号，就只有值
+					value = valuePart
+					status = strings.Contains(strings.ToLower(value), "true")
+				}
+			}
+		}
+
+		// 检查是否有失败项
+		if !status {
+			hasFailures = true
+		}
+
+		// 只有当解析到有效的名称和值时才添加检查项
+		if name != "" && value != "" {
 			checks = append(checks, ConfigCheck{
-				Name:   name,
-				Value:  value,
-				Status: status,
+				Name:          name,
+				Value:         value,
+				Status:        status,
+				FixSuggestion: fixSuggestion,
 			})
+		}
+	}
+
+	// 更新集群状态
+	if hasFailures {
+		clusterStatus := c.clusterStatus[clusterName]
+		if clusterStatus != nil {
+			clusterStatus.HasFailures = true
+
+			// 生成节点唯一标识
+			nodeKey := fmt.Sprintf("%s/%s", nodeType, nodeName)
+
+			// 检查节点是否已经在列表中
+			found := false
+			for _, node := range clusterStatus.FailureNodes {
+				if node == nodeKey {
+					found = true
+					break
+				}
+			}
+
+			// 如果节点不在列表中，添加到列表
+			if !found {
+				clusterStatus.FailureNodes = append(clusterStatus.FailureNodes, nodeKey)
+			}
 		}
 	}
 
@@ -153,6 +281,7 @@ func (c *S3ConfigCollector) saveChecks(ctx context.Context, clusterName, nodeTyp
 				ItemName:        check.Name,
 				ItemValue:       check.Value,
 				Status:          check.Status,
+				FixSuggestion:   check.FixSuggestion,
 			}
 
 			if err := tx.Create(checkItem).Error; err != nil {
@@ -165,17 +294,24 @@ func (c *S3ConfigCollector) saveChecks(ctx context.Context, clusterName, nodeTyp
 }
 
 // Run 运行配置采集任务
-func (c *S3ConfigCollector) Run(ctx context.Context) error {
+func (c *S3ConfigCollector) Run(ctx context.Context) (map[string]*ClusterStatus, error) {
 	clusters, err := c.ListClusters(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list clusters: %w", err)
+		return nil, fmt.Errorf("failed to list clusters: %w", err)
 	}
 
 	for _, cluster := range clusters {
 		if err := c.ProcessCluster(ctx, cluster); err != nil {
-			return fmt.Errorf("failed to process cluster %s: %w", cluster, err)
+			// 处理单个集群失败不应该导致整个任务失败
+			// 记录错误并继续处理其他集群
+			fmt.Printf("[ERROR] Failed to process cluster %s: %v\n", cluster, err)
+
+			// 标记集群处理失败
+			if status, ok := c.clusterStatus[cluster]; ok {
+				status.HasFailures = true
+			}
 		}
 	}
 
-	return nil
+	return c.clusterStatus, nil
 }

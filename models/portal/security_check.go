@@ -23,6 +23,7 @@ type SecurityCheckItem struct {
 	ItemName        string    `gorm:"type:varchar(255);not null"`
 	ItemValue       string    `gorm:"type:text"`
 	Status          bool      `gorm:"not null"`
+	FixSuggestion   string    `gorm:"type:text"` // 修复建议
 	CreatedAt       time.Time `gorm:"not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt       time.Time `gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 	Deleted         string    `gorm:"type:varchar(255);default:''"`

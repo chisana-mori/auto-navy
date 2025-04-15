@@ -129,3 +129,93 @@
 
 /* === 移除旧/冲突样式 === */
 /* All previous conflicting attempts should be removed by replacing the file content */
+
+/* 设备详情页样式 */
+.device-detail-card {
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.08), 0 9px 28px 0 rgba(0, 0, 0, 0.05), 0 12px 48px 16px rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  border: none;
+  overflow: hidden;
+  transition: all 0.3s;
+  margin-bottom: 24px;
+}
+
+.device-detail-card .ant-card-head {
+  background: linear-gradient(to right, rgba(22, 119, 255, 0.05), rgba(22, 119, 255, 0.01));
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+.device-detail-card .ant-card-body {
+  padding: 24px;
+}
+
+/* 详情区域样式 */
+.detail-section {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px rgba(0, 0, 0, 0.02);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(to right, rgba(22, 119, 255, 0.05), rgba(22, 119, 255, 0.01));
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.section-icon {
+  font-size: 18px;
+  color: #1890ff;
+  margin-right: 10px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.section-content {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* 字段项样式 */
+.field-item {
+  display: flex;
+  align-items: flex-start;
+}
+
+.field-label {
+  min-width: 120px;
+  color: rgba(0, 0, 0, 0.65);
+  margin-right: 8px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.field-value {
+  color: rgba(0, 0, 0, 0.85);
+  font-weight: 500;
+  word-break: break-word;
+  flex: 1;
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .section-content {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .section-content {
+    grid-template-columns: 1fr;
+  }
+}

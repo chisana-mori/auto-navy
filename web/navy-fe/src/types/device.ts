@@ -2,19 +2,32 @@
 
 export interface Device {
   id: number;           // ID
-  deviceId: string;     // 设备ID
+  ciCode: string;       // 设备编码
   ip: string;           // IP地址
-  machineType: string;  // 机器类型
-  cluster: string;      // 所属集群
-  role: string;         // 集群角色
-  arch: string;         // 架构
+  archType: string;     // CPU架构
   idc: string;          // IDC
-  room: string;         // Room
-  datacenter: string;   // 机房
-  cabinet: string;      // 机柜号
-  network: string;      // 网络区域
+  room: string;         // 机房
+  cabinet: string;      // 所属机柜
+  cabinetNO: string;    // 机柜编号
+  infraType: string;    // 网络类型
+  isLocalization: boolean; // 是否国产化
+  netZone: string;      // 网络区域
+  group: string;        // 机器类别
   appId: string;        // APPID
-  resourcePool: string;  // 资源池/产品
+  osCreateTime: string; // 操作系统创建时间
+  cpu: number;          // CPU数量
+  memory: number;       // 内存大小
+  model: string;        // 型号
+  kvmIp: string;        // KVM IP
+  os: string;           // 操作系统
+  company: string;      // 厂商
+  osName: string;       // 操作系统名称
+  osIssue: string;      // 操作系统版本
+  osKernel: string;     // 操作系统内核
+  status: string;       // 状态
+  role: string;         // 角色
+  cluster: string;      // 所属集群
+  clusterId: number;    // 集群ID
   createdAt: string;    // 创建时间
   updatedAt: string;    // 更新时间
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"navy-ng/models/portal"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -17,42 +18,52 @@ const (
 
 // DeviceQuery 设备查询参数
 type DeviceQuery struct {
-	Page    int    `form:"page" json:"page"`         // 页码
-	Size    int    `form:"size" json:"size"`         // 每页数量
-	Keyword string `form:"keyword" json:"keyword"`   // 搜索关键字
-}
-
-// DeviceListResponse 设备列表响应
-type DeviceListResponse struct {
-	List  []DeviceResponse `json:"list"`  // 设备列表
-	Total int64            `json:"total"` // 总数
-	Page  int              `json:"page"`  // 当前页码
-	Size  int              `json:"size"`  // 每页数量
+	Page    int    `form:"page" json:"page"`       // 页码
+	Size    int    `form:"size" json:"size"`       // 每页数量
+	Keyword string `form:"keyword" json:"keyword"` // 搜索关键字
 }
 
 // DeviceResponse 设备响应
 type DeviceResponse struct {
-	ID           int64     `json:"id"`            // ID
-	DeviceID     string    `json:"deviceId"`     // 设备ID
-	IP           string    `json:"ip"`            // IP地址
-	MachineType  string    `json:"machineType"`  // 机器类型
-	Cluster      string    `json:"cluster"`       // 所属集群
-	Role         string    `json:"role"`          // 集群角色
-	Arch         string    `json:"arch"`          // 架构
-	IDC          string    `json:"idc"`           // IDC
-	Room         string    `json:"room"`          // Room
-	Datacenter   string    `json:"datacenter"`    // 机房
-	Cabinet      string    `json:"cabinet"`       // 机柜号
-	Network      string    `json:"network"`       // 网络区域
-	AppID        string    `json:"appId"`        // APPID
-	ResourcePool string    `json:"resourcePool"` // 资源池/产品
-	CreatedAt    time.Time `json:"createdAt"`    // 创建时间
-	UpdatedAt    time.Time `json:"updatedAt"`    // 更新时间
+	ID             int64     `json:"id"`             // ID
+	CICode         string    `json:"ciCode"`         // 设备编码
+	IP             string    `json:"ip"`             // IP地址
+	ArchType       string    `json:"archType"`       // CPU架构
+	IDC            string    `json:"idc"`            // IDC
+	Room           string    `json:"room"`           // 机房
+	Cabinet        string    `json:"cabinet"`        // 所属机柜
+	CabinetNO      string    `json:"cabinetNo"`      // 机柜编号
+	InfraType      string    `json:"infraType"`      // 网络类型
+	IsLocalization bool      `json:"isLocalization"` // 是否国产化
+	NetZone        string    `json:"netZone"`        // 网络区域
+	Group          string    `json:"group"`          // 机器类别
+	AppID          string    `json:"appId"`          // APPID
+	OsCreateTime   string    `json:"osCreateTime"`   // 操作系统创建时间
+	CPU            float64   `json:"cpu"`            // CPU数量
+	Memory         float64   `json:"memory"`         // 内存大小
+	Model          string    `json:"model"`          // 型号
+	KvmIP          string    `json:"kvmIp"`          // KVM IP
+	OS             string    `json:"os"`             // 操作系统
+	Company        string    `json:"company"`        // 厂商
+	OSName         string    `json:"osName"`         // 操作系统名称
+	OSIssue        string    `json:"osIssue"`        // 操作系统版本
+	OSKernel       string    `json:"osKernel"`       // 操作系统内核
+	Status         string    `json:"status"`         // 状态
+	Role           string    `json:"role"`           // 角色
+	Cluster        string    `json:"cluster"`        // 所属集群
+	ClusterID      int       `json:"clusterId"`      // 集群ID
+	CreatedAt      time.Time `json:"createdAt"`      // 创建时间
+	UpdatedAt      time.Time `json:"updatedAt"`      // 更新时间
 }
 
 // DeviceRoleUpdateRequest 设备角色更新请求
 type DeviceRoleUpdateRequest struct {
 	Role string `json:"role" binding:"required"` // 新的角色值
+}
+
+// DeviceGroupUpdateRequest 设备用途更新请求
+type DeviceGroupUpdateRequest struct {
+	Group string `json:"group" binding:"required"` // 新的用途值
 }
 
 // DeviceService 设备服务
@@ -65,32 +76,105 @@ func NewDeviceService(db *gorm.DB) *DeviceService {
 	return &DeviceService{db: db}
 }
 
+// processMultilineKeyword 处理多行查询关键字
+func processMultilineKeyword(keyword string) []string {
+	// 检查是否包含常见的分隔符
+	hasNewline := strings.Contains(keyword, "\n")
+	hasComma := strings.Contains(keyword, ",")
+	hasOr := strings.Contains(strings.ToLower(keyword), " or ")
+
+	// 如果包含分隔符，则分割关键字
+	if hasNewline || hasComma || hasOr {
+		var lines []string
+
+		// 首先按换行符分割
+		if hasNewline {
+			lines = strings.Split(keyword, "\n")
+		} else if hasComma {
+			// 如果没有换行符但有逗号，则按逗号分割
+			lines = strings.Split(keyword, ",")
+		} else if hasOr {
+			// 如果没有换行符和逗号，但有 OR，则按 OR 分割
+			lines = strings.Split(strings.ToLower(keyword), " or ")
+		}
+
+		// 过滤空行并去除空格
+		result := make([]string, 0, len(lines))
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				result = append(result, line)
+			}
+		}
+
+		if len(result) > 0 {
+			return result
+		}
+	}
+
+	// 如果没有有效的多行关键字，返回原始关键字作为单个元素的切片
+	return []string{keyword}
+}
+
 // ListDevices 获取设备列表
-// @Summary 获取设备列表
-// @Description 获取设备列表，支持分页和关键字搜索
-// @Tags Device
-// @Accept json
-// @Produce json
-// @Param query query DeviceQuery true "查询参数"
-// @Success 200 {object} DeviceListResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /device [get]
+
 func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*DeviceListResponse, error) {
 	var models []portal.Device
 	var total int64
 
-	db := s.db.WithContext(ctx).Model(&portal.Device{}).Where("deleted = ?", emptyString)
+	db := s.db.WithContext(ctx).Model(&portal.Device{})
 
 	// 应用关键字搜索
 	if query.Keyword != emptyString {
-		keyword := "%" + query.Keyword + "%"
-		db = db.Where(
-			"device_id LIKE ? OR ip LIKE ? OR machine_type LIKE ? OR cluster LIKE ? OR "+
-				"role LIKE ? OR arch LIKE ? OR idc LIKE ? OR room LIKE ? OR "+
-				"datacenter LIKE ? OR cabinet LIKE ? OR network LIKE ? OR app_id LIKE ? OR resource_pool LIKE ?",
-			keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword,
-		)
+		// 处理多行查询
+		keywords := processMultilineKeyword(query.Keyword)
+
+		// 检测是否是IP地址列表查询
+		isIPList := true
+		for _, keyword := range keywords {
+			// 简单检查是否是IP地址格式（可以根据需要使用更严格的正则表达式）
+			if !strings.Contains(keyword, ".") || strings.Contains(keyword, " ") {
+				isIPList = false
+				break
+			}
+		}
+
+		// 如果是IP地址列表查询，则只在IP字段中查询
+		if isIPList && len(keywords) > 1 {
+			// 构建IP查询条件
+			for i, ip := range keywords {
+				ip = "%" + ip + "%"
+
+				// 第一个IP使用 Where，后续IP使用 Or
+				if i == 0 {
+					db = db.Where("ip LIKE ?", ip)
+				} else {
+					db = db.Or("ip LIKE ?", ip)
+				}
+			}
+		} else {
+			// 常规关键字查询
+			for i, keyword := range keywords {
+				keyword = "%" + keyword + "%"
+
+				// 第一个关键字使用 Where，后续关键字使用 Or
+				if i == 0 {
+					db = db.Where(
+						"ci_code LIKE ? OR ip LIKE ? OR arch_type LIKE ? OR cluster LIKE ? OR "+
+							"role LIKE ? OR idc LIKE ? OR room LIKE ? OR cabinet LIKE ? OR "+
+							"cabinet_no LIKE ? OR infra_type LIKE ? OR net_zone LIKE ? OR appid LIKE ? OR `group` LIKE ?",
+						keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword,
+					)
+				} else {
+					db = db.Or(
+						"ci_code LIKE ? OR ip LIKE ? OR arch_type LIKE ? OR cluster LIKE ? OR "+
+							"role LIKE ? OR idc LIKE ? OR room LIKE ? OR cabinet LIKE ? OR "+
+							"cabinet_no LIKE ? OR infra_type LIKE ? OR net_zone LIKE ? OR appid LIKE ? OR `group` LIKE ?",
+						keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword,
+					)
+				}
+			}
+		}
 	}
 
 	// 获取总数
@@ -118,22 +202,35 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 	responses := make([]DeviceResponse, len(models))
 	for i, model := range models {
 		responses[i] = DeviceResponse{
-			ID:           model.ID,
-			DeviceID:     model.DeviceID,
-			IP:           model.IP,
-			MachineType:  model.MachineType,
-			Cluster:      model.Cluster,
-			Role:         model.Role,
-			Arch:         model.Arch,
-			IDC:          model.IDC,
-			Room:         model.Room,
-			Datacenter:   model.Datacenter,
-			Cabinet:      model.Cabinet,
-			Network:      model.Network,
-			AppID:        model.AppID,
-			ResourcePool: model.ResourcePool,
-			CreatedAt:    time.Time(model.CreatedAt),
-			UpdatedAt:    time.Time(model.UpdatedAt),
+			ID:             model.ID,
+			CICode:         model.CICode,
+			IP:             model.IP,
+			ArchType:       model.ArchType,
+			IDC:            model.IDC,
+			Room:           model.Room,
+			Cabinet:        model.Cabinet,
+			CabinetNO:      model.CabinetNO,
+			InfraType:      model.InfraType,
+			IsLocalization: model.IsLocalization,
+			NetZone:        model.NetZone,
+			Group:          model.Group,
+			AppID:          model.AppID,
+			OsCreateTime:   model.OsCreateTime,
+			CPU:            model.CPU,
+			Memory:         model.Memory,
+			Model:          model.Model,
+			KvmIP:          model.KvmIP,
+			OS:             model.OS,
+			Company:        model.Company,
+			OSName:         model.OSName,
+			OSIssue:        model.OSIssue,
+			OSKernel:       model.OSKernel,
+			Status:         model.Status,
+			Role:           model.Role,
+			Cluster:        model.Cluster,
+			ClusterID:      model.ClusterID,
+			CreatedAt:      time.Time(model.CreatedAt),
+			UpdatedAt:      time.Time(model.UpdatedAt),
 		}
 	}
 
@@ -146,19 +243,10 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 }
 
 // GetDevice 获取设备详情
-// @Summary 获取设备详情
-// @Description 根据ID获取设备详情
-// @Tags Device
-// @Accept json
-// @Produce json
-// @Param id path int true "设备ID"
-// @Success 200 {object} DeviceResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /device/{id} [get]
+
 func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceResponse, error) {
 	var model portal.Device
-	err := s.db.WithContext(ctx).Where("id = ? AND deleted = ?", id, emptyString).First(&model).Error
+	err := s.db.WithContext(ctx).Where("id = ?", id).First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf(ErrDeviceNotFoundMsg, id)
@@ -167,42 +255,44 @@ func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceRespons
 	}
 
 	return &DeviceResponse{
-		ID:           model.ID,
-		DeviceID:     model.DeviceID,
-		IP:           model.IP,
-		MachineType:  model.MachineType,
-		Cluster:      model.Cluster,
-		Role:         model.Role,
-		Arch:         model.Arch,
-		IDC:          model.IDC,
-		Room:         model.Room,
-		Datacenter:   model.Datacenter,
-		Cabinet:      model.Cabinet,
-		Network:      model.Network,
-		AppID:        model.AppID,
-		ResourcePool: model.ResourcePool,
-		CreatedAt:    time.Time(model.CreatedAt),
-		UpdatedAt:    time.Time(model.UpdatedAt),
+		ID:             model.ID,
+		CICode:         model.CICode,
+		IP:             model.IP,
+		ArchType:       model.ArchType,
+		IDC:            model.IDC,
+		Room:           model.Room,
+		Cabinet:        model.Cabinet,
+		CabinetNO:      model.CabinetNO,
+		InfraType:      model.InfraType,
+		IsLocalization: model.IsLocalization,
+		NetZone:        model.NetZone,
+		Group:          model.Group,
+		AppID:          model.AppID,
+		OsCreateTime:   model.OsCreateTime,
+		CPU:            model.CPU,
+		Memory:         model.Memory,
+		Model:          model.Model,
+		KvmIP:          model.KvmIP,
+		OS:             model.OS,
+		Company:        model.Company,
+		OSName:         model.OSName,
+		OSIssue:        model.OSIssue,
+		OSKernel:       model.OSKernel,
+		Status:         model.Status,
+		Role:           model.Role,
+		Cluster:        model.Cluster,
+		ClusterID:      model.ClusterID,
+		CreatedAt:      time.Time(model.CreatedAt),
+		UpdatedAt:      time.Time(model.UpdatedAt),
 	}, nil
 }
 
 // UpdateDeviceRole 更新设备角色
-// @Summary 更新设备角色
-// @Description 只更新设备的角色字段
-// @Tags Device
-// @Accept json
-// @Produce json
-// @Param id path int true "设备ID"
-// @Param request body DeviceRoleUpdateRequest true "角色更新请求"
-// @Success 200 {object} SuccessResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /device/{id}/role [patch]
+
 func (s *DeviceService) UpdateDeviceRole(ctx context.Context, id int64, request *DeviceRoleUpdateRequest) error {
 	// 查找设备
 	var device portal.Device
-	result := s.db.WithContext(ctx).Where("id = ? AND deleted = ?", id, emptyString).First(&device)
+	result := s.db.WithContext(ctx).Where("id = ?", id).First(&device)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
 			return fmt.Errorf(ErrDeviceNotFoundMsg, id)
@@ -219,20 +309,35 @@ func (s *DeviceService) UpdateDeviceRole(ctx context.Context, id int64, request 
 	return nil
 }
 
+// UpdateDeviceGroup 更新设备用途
+
+func (s *DeviceService) UpdateDeviceGroup(ctx context.Context, id int64, request *DeviceGroupUpdateRequest) error {
+	// 查找设备
+	var device portal.Device
+	result := s.db.WithContext(ctx).Where("id = ?", id).First(&device)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return fmt.Errorf(ErrDeviceNotFoundMsg, id)
+		}
+		return fmt.Errorf("failed to find device: %w", result.Error)
+	}
+
+	// 更新用途字段
+	result = s.db.WithContext(ctx).Model(&device).Update("`group`", request.Group)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update device group: %w", result.Error)
+	}
+
+	return nil
+}
+
 // ExportDevices 导出所有设备信息为Excel
-// @Summary 导出设备信息
-// @Description 导出所有设备信息为Excel文件
-// @Tags Device
-// @Accept json
-// @Produce application/octet-stream
-// @Success 200 {file} file "设备信息.xlsx"
-// @Failure 500 {object} ErrorResponse
-// @Router /device/export [get]
+
 func (s *DeviceService) ExportDevices(ctx context.Context) ([]byte, error) {
 	var devices []portal.Device
 
 	// 获取所有设备信息
-	if err := s.db.WithContext(ctx).Where("deleted = ?", emptyString).Find(&devices).Error; err != nil {
+	if err := s.db.WithContext(ctx).Find(&devices).Error; err != nil {
 		return nil, fmt.Errorf("failed to get devices for export: %w", err)
 	}
 
@@ -241,9 +346,12 @@ func (s *DeviceService) ExportDevices(ctx context.Context) ([]byte, error) {
 
 	// 写入表头
 	headers := []string{
-		"设备ID", "IP地址", "机器类型", "所属集群", "集群角色",
-		"架构", "IDC", "Room", "机房", "机柜号",
-		"网络区域", "APPID", "资源池/产品", "创建时间", "更新时间",
+		"设备编码", "IP地址", "CPU架构", "IDC", "机房",
+		"机柜", "机柜编号", "网络类型", "是否国产化", "网络区域",
+		"机器类别", "APPID", "操作系统创建时间", "CPU", "内存",
+		"型号", "KVM IP", "操作系统", "厂商", "操作系统名称",
+		"操作系统版本", "操作系统内核", "状态", "角色", "集群",
+		"集群ID", "创建时间", "更新时间",
 	}
 
 	// 写入CSV表头
@@ -257,56 +365,112 @@ func (s *DeviceService) ExportDevices(ctx context.Context) ([]byte, error) {
 
 	// 写入数据行
 	for _, device := range devices {
-		// 设备ID
-		buffer.WriteString(device.DeviceID)
+		// 设备编码
+		buffer.WriteString(device.CICode)
 		buffer.WriteString(",")
 
 		// IP地址
 		buffer.WriteString(device.IP)
 		buffer.WriteString(",")
 
-		// 机器类型
-		buffer.WriteString(device.MachineType)
-		buffer.WriteString(",")
-
-		// 所属集群
-		buffer.WriteString(device.Cluster)
-		buffer.WriteString(",")
-
-		// 集群角色
-		buffer.WriteString(device.Role)
-		buffer.WriteString(",")
-
-		// 架构
-		buffer.WriteString(device.Arch)
+		// CPU架构
+		buffer.WriteString(device.ArchType)
 		buffer.WriteString(",")
 
 		// IDC
 		buffer.WriteString(device.IDC)
 		buffer.WriteString(",")
 
-		// Room
+		// 机房
 		buffer.WriteString(device.Room)
 		buffer.WriteString(",")
 
-		// 机房
-		buffer.WriteString(device.Datacenter)
-		buffer.WriteString(",")
-
-		// 机柜号
+		// 机柜
 		buffer.WriteString(device.Cabinet)
 		buffer.WriteString(",")
 
+		// 机柜编号
+		buffer.WriteString(device.CabinetNO)
+		buffer.WriteString(",")
+
+		// 网络类型
+		buffer.WriteString(device.InfraType)
+		buffer.WriteString(",")
+
+		// 是否国产化
+		if device.IsLocalization {
+			buffer.WriteString("true")
+		} else {
+			buffer.WriteString("false")
+		}
+		buffer.WriteString(",")
+
 		// 网络区域
-		buffer.WriteString(device.Network)
+		buffer.WriteString(device.NetZone)
+		buffer.WriteString(",")
+
+		// 机器类别
+		buffer.WriteString(device.Group)
 		buffer.WriteString(",")
 
 		// APPID
 		buffer.WriteString(device.AppID)
 		buffer.WriteString(",")
 
-		// 资源池/产品
-		buffer.WriteString(device.ResourcePool)
+		// 操作系统创建时间
+		buffer.WriteString(device.OsCreateTime)
+		buffer.WriteString(",")
+
+		// CPU
+		buffer.WriteString(fmt.Sprintf("%f", device.CPU))
+		buffer.WriteString(",")
+
+		// 内存
+		buffer.WriteString(fmt.Sprintf("%f", device.Memory))
+		buffer.WriteString(",")
+
+		// 型号
+		buffer.WriteString(device.Model)
+		buffer.WriteString(",")
+
+		// KVM IP
+		buffer.WriteString(device.KvmIP)
+		buffer.WriteString(",")
+
+		// 操作系统
+		buffer.WriteString(device.OS)
+		buffer.WriteString(",")
+
+		// 厂商
+		buffer.WriteString(device.Company)
+		buffer.WriteString(",")
+
+		// 操作系统名称
+		buffer.WriteString(device.OSName)
+		buffer.WriteString(",")
+
+		// 操作系统版本
+		buffer.WriteString(device.OSIssue)
+		buffer.WriteString(",")
+
+		// 操作系统内核
+		buffer.WriteString(device.OSKernel)
+		buffer.WriteString(",")
+
+		// 状态
+		buffer.WriteString(device.Status)
+		buffer.WriteString(",")
+
+		// 角色
+		buffer.WriteString(device.Role)
+		buffer.WriteString(",")
+
+		// 集群
+		buffer.WriteString(device.Cluster)
+		buffer.WriteString(",")
+
+		// 集群ID
+		buffer.WriteString(fmt.Sprintf("%d", device.ClusterID))
 		buffer.WriteString(",")
 
 		// 创建时间

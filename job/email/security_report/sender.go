@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"html/template"
 	"net/smtp"
+	"sort"
 	"time"
 
+	"github.com/jinzhu/now"
 	"gorm.io/gorm"
 
+	"navy-ng/job/chore/security_check"
 	"navy-ng/models/portal"
 )
 
@@ -27,29 +30,36 @@ type SecurityReportSender struct {
 	smtpPassword string
 	fromEmail    string
 	toEmails     []string
+	// 集群状态信息
+	clusterStatus map[string]*security_check.ClusterStatus
 }
 
 // NewSecurityReportSender 创建安全报告发送器
 func NewSecurityReportSender(db *gorm.DB, smtpHost string, smtpPort int, smtpUser, smtpPassword, fromEmail string, toEmails []string) *SecurityReportSender {
 	return &SecurityReportSender{
-		db:           db,
-		smtpHost:     smtpHost,
-		smtpPort:     smtpPort,
-		smtpUser:     smtpUser,
-		smtpPassword: smtpPassword,
-		fromEmail:    fromEmail,
-		toEmails:     toEmails,
+		db:            db,
+		smtpHost:      smtpHost,
+		smtpPort:      smtpPort,
+		smtpUser:      smtpUser,
+		smtpPassword:  smtpPassword,
+		fromEmail:     fromEmail,
+		toEmails:      toEmails,
+		clusterStatus: make(map[string]*security_check.ClusterStatus),
 	}
 }
 
 // collectData 收集报告数据
-func (s *SecurityReportSender) collectData(ctx context.Context) ([]SecurityReportData, error) {
+func (s *SecurityReportSender) collectData(ctx context.Context, clusterStatus map[string]*security_check.ClusterStatus) ([]SecurityReportData, error) {
+	// 从数据库获取所有集群名称
 	var clusters []string
 	if err := s.db.Model(&portal.SecurityCheck{}).
 		Distinct("cluster_name").
 		Pluck("cluster_name", &clusters).Error; err != nil {
 		return nil, fmt.Errorf("failed to get clusters: %w", err)
 	}
+
+	// 将集群状态信息保存到全局变量
+	s.clusterStatus = clusterStatus
 
 	var reports []SecurityReportData
 	for _, cluster := range clusters {
@@ -67,7 +77,7 @@ func (s *SecurityReportSender) collectData(ctx context.Context) ([]SecurityRepor
 func (s *SecurityReportSender) collectClusterData(ctx context.Context, clusterName string) (SecurityReportData, error) {
 	var checks []portal.SecurityCheck
 	if err := s.db.WithContext(ctx).
-		Where("cluster_name = ? AND created_at >= ?", clusterName, time.Now().AddDate(0, 0, -1)).
+		Where("cluster_name = ? AND created_at >= ?", clusterName, now.BeginningOfDay()).
 		Find(&checks).Error; err != nil {
 		return SecurityReportData{}, fmt.Errorf("failed to get security checks: %w", err)
 	}
@@ -93,12 +103,13 @@ func (s *SecurityReportSender) collectClusterData(ctx context.Context, clusterNa
 			}
 
 			report.DetailedResults = append(report.DetailedResults, SecurityCheckResult{
-				NodeType:  check.NodeType,
-				NodeName:  check.NodeName,
-				CheckType: check.CheckType,
-				ItemName:  item.ItemName,
-				ItemValue: item.ItemValue,
-				Status:    item.Status,
+				NodeType:      check.NodeType,
+				NodeName:      check.NodeName,
+				CheckType:     check.CheckType,
+				ItemName:      item.ItemName,
+				ItemValue:     item.ItemValue,
+				Status:        item.Status,
+				FixSuggestion: item.FixSuggestion,
 			})
 		}
 	}
@@ -110,49 +121,144 @@ func (s *SecurityReportSender) collectClusterData(ctx context.Context, clusterNa
 func (s *SecurityReportSender) generateEmailData(reports []SecurityReportData) EmailTemplateData {
 	data := EmailTemplateData{
 		TotalClusters: len(reports),
+		// Initialize slice to avoid nil pointer if no reports
+		ClusterHealthSummary:    make([]ClusterHealthInfo, 0, len(reports)),
+		CheckItemFailureSummary: make([]CheckItemFailureInfo, 0), // Initialize slice
 	}
 
-	nodeMap := make(map[string]bool) // 用于统计唯一节点
+	nodeMap := make(map[string]bool)                          // 用于统计全局唯一节点
+	clusterNodeFailureMap := make(map[string]map[string]bool) // cluster -> nodeKey -> hasFailure
+	checkItemFailureCounts := make(map[string]int)            // itemName -> totalFailureCount
+
+	// --- First pass: Calculate global stats and identify abnormal nodes per cluster ---
 	for _, report := range reports {
-		// 统计节点数量
+		if _, ok := clusterNodeFailureMap[report.ClusterName]; !ok {
+			clusterNodeFailureMap[report.ClusterName] = make(map[string]bool)
+		}
+
 		for _, result := range report.DetailedResults {
 			nodeKey := fmt.Sprintf("%s/%s/%s", report.ClusterName, result.NodeType, result.NodeName)
+
+			// Global node count
 			if !nodeMap[nodeKey] {
 				nodeMap[nodeKey] = true
 				data.TotalNodes++
+			}
 
-				// 检查节点是否有失败项
-				hasFailure := false
-				var failedItems []FailedItem
-				for _, detail := range report.DetailedResults {
-					if detail.NodeType == result.NodeType && detail.NodeName == result.NodeName && !detail.Status {
-						hasFailure = true
-						failedItems = append(failedItems, FailedItem{
-							ItemName:  detail.ItemName,
-							ItemValue: detail.ItemValue,
-						})
+			// Mark node as having failure if any check fails
+			if !result.Status {
+				clusterNodeFailureMap[report.ClusterName][nodeKey] = true
+			} else if _, exists := clusterNodeFailureMap[report.ClusterName][nodeKey]; !exists {
+				// Initialize with false if no failure seen yet for this node in this cluster
+				clusterNodeFailureMap[report.ClusterName][nodeKey] = false
+			}
+
+			// Global check counts
+			data.TotalChecks++
+			if result.Status {
+				data.PassedChecks++
+			} else {
+				data.FailedChecks++
+				checkItemFailureCounts[result.ItemName]++ // Increment failure count for this item name
+			}
+		}
+	}
+
+	// --- Second pass: Calculate cluster health and populate details ---
+	for _, report := range reports {
+		clusterAbnormalNodes := 0
+		clusterFailedChecks := 0 // Recalculate failed checks per cluster for health status
+
+		// Populate AbnormalDetails and count cluster abnormal nodes
+		clusterNodes := clusterNodeFailureMap[report.ClusterName]
+		for nodeKey, hasFailure := range clusterNodes {
+			if hasFailure {
+				clusterAbnormalNodes++
+				// Extract node details from nodeKey (assuming format cluster/type/name)
+				// This is a bit fragile, consider storing node details differently if possible
+				parts := bytes.SplitN([]byte(nodeKey), []byte("/"), 3)
+				if len(parts) == 3 {
+					nodeType := string(parts[1])
+					nodeName := string(parts[2])
+					var failedItems []FailedItem
+					// Find failed items for this specific node
+					for _, detail := range report.DetailedResults {
+						if detail.NodeType == nodeType && detail.NodeName == nodeName && !detail.Status {
+							failedItems = append(failedItems, FailedItem{
+								ItemName:      detail.ItemName,
+								ItemValue:     detail.ItemValue,
+								FixSuggestion: detail.FixSuggestion,
+							})
+							clusterFailedChecks++ // Count failed checks for this cluster
+						}
 					}
-				}
-
-				if hasFailure {
-					data.AbnormalNodes++
 					data.AbnormalDetails = append(data.AbnormalDetails, AbnormalDetail{
 						ClusterName: report.ClusterName,
-						NodeType:    result.NodeType,
-						NodeName:    result.NodeName,
+						NodeType:    nodeType,
+						NodeName:    nodeName,
 						FailedItems: failedItems,
 					})
-				} else {
-					data.NormalNodes++
 				}
 			}
 		}
+		data.AbnormalNodes += clusterAbnormalNodes              // Add to global abnormal count
+		data.NormalNodes = data.TotalNodes - data.AbnormalNodes // Calculate global normal count
 
-		// 统计检查项数量
-		data.TotalChecks += report.TotalChecks
-		data.PassedChecks += report.PassedChecks
-		data.FailedChecks += report.FailedChecks
+		// 获取集群状态信息
+		clusterExists := true
+		if status, ok := s.clusterStatus[report.ClusterName]; ok {
+			clusterExists = status.Exists
+		}
+
+		// 生成锚点ID
+		anchorID := fmt.Sprintf("cluster-%s", report.ClusterName)
+
+		// Determine cluster status color
+		statusColor := "green"
+		if !clusterExists {
+			statusColor = "red" // 集群不存在，标记为红色
+		} else if clusterAbnormalNodes > 0 {
+			statusColor = "red" // Any abnormal node makes the cluster red
+		} else if clusterFailedChecks > 0 {
+			statusColor = "yellow" // No abnormal nodes, but some failed checks
+		}
+
+		// Add cluster health summary
+		data.ClusterHealthSummary = append(data.ClusterHealthSummary, ClusterHealthInfo{
+			ClusterName:   report.ClusterName,
+			StatusColor:   statusColor,
+			AbnormalNodes: clusterAbnormalNodes,
+			FailedChecks:  clusterFailedChecks, // Use the per-cluster failed count
+			Exists:        clusterExists,
+			AnchorID:      anchorID,
+		})
+
+		// Note: MissingNodes logic needs to be handled separately if required by template
+		// The current logic focuses on AbnormalDetails and ClusterHealthSummary
 	}
+
+	// --- Third pass: Populate CheckItemFailureSummary (Heatmap data) ---
+	for itemName, count := range checkItemFailureCounts {
+		heatColor := ""
+		if count > 5 {
+			heatColor = "heat-level-high"
+		} else if count >= 3 {
+			heatColor = "heat-level-2"
+		} else if count > 0 {
+			heatColor = "heat-level-1"
+		} // count == 0 will have no specific class
+
+		data.CheckItemFailureSummary = append(data.CheckItemFailureSummary, CheckItemFailureInfo{
+			ItemName:      itemName,
+			TotalFailures: count,
+			HeatColor:     heatColor,
+		})
+	}
+
+	// Sort CheckItemFailureSummary by TotalFailures descending
+	sort.Slice(data.CheckItemFailureSummary, func(i, j int) bool {
+		return data.CheckItemFailureSummary[i].TotalFailures > data.CheckItemFailureSummary[j].TotalFailures
+	})
 
 	return data
 }
@@ -208,9 +314,9 @@ func (s *SecurityReportSender) formatToHeader() string {
 }
 
 // Run 运行邮件发送任务
-func (s *SecurityReportSender) Run(ctx context.Context) error {
+func (s *SecurityReportSender) Run(ctx context.Context, clusterStatus map[string]*security_check.ClusterStatus) error {
 	// 收集数据
-	reports, err := s.collectData(ctx)
+	reports, err := s.collectData(ctx, clusterStatus)
 	if err != nil {
 		fmt.Printf("[ERROR] 数据收集失败: %v\n", err)
 		return fmt.Errorf("failed to collect report data: %w", err)

@@ -6,20 +6,32 @@ package portal
 // Device 设备信息.
 type Device struct {
 	BaseModel
-	DeviceID     string    `gorm:"column:device_id;type:varchar(255);not null;index" json:"deviceId"`     // 设备ID
-	IP           string    `gorm:"column:ip;type:varchar(50);index" json:"ip"`                             // IP地址
-	MachineType  string    `gorm:"column:machine_type;type:varchar(100)" json:"machineType"`              // 机器类型
-	Cluster      string    `gorm:"column:cluster;type:varchar(255)" json:"cluster"`                        // 所属集群
-	Role         string    `gorm:"column:role;type:varchar(100)" json:"role"`                              // 集群角色
-	Arch         string    `gorm:"column:arch;type:varchar(50)" json:"arch"`                               // 架构
-	IDC          string    `gorm:"column:idc;type:varchar(100)" json:"idc"`                                // IDC
-	Room         string    `gorm:"column:room;type:varchar(100)" json:"room"`                              // Room
-	Datacenter   string    `gorm:"column:datacenter;type:varchar(100)" json:"datacenter"`                  // 机房
-	Cabinet      string    `gorm:"column:cabinet;type:varchar(100)" json:"cabinet"`                        // 机柜号
-	Network      string    `gorm:"column:network;type:varchar(100)" json:"network"`                        // 网络区域
-	AppID        string    `gorm:"column:app_id;type:varchar(100)" json:"appId"`                          // APPID
-	ResourcePool string    `gorm:"column:resource_pool;type:varchar(255)" json:"resourcePool"`            // 资源池/产品
-	Deleted      string    `gorm:"column:deleted;type:varchar(255)" json:"deleted,omitempty"`              // 软删除标记
+	CICode         string  `gorm:"column:ci_code;type:varchar(255);index" json:"ciCode"`           // 设备编码
+	IP             string  `gorm:"column:ip;type:varchar(50);index" json:"ip"`                     // IP地址
+	ArchType       string  `gorm:"column:arch_type;type:varchar(50)" json:"archType" query:"like"` // CPU架构
+	IDC            string  `gorm:"column:idc;type:varchar(100)" json:"idc"`                        // IDC
+	Room           string  `gorm:"column:room;type:varchar(100)" json:"room"`                      // 机房
+	Cabinet        string  `gorm:"column:cabinet;type:varchar(100)" json:"cabinet"`                // 所属机柜
+	CabinetNO      string  `gorm:"column:cabinet_no;type:varchar(100)" json:"cabinetNo"`           // 机柜编号
+	InfraType      string  `gorm:"column:infra_type;type:varchar(100)" json:"infraType"`           // 网络类型
+	IsLocalization bool    `gorm:"column:is_localization;type:boolean" json:"isLocalization"`      // 是否国产化
+	NetZone        string  `gorm:"column:net_zone;type:varchar(100)" json:"netZone" query:"like"`  // 网络区域
+	Group          string  `gorm:"column:group;type:varchar(100)" json:"group"`                    // 机器类别
+	AppID          string  `gorm:"column:appid;type:varchar(100)" json:"appId"`                    // APPID
+	OsCreateTime   string  `gorm:"column:os_create_time;type:varchar(100)" json:"osCreateTime"`    // 操作系统创建时间
+	CPU            float64 `gorm:"column:cpu;type:float" json:"cpu"`                               // CPU数量
+	Memory         float64 `gorm:"column:memory;type:float" json:"memory"`                         // 内存大小
+	Model          string  `gorm:"column:model;type:varchar(100)" json:"model"`                    // 型号
+	KvmIP          string  `gorm:"column:kvm_ip;type:varchar(50)" json:"kvmIp"`                    // KVM IP
+	OS             string  `gorm:"column:os;type:varchar(100)" json:"os"`                          // 操作系统
+	Company        string  `gorm:"column:company;type:varchar(100)" json:"company"`                // 厂商
+	OSName         string  `gorm:"column:os_name;type:varchar(100)" json:"osName"`                 // 操作系统名称
+	OSIssue        string  `gorm:"column:os_issue;type:varchar(100)" json:"osIssue"`               // 操作系统版本
+	OSKernel       string  `gorm:"column:os_kernel;type:varchar(100)" json:"osKernel"`             // 操作系统内核
+	Status         string  `gorm:"column:status;type:varchar(50)" json:"status"`                   // 状态
+	Role           string  `gorm:"column:role;type:varchar(100)" json:"role" query:"like"`         // 角色
+	Cluster        string  `gorm:"column:cluster;type:varchar(255)" json:"cluster" query:"like"`   // 所属集群
+	ClusterID      int     `gorm:"column:cluster_id;type:int" json:"clusterId"`                    // 集群ID
 }
 
 // TableName 指定表名.

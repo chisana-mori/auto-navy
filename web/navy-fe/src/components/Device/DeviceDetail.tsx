@@ -7,7 +7,7 @@ import {
   DesktopOutlined,
   GlobalOutlined,
   ClusterOutlined,
-  DownloadOutlined
+  // DownloadOutlined // Removed as it's unused
 } from '@ant-design/icons';
 import { getDeviceDetail } from '../../services/deviceService';
 import type { Device } from '../../types/device';
@@ -75,7 +75,7 @@ const DeviceDetail: React.FC = () => {
             <CloudServerOutlined style={{ fontSize: '20px', color: '#1890ff', marginRight: '12px' }} />
             <span style={{ fontSize: '18px', fontWeight: 500 }}>设备详情</span>
             <Tag color="success" style={{ marginLeft: '12px' }}>
-              {data.deviceId}
+              {data.ciCode}
             </Tag>
           </div>
         }
@@ -92,51 +92,86 @@ const DeviceDetail: React.FC = () => {
         loading={loading}
         className="device-detail-card"
       >
-        {/* 基本信息 */}
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
-            <DesktopOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-            基本信息
-          </h3>
+        {/* 设备基本信息 */}
+        <div className="detail-section">
+          <div className="section-header">
+            <DesktopOutlined className="section-icon" />
+            <span className="section-title">设备基本信息</span>
+          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-            <FieldItem label="设备ID" value={data.deviceId} />
+          <div className="section-content">
+            <FieldItem label="设备编码" value={data.ciCode} />
             <FieldItem label="IP地址" value={data.ip} />
-            <FieldItem label="机器类型" value={data.machineType} />
-            <FieldItem label="架构" value={data.arch} />
+            <FieldItem label="机器用途" value={data.group} />
+            <FieldItem label="型号" value={data.model} />
+            <FieldItem label="状态" value={data.status} />
+            <FieldItem label="厂商" value={data.company} />
+            <FieldItem label="是否国产化" value={data.isLocalization ? '是' : '否'} />
             <FieldItem label="创建时间" value={data.createdAt} />
             <FieldItem label="更新时间" value={data.updatedAt} />
           </div>
         </div>
 
-        {/* 集群信息 */}
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
-            <ClusterOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-            集群信息
-          </h3>
+        {/* 硬件信息 */}
+        <div className="detail-section">
+          <div className="section-header">
+            <ClusterOutlined className="section-icon" />
+            <span className="section-title">硬件信息</span>
+          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <div className="section-content">
+            <FieldItem label="CPU架构" value={data.archType} />
+            <FieldItem label="CPU数量" value={data.cpu} />
+            <FieldItem label="内存大小" value={data.memory} />
+            <FieldItem label="KVM IP" value={data.kvmIp} />
+          </div>
+        </div>
+
+        {/* 集群信息 */}
+        <div className="detail-section">
+          <div className="section-header">
+            <ClusterOutlined className="section-icon" />
+            <span className="section-title">集群信息</span>
+          </div>
+
+          <div className="section-content">
             <FieldItem label="所属集群" value={data.cluster} />
-            <FieldItem label="集群角色" value={data.role} />
+            <FieldItem label="集群ID" value={data.clusterId} />
+            <FieldItem label="角色" value={data.role} />
             <FieldItem label="APPID" value={data.appId} />
-            <FieldItem label="资源池/产品" value={data.resourcePool} />
+          </div>
+        </div>
+
+        {/* 操作系统信息 */}
+        <div className="detail-section">
+          <div className="section-header">
+            <GlobalOutlined className="section-icon" />
+            <span className="section-title">操作系统信息</span>
+          </div>
+
+          <div className="section-content">
+            <FieldItem label="操作系统" value={data.os} />
+            <FieldItem label="操作系统名称" value={data.osName} />
+            <FieldItem label="操作系统版本" value={data.osIssue} />
+            <FieldItem label="操作系统内核" value={data.osKernel} />
+            <FieldItem label="操作系统创建时间" value={data.osCreateTime} />
           </div>
         </div>
 
         {/* 位置信息 */}
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 500 }}>
-            <GlobalOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-            位置信息
-          </h3>
+        <div className="detail-section">
+          <div className="section-header">
+            <GlobalOutlined className="section-icon" />
+            <span className="section-title">位置信息</span>
+          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <div className="section-content">
             <FieldItem label="IDC" value={data.idc} />
-            <FieldItem label="Room" value={data.room} />
-            <FieldItem label="机房" value={data.datacenter} />
-            <FieldItem label="机柜号" value={data.cabinet} />
-            <FieldItem label="网络区域" value={data.network} />
+            <FieldItem label="机房" value={data.room} />
+            <FieldItem label="所属机柜" value={data.cabinet} />
+            <FieldItem label="机柜编号" value={data.cabinetNO} />
+            <FieldItem label="网络类型" value={data.infraType} />
+            <FieldItem label="网络区域" value={data.netZone} />
           </div>
         </div>
       </Card>
