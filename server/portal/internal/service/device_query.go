@@ -16,6 +16,14 @@ import (
 
 // SQL 常量定义
 const (
+	// 通用SQL片段
+	SQLCreatedAtBetween = "created_at BETWEEN ? AND ?"
+	SQLDistinct         = "DISTINCT"
+	SQLIsNotNull        = "IS NOT NULL"
+	SQLIsNull           = "IS NULL"
+	SQLNotEmpty         = "!= ''"
+	SQLValueField       = "value"
+	SQLKeyField         = "`key`"
 	// 表别名
 	TableAliasDevice    = "d"
 	TableAliasK8sNode   = "kn"
@@ -38,19 +46,32 @@ const (
 	SQLConditionNotIn       = "%s.value NOT IN (?) OR %s.value IS NULL"
 
 	// 设备字段映射
-	DeviceFieldMachineType  = "machine_type"
-	DeviceFieldAppID        = "app_id"
-	DeviceFieldResourcePool = "resource_pool"
-	DeviceFieldDeviceID     = "device_id"
-	DeviceFieldIP           = "ip"
-	DeviceFieldCluster      = "cluster"
-	DeviceFieldRole         = "role"
-	DeviceFieldArch         = "arch"
-	DeviceFieldIDC          = "idc"
-	DeviceFieldRoom         = "room"
-	DeviceFieldDatacenter   = "datacenter"
-	DeviceFieldCabinet      = "cabinet"
-	DeviceFieldNetwork      = "network"
+	DeviceFieldCICode         = "ci_code"
+	DeviceFieldIP             = "ip"
+	DeviceFieldArchType       = "arch_type"
+	DeviceFieldIDC            = "idc"
+	DeviceFieldRoom           = "room"
+	DeviceFieldCabinet        = "cabinet"
+	DeviceFieldCabinetNO      = "cabinet_no"
+	DeviceFieldInfraType      = "infra_type"
+	DeviceFieldIsLocalization = "is_localization"
+	DeviceFieldNetZone        = "net_zone"
+	DeviceFieldGroup          = "`group`"
+	DeviceFieldAppID          = "appid"
+	DeviceFieldOsCreateTime   = "os_create_time"
+	DeviceFieldCPU            = "cpu"
+	DeviceFieldMemory         = "memory"
+	DeviceFieldModel          = "model"
+	DeviceFieldKvmIP          = "kvm_ip"
+	DeviceFieldOS             = "os"
+	DeviceFieldCompany        = "company"
+	DeviceFieldOSName         = "os_name"
+	DeviceFieldOSIssue        = "os_issue"
+	DeviceFieldOSKernel       = "os_kernel"
+	DeviceFieldStatus         = "status"
+	DeviceFieldRole           = "role"
+	DeviceFieldCluster        = "cluster"
+	DeviceFieldClusterID      = "cluster_id"
 )
 
 // camelToSnake 将驼峰命名法转换为下划线命名法
@@ -123,9 +144,53 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 		fmt.Printf("Warning: Column key '%s' not found in deviceFieldColumnMap, using generated '%s'. Consider adding it to the map.\n", block.Key, column)
 	}
 
-	// Build and apply the condition using the helper function
-	conditionScope := buildCondition(column, block.ConditionType, block.Value)
-	return query.Scopes(conditionScope)
+	// 直接构建条件，不使用Scopes
+	switch block.ConditionType {
+	case ConditionTypeEqual:
+		return query.Where(column+" = ?", block.Value)
+	case ConditionTypeNotEqual:
+		return query.Where(fmt.Sprintf("(%s != ? OR %s IS NULL)", column, column), block.Value)
+	case ConditionTypeContains:
+		escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
+		escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
+		return query.Where(column+" LIKE ?", "%"+escapedValue+"%")
+	case ConditionTypeNotContains:
+		escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
+		escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
+		return query.Where(fmt.Sprintf("(%s NOT LIKE ? OR %s IS NULL)", column, column), "%"+escapedValue+"%")
+	case ConditionTypeExists:
+		return query.Where(fmt.Sprintf("%s IS NOT NULL AND %s != ''", column, column))
+	case ConditionTypeNotExists:
+		return query.Where(fmt.Sprintf("%s IS NULL OR %s = ''", column, column))
+	case ConditionTypeIn:
+		values := strings.Split(block.Value, ",")
+		trimmedValues := make([]string, 0, len(values))
+		for _, v := range values {
+			trimmed := strings.TrimSpace(v)
+			if trimmed != "" {
+				trimmedValues = append(trimmedValues, trimmed)
+			}
+		}
+		if len(trimmedValues) == 0 {
+			return query.Where("1 = 0")
+		}
+		return query.Where(column+" IN (?)", trimmedValues)
+	case ConditionTypeNotIn:
+		values := strings.Split(block.Value, ",")
+		trimmedValues := make([]string, 0, len(values))
+		for _, v := range values {
+			trimmed := strings.TrimSpace(v)
+			if trimmed != "" {
+				trimmedValues = append(trimmedValues, trimmed)
+			}
+		}
+		if len(trimmedValues) == 0 {
+			return query.Where(fmt.Sprintf("%s IS NOT NULL", column))
+		}
+		return query.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), trimmedValues)
+	default:
+		return query
+	}
 }
 
 // ConditionType 条件类型
@@ -198,84 +263,46 @@ type DeviceFieldValues struct {
 
 // deviceFieldColumnMap maps frontend keys to database column names for the device table
 var deviceFieldColumnMap = map[string]string{
-	"machineType":   "d.machine_type",
-	"machine_type":  "d.machine_type",
-	"appId":         "d.app_id",
-	"app_id":        "d.app_id",
-	"resourcePool":  "d.resource_pool",
-	"resource_pool": "d.resource_pool",
-	"deviceId":      "d.device_id",
-	"device_id":     "d.device_id",
-	"ip":            "d.ip",
-	"cluster":       "d.cluster",
-	"role":          "d.role",
-	"arch":          "d.arch",
-	"idc":           "d.idc",
-	"room":          "d.room",
-	"datacenter":    "d.datacenter",
-	"cabinet":       "d.cabinet",
-	"network":       "d.network",
+	"ciCode":          "d.ci_code",
+	"ci_code":         "d.ci_code",
+	"ip":              "d.ip",
+	"archType":        "d.arch_type",
+	"arch_type":       "d.arch_type",
+	"idc":             "d.idc",
+	"room":            "d.room",
+	"cabinet":         "d.cabinet",
+	"cabinetNo":       "d.cabinet_no",
+	"cabinet_no":      "d.cabinet_no",
+	"infraType":       "d.infra_type",
+	"infra_type":      "d.infra_type",
+	"isLocalization":  "d.is_localization",
+	"is_localization": "d.is_localization",
+	"netZone":         "d.net_zone",
+	"net_zone":        "d.net_zone",
+	"group":           "d.`group`",
+	"appId":           "d.appid",
+	"appid":           "d.appid",
+	"osCreateTime":    "d.os_create_time",
+	"os_create_time":  "d.os_create_time",
+	"cpu":             "d.cpu",
+	"memory":          "d.memory",
+	"model":           "d.model",
+	"kvmIp":           "d.kvm_ip",
+	"kvm_ip":          "d.kvm_ip",
+	"os":              "d.os",
+	"company":         "d.company",
+	"osName":          "d.os_name",
+	"os_name":         "d.os_name",
+	"osIssue":         "d.os_issue",
+	"os_issue":        "d.os_issue",
+	"osKernel":        "d.os_kernel",
+	"os_kernel":       "d.os_kernel",
+	"status":          "d.status",
+	"role":            "d.role",
+	"cluster":         "d.cluster",
+	"clusterId":       "d.cluster_id",
+	"cluster_id":      "d.cluster_id",
 	// Add other direct mappings if needed
-}
-
-// buildCondition creates a GORM scope function based on the condition type and value.
-func buildCondition(column string, conditionType ConditionType, value string) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		// Escape value for LIKE conditions
-		escapedValue := strings.ReplaceAll(value, "%", "\\%")
-		escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
-
-		switch conditionType {
-		case ConditionTypeEqual:
-			return db.Where(column+" = ?", value)
-		case ConditionTypeNotEqual:
-			// Handle NULL properly for NOT EQUAL
-			return db.Where(fmt.Sprintf("(%s != ? OR %s IS NULL)", column, column), value)
-		case ConditionTypeContains:
-			return db.Where(column+" LIKE ?", "%"+escapedValue+"%")
-		case ConditionTypeNotContains:
-			// Handle NULL properly for NOT CONTAINS
-			return db.Where(fmt.Sprintf("(%s NOT LIKE ? OR %s IS NULL)", column, column), "%"+escapedValue+"%")
-		case ConditionTypeExists:
-			// Check for non-null and non-empty string
-			return db.Where(fmt.Sprintf("%s IS NOT NULL AND %s != ''", column, column))
-		case ConditionTypeNotExists:
-			// Check for null or empty string
-			return db.Where(fmt.Sprintf("%s IS NULL OR %s = ''", column, column))
-		case ConditionTypeIn:
-			values := strings.Split(value, ",")
-			trimmedValues := make([]string, 0, len(values))
-			for _, v := range values {
-				trimmed := strings.TrimSpace(v)
-				if trimmed != "" {
-					trimmedValues = append(trimmedValues, trimmed)
-				}
-			}
-			if len(trimmedValues) == 0 {
-				// Avoid WHERE column IN (NULL) which might behave unexpectedly
-				return db.Where("1 = 0") // Effectively returns no results
-			}
-			return db.Where(column+" IN (?)", trimmedValues)
-		case ConditionTypeNotIn:
-			values := strings.Split(value, ",")
-			trimmedValues := make([]string, 0, len(values))
-			for _, v := range values {
-				trimmed := strings.TrimSpace(v)
-				if trimmed != "" {
-					trimmedValues = append(trimmedValues, trimmed)
-				}
-			}
-			if len(trimmedValues) == 0 {
-				// NOT IN empty set should return all non-null rows
-				return db.Where(fmt.Sprintf("%s IS NOT NULL", column))
-			}
-			// Handle NULL properly for NOT IN
-			return db.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), trimmedValues)
-		default:
-			// Unknown condition type, return unchanged query
-			return db
-		}
-	}
 }
 
 // DeviceQueryService 设备查询服务
@@ -292,15 +319,17 @@ func NewDeviceQueryService(db *gorm.DB) *DeviceQueryService {
 func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]any, error) {
 	options := make(map[string]any)
 
-	todayStart := now.BeginningOfDay()
-	todayEnd := now.EndOfDay()
+	// 使用 time.Now() 获取当前时间，然后使用 now 包处理
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
 
 	// 获取节点标签的 key 列表
 	var labelKeys []string
 	if err := s.db.WithContext(ctx).Model(&portal.K8sNodeLabel{}).
 		Select("DISTINCT `key`").
 		Where("`key` != ?", "").
-		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
+		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
 		Pluck("key", &labelKeys).Error; err != nil {
 		return nil, fmt.Errorf("failed to get node label keys: %w", err)
 	}
@@ -320,7 +349,7 @@ func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]a
 	if err := s.db.WithContext(ctx).Model(&portal.K8sNodeTaint{}).
 		Select("DISTINCT `key`").
 		Where("`key` != ?", "").
-		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
+		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
 		Pluck("key", &taintKeys).Error; err != nil {
 		return nil, fmt.Errorf("failed to get node taint keys: %w", err)
 	}
@@ -345,11 +374,20 @@ func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]a
 	var deviceFieldValuesList []DeviceFieldValues
 	for _, field := range deviceFields {
 		var values []string
-		query := s.db.WithContext(ctx).Table("device").
-			Select(fmt.Sprintf("DISTINCT %s", field.Value)).
-			Where(fmt.Sprintf("%s IS NOT NULL", field.Value)).
-			Where(fmt.Sprintf("%s != ''", field.Value)).
-			Where("deleted = ''")
+		var query *gorm.DB
+
+		// 特殊处理 group 字段
+		if field.Value == "group" {
+			query = s.db.WithContext(ctx).Table("device").
+				Select("DISTINCT `group`").
+				Where("`group` IS NOT NULL").
+				Where("`group` != ''")
+		} else {
+			query = s.db.WithContext(ctx).Table("device").
+				Select(fmt.Sprintf("DISTINCT %s", field.Value)).
+				Where(fmt.Sprintf("%s IS NOT NULL", field.Value)).
+				Where(fmt.Sprintf("%s != ''", field.Value))
+		}
 
 		if err := query.Pluck(field.Value, &values).Error; err != nil {
 			return nil, fmt.Errorf("failed to get device field values for %s: %w", field.Value, err)
@@ -381,14 +419,15 @@ func (s *DeviceQueryService) GetLabelValues(ctx context.Context, key string) ([]
 	var values []string
 
 	// 获取今天的开始和结束时间
-	todayStart := now.BeginningOfDay()
-	todayEnd := now.EndOfDay()
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
 
 	if err := s.db.WithContext(ctx).Model(&portal.K8sNodeLabel{}).
 		Select("DISTINCT value").
 		Where("`key` = ?", key).
 		Where("value != ''").
-		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
+		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
 		Order("value").
 		Pluck("value", &values).Error; err != nil {
 		return nil, fmt.Errorf("failed to get label values: %w", err)
@@ -409,14 +448,15 @@ func (s *DeviceQueryService) GetLabelValues(ctx context.Context, key string) ([]
 func (s *DeviceQueryService) GetTaintValues(ctx context.Context, key string) ([]FilterOption, error) {
 	var values []string
 	// 获取今天的开始和结束时间
-	todayStart := now.BeginningOfDay()
-	todayEnd := now.EndOfDay()
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
 
 	if err := s.db.WithContext(ctx).Model(&portal.K8sNodeTaint{}).
 		Select("DISTINCT value").
 		Where("`key` = ?", key).
 		Where("value != ''").
-		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
+		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
 		Order("value").
 		Pluck("value", &values).Error; err != nil {
 		return nil, fmt.Errorf("failed to get taint values: %w", err)
@@ -431,6 +471,71 @@ func (s *DeviceQueryService) GetTaintValues(ctx context.Context, key string) ([]
 		})
 	}
 	return options, nil
+}
+
+// GetDeviceFieldValues 获取设备字段值
+func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field string) ([]string, error) {
+	// 检查字段是否存在于映射中
+	column, ok := deviceFieldColumnMap[field]
+	if !ok {
+		// 如果不存在，尝试将驼峰命名转换为下划线命名
+		snakeCase := camelToSnake(field)
+		if !isValidColumnName(snakeCase) {
+			return nil, fmt.Errorf("invalid field name: %s", field)
+		}
+		column = fmt.Sprintf("d.%s", snakeCase)
+	}
+
+	// 从列名中提取字段名
+	parts := strings.Split(column, ".")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid column format: %s", column)
+	}
+	dbField := parts[1]
+
+	// 查询不同的字段值
+	var values []string
+	var query *gorm.DB
+
+	// 判断是否是 SQL 关键字
+	isReservedKeyword := dbField == "`group`" || dbField == "group"
+
+	// 构建查询
+	query = s.db.WithContext(ctx).Table("device")
+
+	// 处理选择字段
+	if isReservedKeyword {
+		query = query.Select("DISTINCT `group`")
+	} else {
+		query = query.Select(fmt.Sprintf("DISTINCT %s", dbField))
+	}
+
+	// 添加过滤条件
+	if isReservedKeyword {
+		query = query.Where("`group` IS NOT NULL").Where("`group` != ''")
+	} else {
+		query = query.Where(fmt.Sprintf("%s IS NOT NULL", dbField)).Where(fmt.Sprintf("%s != ''", dbField))
+	}
+
+	// 添加排序和限制
+	if isReservedKeyword {
+		query = query.Order("`group`")
+	} else {
+		query = query.Order(dbField)
+	}
+
+	// 执行查询
+	var pluckField string
+	if isReservedKeyword {
+		pluckField = "`group`"
+	} else {
+		pluckField = dbField
+	}
+	if err := query.Limit(100).Pluck(pluckField, &values).Error; err != nil {
+		return nil, fmt.Errorf("failed to get device field values for %s: %w", field, err)
+	}
+
+	return values, nil
 }
 
 // determineRequiredJoins checks if the provided filter groups require joining the k8s_node table.
@@ -451,11 +556,10 @@ func determineRequiredJoins(groups []FilterGroup) bool {
 // and optionally adds a LEFT JOIN to the k8s_node table if needed based on filter types.
 func (s *DeviceQueryService) buildDeviceQuery(ctx context.Context, needJoinK8sNode bool) *gorm.DB {
 	query := s.db.WithContext(ctx).Table("device d").
-		Select("d.id, d.device_id, d.ip, d.machine_type, d.cluster, d.role, d.arch, d.idc, d.room, d.datacenter, d.cabinet, d.network, d.app_id, d.resource_pool, d.created_at, d.updated_at").
-		Where("d.deleted = ?", "") // Base condition for not deleted devices
+		Select("d.id, d.ci_code, d.ip, d.arch_type, d.cluster, d.role, d.idc, d.room, d.cabinet, d.cabinet_no, d.infra_type, d.is_localization, d.net_zone, d.`group`, d.appid, d.os_create_time, d.cpu, d.memory, d.model, d.kvm_ip, d.os, d.company, d.os_name, d.os_issue, d.os_kernel, d.status, d.cluster_id, d.created_at, d.updated_at")
 
 	if needJoinK8sNode {
-		query = query.Joins("LEFT JOIN k8s_node kn ON LOWER(d.device_id) = LOWER(kn.nodename)")
+		query = query.Joins("LEFT JOIN k8s_node kn ON LOWER(d.ci_code) = LOWER(kn.nodename)")
 	}
 	return query
 }
@@ -473,31 +577,52 @@ func (s *DeviceQueryService) applyFilterGroups(query *gorm.DB, groups []FilterGr
 
 	finalQuery := query // Start with the base query including joins
 
+	// 处理所有组
 	for i, group := range groups {
 		if len(group.Blocks) == 0 {
 			continue
 		}
 
-		// Create a scope for the current group's conditions
-		groupScope := func(db *gorm.DB) *gorm.DB {
-			groupQuery := db // Start fresh for this group's AND conditions
-			for _, block := range group.Blocks {
-				// Apply each block's filter logic using the appropriate apply function
-				// Note: applyFilterBlock handles the different FilterTypes internally
+		// 处理组内的块
+		groupQuery := s.db.Session(&gorm.Session{})
+
+		// 处理第一个块
+		firstBlock := group.Blocks[0]
+
+		// 直接应用第一个块的条件
+		groupQuery = s.applyFilterBlock(groupQuery, firstBlock)
+
+		// 处理其余块，根据前一个块的操作符决定使用 AND 还是 OR
+		for j := 1; j < len(group.Blocks); j++ {
+			block := group.Blocks[j]
+			prevBlock := group.Blocks[j-1]
+
+			// 根据前一个块的操作符决定使用 AND 还是 OR
+			if prevBlock.Operator == LogicalOperatorOr {
+				// 使用 OR 操作符
+				blockQuery := s.db.Session(&gorm.Session{})
+				blockQuery = s.applyFilterBlock(blockQuery, block)
+				groupQuery = groupQuery.Or(blockQuery)
+			} else { // LogicalOperatorAnd 或默认
+				// 使用 AND 操作符
 				groupQuery = s.applyFilterBlock(groupQuery, block)
 			}
-			return groupQuery
 		}
 
-		// Apply the group scope with the correct logical operator (AND/OR)
+		// 将组的条件应用到最终查询
 		if i == 0 {
-			finalQuery = finalQuery.Scopes(groupScope) // First group is always ANDed initially
-		} else if group.Operator == LogicalOperatorOr {
-			// For OR, we need to group the previous conditions if they weren't already ORed
-			// GORM's Or() method handles this correctly when chained.
-			finalQuery = finalQuery.Or(s.db.Scopes(groupScope)) // Apply OR condition
-		} else { // LogicalOperatorAnd or default
-			finalQuery = finalQuery.Scopes(groupScope) // Apply AND condition
+			// 第一个组直接应用
+			finalQuery = finalQuery.Where(groupQuery)
+		} else {
+			// 获取前一个组
+			prevGroup := groups[i-1]
+			if prevGroup.Operator == LogicalOperatorOr {
+				// 使用 OR 操作符
+				finalQuery = finalQuery.Or(groupQuery)
+			} else { // LogicalOperatorAnd 或默认
+				// 使用 AND 操作符
+				finalQuery = finalQuery.Where(groupQuery)
+			}
 		}
 	}
 
@@ -539,22 +664,35 @@ func mapDevicesToResponse(devices []portal.Device) []DeviceResponse {
 	responses := make([]DeviceResponse, len(devices))
 	for i, device := range devices {
 		responses[i] = DeviceResponse{
-			ID:           device.ID,
-			DeviceID:     device.DeviceID, // Use direct field access
-			IP:           device.IP,
-			MachineType:  device.MachineType,
-			Cluster:      device.Cluster,
-			Role:         device.Role,
-			Arch:         device.Arch,
-			IDC:          device.IDC,
-			Room:         device.Room,
-			Datacenter:   device.Datacenter,
-			Cabinet:      device.Cabinet,
-			Network:      device.Network,
-			AppID:        device.AppID,
-			ResourcePool: device.ResourcePool,
-			CreatedAt:    time.Time(device.CreatedAt), // Ensure proper type conversion if needed
-			UpdatedAt:    time.Time(device.UpdatedAt),
+			ID:             device.ID,
+			CICode:         device.CICode,
+			IP:             device.IP,
+			ArchType:       device.ArchType,
+			IDC:            device.IDC,
+			Room:           device.Room,
+			Cabinet:        device.Cabinet,
+			CabinetNO:      device.CabinetNO,
+			InfraType:      device.InfraType,
+			IsLocalization: device.IsLocalization,
+			NetZone:        device.NetZone,
+			Group:          device.Group,
+			AppID:          device.AppID,
+			OsCreateTime:   device.OsCreateTime,
+			CPU:            device.CPU,
+			Memory:         device.Memory,
+			Model:          device.Model,
+			KvmIP:          device.KvmIP,
+			OS:             device.OS,
+			Company:        device.Company,
+			OSName:         device.OSName,
+			OSIssue:        device.OSIssue,
+			OSKernel:       device.OSKernel,
+			Status:         device.Status,
+			Role:           device.Role,
+			Cluster:        device.Cluster,
+			ClusterID:      device.ClusterID,
+			CreatedAt:      time.Time(device.CreatedAt),
+			UpdatedAt:      time.Time(device.UpdatedAt),
 		}
 	}
 	return responses
@@ -641,14 +779,15 @@ func (s *DeviceQueryService) applyValueCondition(query *gorm.DB, block FilterBlo
 // applyNodeLabelFilter 应用节点标签筛选
 func (s *DeviceQueryService) applyNodeLabelFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
 	// 获取当天的开始和结束时间
-	todayStart := now.BeginningOfDay()
-	todayEnd := now.EndOfDay()
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
 
 	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
 	// 并且只查询当天的标签数据
 	query = query.Joins(
 		fmt.Sprintf(SQLJoinNodeLabel, TableAliasNodeLabel, TableAliasK8sNode, TableAliasNodeLabel, TableAliasNodeLabel, TableAliasNodeLabel),
-		block.Key, todayStart, todayEnd,
+		block.Key, todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"),
 	)
 
 	// 应用值条件
@@ -658,14 +797,15 @@ func (s *DeviceQueryService) applyNodeLabelFilter(query *gorm.DB, block FilterBl
 // applyTaintFilter 应用污点筛选
 func (s *DeviceQueryService) applyTaintFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
 	// 获取当天的开始和结束时间
-	todayStart := now.BeginningOfDay()
-	todayEnd := now.EndOfDay()
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
 
 	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
 	// 并且只查询当天的污点数据
 	query = query.Joins(
 		fmt.Sprintf(SQLJoinNodeTaint, TableAliasNodeTaint, TableAliasK8sNode, TableAliasNodeTaint, TableAliasNodeTaint, TableAliasNodeTaint),
-		block.Key, todayStart, todayEnd,
+		block.Key, todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"),
 	)
 
 	// 应用值条件
@@ -788,28 +928,22 @@ func (s *DeviceQueryService) DeleteQueryTemplate(ctx context.Context, id int64) 
 func (s *DeviceQueryService) GetDeviceFields(ctx context.Context) ([]FilterOption, error) {
 	return []FilterOption{
 		{
+			ID:       "ci_code",
+			Label:    "设备编码",
+			Value:    "ci_code",
+			DbColumn: "d.ci_code",
+		},
+		{
 			ID:       "ip",
 			Label:    "IP地址",
 			Value:    "ip",
 			DbColumn: "d.ip",
 		},
 		{
-			ID:       "machine_type",
-			Label:    "机器类型",
-			Value:    "machine_type",
-			DbColumn: "d.machine_type",
-		},
-		{
-			ID:       "role",
-			Label:    "集群角色",
-			Value:    "role",
-			DbColumn: "d.role",
-		},
-		{
-			ID:       "arch",
-			Label:    "架构",
-			Value:    "arch",
-			DbColumn: "d.arch",
+			ID:       "arch_type",
+			Label:    "CPU架构",
+			Value:    "arch_type",
+			DbColumn: "d.arch_type",
 		},
 		{
 			ID:       "idc",
@@ -819,39 +953,135 @@ func (s *DeviceQueryService) GetDeviceFields(ctx context.Context) ([]FilterOptio
 		},
 		{
 			ID:       "room",
-			Label:    "Room",
+			Label:    "机房",
 			Value:    "room",
 			DbColumn: "d.room",
 		},
 		{
-			ID:       "datacenter",
-			Label:    "机房",
-			Value:    "datacenter",
-			DbColumn: "d.datacenter",
-		},
-		{
 			ID:       "cabinet",
-			Label:    "机柜号",
+			Label:    "机柜",
 			Value:    "cabinet",
 			DbColumn: "d.cabinet",
 		},
 		{
-			ID:       "network",
+			ID:       "cabinet_no",
+			Label:    "机柜编号",
+			Value:    "cabinet_no",
+			DbColumn: "d.cabinet_no",
+		},
+		{
+			ID:       "infra_type",
+			Label:    "网络类型",
+			Value:    "infra_type",
+			DbColumn: "d.infra_type",
+		},
+		{
+			ID:       "is_localization",
+			Label:    "是否国产化",
+			Value:    "is_localization",
+			DbColumn: "d.is_localization",
+		},
+		{
+			ID:       "net_zone",
 			Label:    "网络区域",
-			Value:    "network",
-			DbColumn: "d.network",
+			Value:    "net_zone",
+			DbColumn: "d.net_zone",
 		},
 		{
-			ID:       "app_id",
+			ID:       "group",
+			Label:    "机器类别",
+			Value:    "group",
+			DbColumn: "d.`group`",
+		},
+		{
+			ID:       "appid",
 			Label:    "APPID",
-			Value:    "app_id",
-			DbColumn: "d.app_id",
+			Value:    "appid",
+			DbColumn: "d.appid",
 		},
 		{
-			ID:       "resource_pool",
-			Label:    "资源池",
-			Value:    "resource_pool",
-			DbColumn: "d.resource_pool",
+			ID:       "os_create_time",
+			Label:    "操作系统创建时间",
+			Value:    "os_create_time",
+			DbColumn: "d.os_create_time",
+		},
+		{
+			ID:       "cpu",
+			Label:    "CPU数量",
+			Value:    "cpu",
+			DbColumn: "d.cpu",
+		},
+		{
+			ID:       "memory",
+			Label:    "内存大小",
+			Value:    "memory",
+			DbColumn: "d.memory",
+		},
+		{
+			ID:       "model",
+			Label:    "型号",
+			Value:    "model",
+			DbColumn: "d.model",
+		},
+		{
+			ID:       "kvm_ip",
+			Label:    "KVM IP",
+			Value:    "kvm_ip",
+			DbColumn: "d.kvm_ip",
+		},
+		{
+			ID:       "os",
+			Label:    "操作系统",
+			Value:    "os",
+			DbColumn: "d.os",
+		},
+		{
+			ID:       "company",
+			Label:    "厂商",
+			Value:    "company",
+			DbColumn: "d.company",
+		},
+		{
+			ID:       "os_name",
+			Label:    "操作系统名称",
+			Value:    "os_name",
+			DbColumn: "d.os_name",
+		},
+		{
+			ID:       "os_issue",
+			Label:    "操作系统版本",
+			Value:    "os_issue",
+			DbColumn: "d.os_issue",
+		},
+		{
+			ID:       "os_kernel",
+			Label:    "操作系统内核",
+			Value:    "os_kernel",
+			DbColumn: "d.os_kernel",
+		},
+		{
+			ID:       "status",
+			Label:    "状态",
+			Value:    "status",
+			DbColumn: "d.status",
+		},
+		{
+			ID:       "role",
+			Label:    "角色",
+			Value:    "role",
+			DbColumn: "d.role",
+		},
+		{
+			ID:       "cluster",
+			Label:    "集群",
+			Value:    "cluster",
+			DbColumn: "d.cluster",
+		},
+		{
+			ID:       "cluster_id",
+			Label:    "集群ID",
+			Value:    "cluster_id",
+			DbColumn: "d.cluster_id",
 		},
 	}, nil
 }
