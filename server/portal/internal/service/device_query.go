@@ -27,8 +27,8 @@ const (
 	// 表别名
 	TableAliasDevice    = "d"
 	TableAliasK8sNode   = "kn"
-	TableAliasNodeLabel = "nl"
-	TableAliasNodeTaint = "nt"
+	TableAliasNodeLabel = "knl"
+	TableAliasNodeTaint = "knt"
 
 	// 表连接SQL
 	SQLJoinK8sNode   = "INNER JOIN k8s_node %s ON LOWER(%s.device_id) = LOWER(%s.nodename)"
@@ -188,6 +188,14 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 			return query.Where(fmt.Sprintf("%s IS NOT NULL", column))
 		}
 		return query.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), trimmedValues)
+	case ConditionTypeGreaterThan:
+		return query.Where(fmt.Sprintf("%s > ?", column), block.Value)
+	case ConditionTypeLessThan:
+		return query.Where(fmt.Sprintf("%s < ?", column), block.Value)
+	case ConditionTypeIsEmpty:
+		return query.Where(fmt.Sprintf("(%s IS NULL OR %s = '')", column, column))
+	case ConditionTypeIsNotEmpty:
+		return query.Where(fmt.Sprintf("%s IS NOT NULL AND %s != ''", column, column))
 	default:
 		return query
 	}
@@ -205,6 +213,10 @@ const (
 	ConditionTypeNotExists   ConditionType = "notExists"   // 不存在
 	ConditionTypeIn          ConditionType = "in"          // 在列表中
 	ConditionTypeNotIn       ConditionType = "notIn"       // 不在列表中
+	ConditionTypeGreaterThan ConditionType = "greaterThan" // 大于
+	ConditionTypeLessThan    ConditionType = "lessThan"    // 小于
+	ConditionTypeIsEmpty     ConditionType = "isEmpty"     // 为空
+	ConditionTypeIsNotEmpty  ConditionType = "isNotEmpty"  // 不为空
 )
 
 // LogicalOperator 逻辑运算符
@@ -329,7 +341,7 @@ func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]a
 	if err := s.db.WithContext(ctx).Model(&portal.K8sNodeLabel{}).
 		Select("DISTINCT `key`").
 		Where("`key` != ?", "").
-		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
+		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
 		Pluck("key", &labelKeys).Error; err != nil {
 		return nil, fmt.Errorf("failed to get node label keys: %w", err)
 	}
@@ -349,7 +361,7 @@ func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]a
 	if err := s.db.WithContext(ctx).Model(&portal.K8sNodeTaint{}).
 		Select("DISTINCT `key`").
 		Where("`key` != ?", "").
-		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
+		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
 		Pluck("key", &taintKeys).Error; err != nil {
 		return nil, fmt.Errorf("failed to get node taint keys: %w", err)
 	}
@@ -427,7 +439,7 @@ func (s *DeviceQueryService) GetLabelValues(ctx context.Context, key string) ([]
 		Select("DISTINCT value").
 		Where("`key` = ?", key).
 		Where("value != ''").
-		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
+		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
 		Order("value").
 		Pluck("value", &values).Error; err != nil {
 		return nil, fmt.Errorf("failed to get label values: %w", err)
@@ -456,7 +468,7 @@ func (s *DeviceQueryService) GetTaintValues(ctx context.Context, key string) ([]
 		Select("DISTINCT value").
 		Where("`key` = ?", key).
 		Where("value != ''").
-		Where("created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05")).
+		Where("created_at BETWEEN ? AND ?", todayStart, todayEnd).
 		Order("value").
 		Pluck("value", &values).Error; err != nil {
 		return nil, fmt.Errorf("failed to get taint values: %w", err)
@@ -510,12 +522,7 @@ func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field str
 		query = query.Select(fmt.Sprintf("DISTINCT %s", dbField))
 	}
 
-	// 添加过滤条件
-	if isReservedKeyword {
-		query = query.Where("`group` IS NOT NULL").Where("`group` != ''")
-	} else {
-		query = query.Where(fmt.Sprintf("%s IS NOT NULL", dbField)).Where(fmt.Sprintf("%s != ''", dbField))
-	}
+	// 不再添加非空过滤条件，允许返回空值
 
 	// 添加排序和限制
 	if isReservedKeyword {
@@ -538,36 +545,141 @@ func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field str
 	return values, nil
 }
 
-// determineRequiredJoins checks if the provided filter groups require joining the k8s_node table.
-// It iterates through all blocks in all groups to see if any filter type is NodeLabel or Taint.
-func determineRequiredJoins(groups []FilterGroup) bool {
-	for _, group := range groups {
-		for _, block := range group.Blocks {
-			if block.Type == FilterTypeNodeLabel || block.Type == FilterTypeTaint {
-				return true
-			}
+// DeviceFeatureDetails 设备特性详情
+type DeviceFeatureDetails struct {
+	Labels []LabelDetail `json:"labels"` // 标签详情
+	Taints []TaintDetail `json:"taints"` // 污点详情
+}
+
+// LabelDetail 标签详情
+type LabelDetail struct {
+	Key   string `json:"key"`   // 标签键
+	Value string `json:"value"` // 标签值
+}
+
+// TaintDetail 污点详情
+type TaintDetail struct {
+	Key    string `json:"key"`    // 污点键
+	Value  string `json:"value"`  // 污点值
+	Effect string `json:"effect"` // 效果
+}
+
+// GetDeviceFeatureDetails 获取设备的特性详情（标签和污点）- 使用UNION ALL优化
+func (s *DeviceQueryService) GetDeviceFeatureDetails(ctx context.Context, ciCode string) (*DeviceFeatureDetails, error) {
+	// 获取今天的开始和结束时间
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
+
+	// 定义结果结构体，用于UNION ALL查询
+	type FeatureResult struct {
+		Type   string `gorm:"column:type"`   // 标记是label还是taint
+		Key    string `gorm:"column:key"`    // 键
+		Value  string `gorm:"column:value"`  // 值
+		Effect string `gorm:"column:effect"` // 效果(仅用于taint)
+	}
+
+	var results []FeatureResult
+
+	// 构建UNION ALL查询
+	query := `
+		WITH node_id AS (
+			SELECT id FROM k8s_node
+			WHERE LOWER(nodename) = LOWER(?)
+			AND (status != 'Offline' OR status IS NULL)
+			LIMIT 1
+		)
+
+		SELECT 'label' as type, knl.key as key, knl.value as value, '' as effect
+		FROM node_id n
+		JOIN k8s_node_label knl ON n.id = knl.node_id
+		JOIN label_feature lf ON knl.key = lf.key
+		WHERE knl.created_at BETWEEN ? AND ?
+
+		UNION ALL
+
+		SELECT 'taint' as type, knt.key as key, knt.value as value, knt.effect as effect
+		FROM node_id n
+		JOIN k8s_node_taint knt ON n.id = knt.node_id
+		JOIN taint_feature tf ON knt.key = tf.key
+		WHERE knt.created_at BETWEEN ? AND ?
+	`
+
+	// 执行查询
+	if err := s.db.WithContext(ctx).Raw(
+		query,
+		ciCode,
+		todayStart,
+		todayEnd,
+		todayStart,
+		todayEnd,
+	).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("failed to get device features: %w", err)
+	}
+
+	// 将结果分类
+	var labels []LabelDetail
+	var taints []TaintDetail
+
+	for _, r := range results {
+		if r.Type == "label" {
+			labels = append(labels, LabelDetail{
+				Key:   r.Key,
+				Value: r.Value,
+			})
+		} else {
+			taints = append(taints, TaintDetail{
+				Key:    r.Key,
+				Value:  r.Value,
+				Effect: r.Effect,
+			})
 		}
 	}
-	return false
+
+	return &DeviceFeatureDetails{Labels: labels, Taints: taints}, nil
 }
 
 // buildDeviceQuery constructs the base GORM query for devices.
 // It selects necessary device fields, filters out deleted devices,
-// and optionally adds a LEFT JOIN to the k8s_node table if needed based on filter types.
-func (s *DeviceQueryService) buildDeviceQuery(ctx context.Context, needJoinK8sNode bool) *gorm.DB {
-	query := s.db.WithContext(ctx).Table("device d").
-		Select("d.id, d.ci_code, d.ip, d.arch_type, d.cluster, d.role, d.idc, d.room, d.cabinet, d.cabinet_no, d.infra_type, d.is_localization, d.net_zone, d.`group`, d.appid, d.os_create_time, d.cpu, d.memory, d.model, d.kvm_ip, d.os, d.company, d.os_name, d.os_issue, d.os_kernel, d.status, d.cluster_id, d.created_at, d.updated_at")
+// and adds a LEFT JOIN to the k8s_node table to determine if the device is special.
+func (s *DeviceQueryService) buildDeviceQuery(ctx context.Context) *gorm.DB {
+	// 获取今天的开始和结束时间
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
 
-	if needJoinK8sNode {
-		query = query.Joins("LEFT JOIN k8s_node kn ON LOWER(d.ci_code) = LOWER(kn.nodename)")
-	}
+	// 构建查询，添加 isSpecial 字段用于标识特殊设备
+	query := s.db.WithContext(ctx).Table("device d").
+		Select("d.id, d.ci_code, d.ip, d.arch_type, d.cluster, d.role, d.idc, d.room, d.cabinet, d.cabinet_no, d.infra_type, d.is_localization, d.net_zone, d.`group`, d.appid, d.os_create_time, d.cpu, d.memory, d.model, d.kvm_ip, d.os, d.company, d.os_name, d.os_issue, d.os_kernel, d.status, d.cluster_id, d.created_at, d.updated_at, d.acceptance_time, d.disk_count, d.disk_detail, d.network_speed, " +
+			// 添加 isSpecial 字段，当满足以下条件之一时为 true：
+			// 1. 机器用途不为空
+			// 2. 可以关联到 label_feature
+			// 3. 可以关联到 taint_feature
+			"CASE WHEN d.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_special, " +
+			// 添加特性计数字段，用于前端显示
+			"(CASE WHEN d.`group` != '' THEN 1 ELSE 0 END + CASE WHEN lf.id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN tf.id IS NOT NULL THEN 1 ELSE 0 END) AS feature_count")
+
+	// 默认关联 k8s_node 表，并添加 status != Offline 筛选条件
+	query = query.Joins("LEFT JOIN k8s_node kn ON LOWER(d.ci_code) = LOWER(kn.nodename) AND (kn.status != 'Offline' OR kn.status IS NULL)")
+
+	// 关联 k8s_node_label 表和 label_feature 表，用于判断是否为特殊设备
+	query = query.Joins("LEFT JOIN k8s_node_label knl ON kn.id = knl.node_id AND knl.created_at BETWEEN ? AND ?", todayStart, todayEnd)
+	query = query.Joins("LEFT JOIN label_feature lf ON knl.key = lf.key")
+
+	// 关联 k8s_node_taint 表和 taint_feature 表，用于判断是否为特殊设备
+	query = query.Joins("LEFT JOIN k8s_node_taint knt ON kn.id = knt.node_id AND knt.created_at BETWEEN ? AND ?", todayStart, todayEnd)
+	query = query.Joins("LEFT JOIN taint_feature tf ON knt.key = tf.key")
+
+	// 使用 GROUP BY 确保每个设备只返回一行
+	query = query.Group("d.id")
+
 	return query
 }
 
 // applyFilterGroups applies a list of filter groups to the base query.
 // It iterates through each group and applies its filter blocks using the correct
 // logical operator (AND/OR) between groups.
-func (s *DeviceQueryService) applyFilterGroups(query *gorm.DB, groups []FilterGroup, needJoinK8sNode bool) *gorm.DB {
+func (s *DeviceQueryService) applyFilterGroups(query *gorm.DB, groups []FilterGroup) *gorm.DB {
 	if len(groups) == 0 {
 		return query
 	}
@@ -690,7 +802,12 @@ func mapDevicesToResponse(devices []portal.Device) []DeviceResponse {
 			Status:         device.Status,
 			Role:           device.Role,
 			Cluster:        device.Cluster,
-			ClusterID:      device.ClusterID,
+			AcceptanceTime: device.AcceptanceTime,
+			DiskCount:      device.DiskCount,
+			DiskDetail:     device.DiskDetail,
+			NetworkSpeed:   device.NetworkSpeed,
+			IsSpecial:      device.IsSpecial,
+			FeatureCount:   device.FeatureCount,
 			CreatedAt:      time.Time(device.CreatedAt),
 			UpdatedAt:      time.Time(device.UpdatedAt),
 		}
@@ -700,14 +817,12 @@ func mapDevicesToResponse(devices []portal.Device) []DeviceResponse {
 
 // QueryDevices 查询设备 (Refactored)
 func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryRequest) (*DeviceListResponse, error) {
-	// 1. Determine if JOIN with k8s_node is needed
-	needJoinK8sNode := determineRequiredJoins(req.Groups)
 
 	// 2. Build the base query with necessary JOINs
-	baseQuery := s.buildDeviceQuery(ctx, needJoinK8sNode)
+	baseQuery := s.buildDeviceQuery(ctx)
 
 	// 3. Apply filter groups to the query
-	filteredQuery := s.applyFilterGroups(baseQuery, req.Groups, needJoinK8sNode)
+	filteredQuery := s.applyFilterGroups(baseQuery, req.Groups)
 
 	// 4. Execute count query (using a session to avoid modifying filteredQuery)
 	total, err := s.executeCountQuery(filteredQuery.Session(&gorm.Session{})) // Use Session for count
@@ -787,7 +902,7 @@ func (s *DeviceQueryService) applyNodeLabelFilter(query *gorm.DB, block FilterBl
 	// 并且只查询当天的标签数据
 	query = query.Joins(
 		fmt.Sprintf(SQLJoinNodeLabel, TableAliasNodeLabel, TableAliasK8sNode, TableAliasNodeLabel, TableAliasNodeLabel, TableAliasNodeLabel),
-		block.Key, todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"),
+		block.Key, todayStart, todayEnd,
 	)
 
 	// 应用值条件
@@ -805,7 +920,7 @@ func (s *DeviceQueryService) applyTaintFilter(query *gorm.DB, block FilterBlock)
 	// 并且只查询当天的污点数据
 	query = query.Joins(
 		fmt.Sprintf(SQLJoinNodeTaint, TableAliasNodeTaint, TableAliasK8sNode, TableAliasNodeTaint, TableAliasNodeTaint, TableAliasNodeTaint),
-		block.Key, todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"),
+		block.Key, todayStart, todayEnd,
 	)
 
 	// 应用值条件

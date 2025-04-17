@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import '../../styles/advanced-query.css';
 import {
   Button,
   Card,
@@ -12,7 +13,9 @@ import {
   Form,
   Input,
   Badge,
-  Tag
+  Tag,
+  Dropdown,
+  Menu
 } from 'antd';
 import {
   PlusOutlined,
@@ -21,7 +24,11 @@ import {
   ToolOutlined,
   FilterOutlined,
   SearchOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  DesktopOutlined,
+  TagsOutlined,
+  ExclamationCircleOutlined,
+  DownOutlined
 } from '@ant-design/icons';
 // 使用CSS动画替代react-transition-group
 import { v4 as uuidv4 } from 'uuid';
@@ -44,6 +51,15 @@ import {
 
 const { Text } = Typography;
 const { Option } = Select;
+
+// 转义特殊字符，防止SQL注入
+const escapeValue = (value: string): string => {
+  if (!value) return '';
+  // 转义 % 和 _ 等特殊字符
+  let escapedValue = value.replace(/%/g, '\\%');
+  escapedValue = escapedValue.replace(/_/g, '\\_');
+  return escapedValue;
+};
 
 interface AdvancedQueryPanelProps {
   filterGroups: FilterGroup[];
@@ -468,11 +484,11 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     const getBlockTitle = () => {
       switch (block.type) {
         case FilterType.Device:
-          return '设备字段';
+          return '设备筛选';
         case FilterType.NodeLabel:
-          return '节点标签';
+          return '节点筛选';
         case FilterType.Taint:
-          return '节点污点';
+          return '污点筛选';
         default:
           return '未知类型';
       }
@@ -503,6 +519,10 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
             { label: '不包含', value: ConditionType.NotContains },
             { label: '在列表中', value: ConditionType.In },
             { label: '不在列表中', value: ConditionType.NotIn },
+            { label: '大于', value: ConditionType.GreaterThan },
+            { label: '小于', value: ConditionType.LessThan },
+            { label: '为空', value: ConditionType.IsEmpty },
+            { label: '不为空', value: ConditionType.IsNotEmpty },
           ];
         case FilterType.NodeLabel:
         case FilterType.Taint:
@@ -538,8 +558,8 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     // 是否需要显示值输入
     const shouldShowValueInput = () => {
       if (!block.conditionType) return false;
-      // 只有存在和不存在条件不需要值输入
-      return ![ConditionType.Exists, ConditionType.NotExists].includes(block.conditionType);
+      // 以下条件不需要值输入
+      return ![ConditionType.Exists, ConditionType.NotExists, ConditionType.IsEmpty, ConditionType.IsNotEmpty].includes(block.conditionType);
     };
 
     // 是否是多选条件
@@ -573,14 +593,16 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               </Text>
             )}
           </Space>
-          <Tooltip title="删除此条件">
-            <Button
-              type="text"
-              danger
-              icon={<CloseCircleOutlined />}
-              onClick={() => removeFilterBlock(groupId, block.id)}
-            />
-          </Tooltip>
+
+          {/* 删除按钮移动到右上角 */}
+          <div
+            className="delete-block-button"
+            onClick={() => removeFilterBlock(groupId, block.id)}
+          >
+            <Tooltip title="删除此条件">
+              <DeleteOutlined style={{ fontSize: '16px' }} />
+            </Tooltip>
+          </div>
         </div>
         <div className="filter-block-content">
           {/* 字段选择 */}
@@ -635,6 +657,10 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                     {option.value === ConditionType.NotIn && <Tag color="magenta">∉</Tag>}
                     {option.value === ConditionType.Exists && <Tag color="cyan">∃</Tag>}
                     {option.value === ConditionType.NotExists && <Tag color="volcano">∄</Tag>}
+                    {option.value === ConditionType.GreaterThan && <Tag color="geekblue">&gt;</Tag>}
+                    {option.value === ConditionType.LessThan && <Tag color="lime">&lt;</Tag>}
+                    {option.value === ConditionType.IsEmpty && <Tag color="gold">∅</Tag>}
+                    {option.value === ConditionType.IsNotEmpty && <Tag color="purple">∅̸</Tag>}
                     <span>{option.label}</span>
                   </Space>
                 </Option>
@@ -657,7 +683,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                 allowClear
                 optionFilterProp="children"
                 dropdownMatchSelectWidth={false}
-                showArrow
+                // showArrow 属性已被废弃，现在是默认行为
                 tagRender={props => (
                   <Tag
                     closable
@@ -679,6 +705,76 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
             </div>
           )}
         </div>
+
+
+      </div>
+    );
+  };
+
+  // 添加状态管理
+  const [activeDropdownGroupId, setActiveDropdownGroupId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 切换下拉菜单状态
+  const toggleDropdown = (groupId: string) => {
+    if (activeDropdownGroupId === groupId) {
+      setActiveDropdownGroupId(null);
+    } else {
+      setActiveDropdownGroupId(groupId);
+    }
+  };
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setActiveDropdownGroupId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // 渲染添加条件下拉菜单
+  const renderAddConditionDropdown = (groupId: string) => {
+    if (activeDropdownGroupId !== groupId) return null;
+
+    return (
+      <div className="add-condition-dropdown" ref={dropdownRef}>
+        <div
+          className="add-condition-dropdown-item"
+          onClick={() => {
+            addFilterBlock(groupId, FilterType.Device);
+            setActiveDropdownGroupId(null);
+          }}
+        >
+          <DesktopOutlined style={{ color: '#1890ff' }} />
+          <span>添加设备字段条件</span>
+        </div>
+        <div
+          className="add-condition-dropdown-item"
+          onClick={() => {
+            addFilterBlock(groupId, FilterType.NodeLabel);
+            setActiveDropdownGroupId(null);
+          }}
+        >
+          <TagsOutlined style={{ color: '#52c41a' }} />
+          <span>添加节点标签条件</span>
+        </div>
+        <div
+          className="add-condition-dropdown-item"
+          onClick={() => {
+            addFilterBlock(groupId, FilterType.Taint);
+            setActiveDropdownGroupId(null);
+          }}
+        >
+          <ExclamationCircleOutlined style={{ color: '#fa8c16' }} />
+          <span>添加节点污点条件</span>
+        </div>
+
       </div>
     );
   };
@@ -714,14 +810,6 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               </Option>
             </Select>
           </Space>
-          <Tooltip title="删除条件组">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => removeFilterGroup(group.id)}
-            />
-          </Tooltip>
         </div>
 
         {/* 筛选块列表 */}
@@ -732,48 +820,64 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                 {renderFilterBlock(block, group.id)}
               </div>
             ))}
+
+            <div className="filter-group-bottom-actions">
+              {/* 浮动添加按钮 */}
+              <div
+                className="add-condition-button"
+                onClick={() => toggleDropdown(group.id)}
+              >
+                <Tooltip title="添加条件">
+                  <PlusOutlined style={{ fontSize: '18px', color: '#1890ff' }} />
+                </Tooltip>
+              </div>
+
+              {/* 浮动删除按钮 */}
+              <div
+                className="delete-condition-button"
+                onClick={() => removeFilterGroup(group.id)}
+              >
+                <Tooltip title="删除条件组">
+                  <DeleteOutlined style={{ fontSize: '18px' }} />
+                </Tooltip>
+              </div>
+
+              {/* 添加条件下拉菜单 */}
+              {renderAddConditionDropdown(group.id)}
+            </div>
           </div>
         ) : (
-          <div className="empty-blocks">
-            <Space direction="vertical" align="center">
-              <FilterOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />
-              <Text type="secondary">请添加筛选条件</Text>
-            </Space>
+          <div className="filter-blocks">
+            <div className="empty-blocks">
+              <Space direction="vertical" align="center">
+                <FilterOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />
+                <Text type="secondary">请添加筛选条件</Text>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => toggleDropdown(group.id)}
+                >
+                  添加条件
+                </Button>
+              </Space>
+            </div>
+
+            <div className="filter-group-bottom-actions">
+              {/* 添加条件下拉菜单 */}
+              {renderAddConditionDropdown(group.id)}
+
+              {/* 浮动删除按钮 */}
+              <div
+                className="delete-condition-button"
+                onClick={() => removeFilterGroup(group.id)}
+              >
+                <Tooltip title="删除条件组">
+                  <DeleteOutlined style={{ fontSize: '18px' }} />
+                </Tooltip>
+              </div>
+            </div>
           </div>
         )}
-
-        {/* 添加筛选块按钮 */}
-        <div className="filter-block-actions">
-          <Space>
-            <Tooltip title="添加设备字段条件">
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => addFilterBlock(group.id, FilterType.Device)}
-              >
-                添加设备字段
-              </Button>
-            </Tooltip>
-            <Tooltip title="添加节点标签条件">
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => addFilterBlock(group.id, FilterType.NodeLabel)}
-              >
-                添加节点标签
-              </Button>
-            </Tooltip>
-            <Tooltip title="添加节点污点条件">
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => addFilterBlock(group.id, FilterType.Taint)}
-              >
-                添加节点污点
-              </Button>
-            </Tooltip>
-          </Space>
-        </div>
       </Card>
     );
   };
@@ -805,35 +909,43 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
           icon={<PlusOutlined />}
           onClick={addFilterGroup}
           size="large"
+          style={{ width: '100%', height: '60px', borderRadius: '8px', borderStyle: 'dashed', borderWidth: '2px' }}
         >
-          添加条件组
+          <span style={{ fontSize: '16px' }}>添加条件组</span>
         </Button>
       </div>
 
       {/* 查询操作按钮 */}
       <div className="query-actions">
-        <Button
-          onClick={handleReset}
-          icon={<CloseCircleOutlined />}
-        >
-          重置条件
-        </Button>
-        <Button
-          type="primary"
-          ghost
-          icon={<SaveOutlined />}
-          onClick={handleSaveTemplate}
-        >
-          保存
-        </Button>
-        <Button
-          type="primary"
-          icon={<SearchOutlined />}
-          onClick={onQuery}
-          loading={loading}
-        >
-          执行查询
-        </Button>
+        <Space size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space>
+            <Button
+              onClick={handleReset}
+              icon={<CloseCircleOutlined />}
+            >
+              重置条件
+            </Button>
+            <Button
+              type="primary"
+              ghost
+              icon={<SaveOutlined />}
+              onClick={handleSaveTemplate}
+            >
+              保存模板
+            </Button>
+          </Space>
+
+          <Button
+            type="primary"
+            icon={<SearchOutlined />}
+            onClick={onQuery}
+            loading={loading}
+            size="large"
+            style={{ minWidth: '150px' }}
+          >
+            执行查询
+          </Button>
+        </Space>
       </div>
 
       {/* 保存模板对话框 */}

@@ -236,13 +236,14 @@
   .template-item {
     flex-direction: row;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
   }
 }
 
 .template-item-info {
   flex: 1;
   margin-bottom: 12px;
+  margin-right: 16px;
 }
 
 @media (min-width: 768px) {
@@ -293,6 +294,64 @@
 .dragging-over {
   background-color: #e6f7ff;
   border: 2px dashed #1890ff;
+}
+
+/* 查询条件预览样式 */
+.template-item-conditions {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  border: 1px solid #f0f0f0;
+}
+
+.query-condition-preview {
+  font-size: 12px;
+  padding: 4px;
+}
+
+.query-condition-preview .ant-tag {
+  margin-right: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  height: 20px;
+}
+
+.query-condition-group {
+  margin-bottom: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #f0f0f0;
+  padding: 4px;
+}
+
+.query-condition-group-header {
+  margin-bottom: 4px;
+}
+
+.query-condition-group-blocks {
+  margin-left: 8px;
+}
+
+.query-condition-block {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.query-condition-operator {
+  margin-left: 8px;
+  margin-top: 4px;
+}
+
+.query-condition-group-separator {
+  margin: 8px 0;
+  text-align: center;
+}
+
+.query-condition-more {
+  margin-top: 4px;
+  text-align: center;
 }
 
 /* 响应式优化 */

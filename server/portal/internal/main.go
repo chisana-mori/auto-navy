@@ -40,11 +40,6 @@ func main() {
 		log.Fatalf("failed to initialize database: %v", err)
 	}
 
-	// 生成测试数据
-	if err := database.GenerateTestData(db); err != nil {
-		log.Fatalf("failed to generate test data: %v", err)
-	}
-
 	// 初始化路由处理器 (Service 实例化移至 Handler 构造函数)
 	f5Handler := routers.NewF5InfoHandler(db)
 	opsHandler := routers.NewOpsJobHandler(db)

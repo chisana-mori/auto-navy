@@ -3,6 +3,7 @@ export enum FilterType {
   NodeLabel = 'nodeLabel', // 节点标签
   Taint = 'taint',         // 污点
   Device = 'device',       // 设备字段
+  NodeInfo = 'nodeInfo',   // 节点信息
 }
 
 // 设备字段类型
@@ -32,7 +33,15 @@ export enum DeviceFieldType {
   Status = 'status',           // 状态
   Role = 'role',               // 角色
   Cluster = 'cluster',         // 所属集群
-  ClusterID = 'clusterId'      // 集群ID
+  ClusterID = 'clusterId',     // 集群ID
+  AcceptanceTime = 'acceptanceTime', // 验收时间
+}
+
+// 节点信息字段类型
+export enum NodeInfoFieldType {
+  DiskCount = 'diskCount',     // 磁盘数量
+  DiskDetail = 'diskDetail',   // 磁盘详情
+  NetworkSpeed = 'networkSpeed', // 网络速度
 }
 
 // 条件类型
@@ -45,6 +54,10 @@ export enum ConditionType {
   NotExists = 'notExists',       // 不存在
   In = 'in',                     // 在列表中
   NotIn = 'notIn',               // 不在列表中
+  GreaterThan = 'greaterThan',   // 大于
+  LessThan = 'lessThan',         // 小于
+  IsEmpty = 'isEmpty',           // 为空
+  IsNotEmpty = 'isNotEmpty',     // 不为空
 }
 
 // 逻辑运算符

@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Table, Card, Input, Button, message, Space, Modal, Select, Form, Tag } from 'antd';
+import { Table, Card, Input, Button, message, Space, Modal, Select, Form, Tag, Spin } from 'antd';
 import { CloudServerOutlined, DownloadOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table/interface';
 import { getDeviceList, downloadDeviceExcel, updateDeviceRole, updateDeviceGroup } from '../../services/deviceService';
+import { getDeviceFieldValues } from '../../services/deviceQueryService';
 import type { Device, DeviceQuery } from '../../types/device';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/device-management.css';
@@ -21,6 +22,8 @@ const DeviceManagement: React.FC = () => {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [form] = Form.useForm();
   const [roleUpdateLoading, setRoleUpdateLoading] = useState(false);
+  const [groupOptions, setGroupOptions] = useState<string[]>([]);
+  const [loadingGroupOptions, setLoadingGroupOptions] = useState(false);
 
   // 获取设备列表数据
   const fetchData = useCallback(async (page = 1, size = 10, keyword = '') => {
@@ -80,10 +83,28 @@ const DeviceManagement: React.FC = () => {
     }
   };
 
+  // 获取机器用途选项
+  const fetchGroupOptions = async () => {
+    if (groupOptions.length > 0) return; // 如果已经有选项，不再重复获取
+
+    try {
+      setLoadingGroupOptions(true);
+      const values = await getDeviceFieldValues('group');
+      setGroupOptions(values);
+    } catch (error) {
+      console.error('获取机器用途选项失败:', error);
+      message.error('获取机器用途选项失败');
+    } finally {
+      setLoadingGroupOptions(false);
+    }
+  };
+
   // 打开用途标记对话框
   const showRoleModal = (device: Device) => {
     setSelectedDevice(device);
+    // 确保当前用途被选中
     form.setFieldsValue({ group: device.group });
+    fetchGroupOptions(); // 获取机器用途选项
     setIsRoleModalVisible(true);
   };
 
@@ -102,8 +123,14 @@ const DeviceManagement: React.FC = () => {
       const values = await form.validateFields();
       setRoleUpdateLoading(true);
 
-      await updateDeviceGroup(selectedDevice.id, values.group);
+      const groupValue = values.group;
+      await updateDeviceGroup(selectedDevice.id, groupValue);
       message.success('设备用途更新成功');
+
+      // 如果是新的用途值，添加到选项中
+      if (groupValue && !groupOptions.includes(groupValue)) {
+        setGroupOptions(prev => [...prev, groupValue]);
+      }
 
       // 刷新数据
       fetchData(pagination.current as number, pagination.pageSize as number, searchKeyword);
@@ -328,6 +355,20 @@ const DeviceManagement: React.FC = () => {
           onChange={handleTableChange}
           size="middle"
           scroll={{ x: 1500 }}
+          onRow={(record) => {
+            // 根据条件决定背景色
+            let bgColor = '';
+            if (record.isSpecial) {
+              // 浅黄色背景 - 特殊设备
+              bgColor = '#fffbe6';
+            } else if (record.cluster && record.cluster.trim() !== '') {
+              // 浅绿色背景 - 集群不为空且非特殊设备
+              bgColor = '#f6ffed';
+            }
+            return {
+              style: { backgroundColor: bgColor },
+            };
+          }}
         />
       </Card>
 
@@ -345,22 +386,30 @@ const DeviceManagement: React.FC = () => {
           <Form.Item
             name="group"
             label="机器用途"
-            rules={[{ required: true, message: '请输入机器用途' }]}
+            rules={[]}
           >
             <Select
               placeholder="请选择或输入机器用途"
               showSearch
               allowClear
+              loading={loadingGroupOptions}
+              notFoundContent={loadingGroupOptions ? <Spin size="small" /> : null}
               optionFilterProp="children"
               filterOption={(input, option) =>
                 (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
               }
             >
-              <Select.Option value="qf-core601-flannel-2">qf-core601-flannel-2</Select.Option>
-              <Select.Option value="qf-core602-flannel-2">qf-core602-flannel-2</Select.Option>
-              <Select.Option value="qf-core603-flannel-2">qf-core603-flannel-2</Select.Option>
-              <Select.Option value="qf-core604-flannel-2">qf-core604-flannel-2</Select.Option>
-              <Select.Option value="qf-core605-flannel-2">qf-core605-flannel-2</Select.Option>
+              {/* 动态生成选项 */}
+              {groupOptions.map(group => (
+                <Select.Option key={group} value={group}>{group}</Select.Option>
+              ))}
+
+              {/* 如果当前用途不在选项中，添加当前用途作为选项 */}
+              {selectedDevice?.group && groupOptions.indexOf(selectedDevice.group) === -1 ? (
+                <Select.Option key={selectedDevice.group} value={selectedDevice.group}>
+                  {selectedDevice.group}
+                </Select.Option>
+              ) : null}
             </Select>
           </Form.Item>
         </Form>

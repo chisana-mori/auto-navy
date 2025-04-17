@@ -77,12 +77,82 @@ export async function getDeviceFieldValues(field: string): Promise<string[]> {
   });
 }
 
+// 标签详情
+export interface LabelDetail {
+  key: string;   // 标签键
+  value: string; // 标签值
+}
+
+// 污点详情
+export interface TaintDetail {
+  key: string;    // 污点键
+  value: string;  // 污点值
+  effect: string; // 效果
+}
+
+// 设备特性详情
+export interface DeviceFeatureDetails {
+  labels: LabelDetail[]; // 标签详情
+  taints: TaintDetail[]; // 污点详情
+}
+
+// 获取设备特性详情
+export async function getDeviceFeatureDetails(ciCode: string): Promise<DeviceFeatureDetails> {
+  return request(`${BASE_URL}/device-feature-details`, {
+    method: 'GET',
+    params: { ci_code: ciCode },
+  });
+}
+
 // 查询设备
 export async function queryDevices(params: DeviceQueryRequest): Promise<DeviceListResponse> {
-  return request(`${BASE_URL}/query`, {
-    method: 'POST',
-    data: params,
-  });
+  console.log('发送设备查询请求, 参数:', JSON.stringify(params));
+
+  try {
+    // 确保参数有效
+    if (!params.groups || !Array.isArray(params.groups)) {
+      console.error('查询参数无效: groups 不是数组');
+      throw new Error('查询参数无效');
+    }
+
+    // 清理参数中的无效数据
+    const cleanedParams = {
+      ...params,
+      groups: params.groups.filter(group =>
+        group && typeof group === 'object' && Array.isArray(group.blocks) && group.blocks.length > 0
+      )
+    };
+
+    if (cleanedParams.groups.length === 0) {
+      console.error('清理后的查询参数无效: 没有有效的筛选组');
+      throw new Error('查询参数无效: 没有有效的筛选组');
+    }
+
+    console.log('清理后的查询参数:', JSON.stringify(cleanedParams));
+
+    const response = await request(`${BASE_URL}/query`, {
+      method: 'POST',
+      data: cleanedParams,
+    });
+
+    console.log('查询响应:', response);
+
+    // 将响应转换为正确的类型
+    const responseData = response as any;
+
+    // 确保响应符合 DeviceListResponse 类型
+    const result: DeviceListResponse = {
+      list: Array.isArray(responseData.list) ? responseData.list : [],
+      total: typeof responseData.total === 'number' ? responseData.total : 0,
+      page: typeof responseData.page === 'number' ? responseData.page : 1,
+      size: typeof responseData.size === 'number' ? responseData.size : 10
+    };
+
+    return result;
+  } catch (error) {
+    console.error('查询设备失败:', error);
+    throw error;
+  }
 }
 
 // 保存查询模板
@@ -95,15 +165,135 @@ export async function saveQueryTemplate(template: QueryTemplate): Promise<any> {
 
 // 获取查询模板列表
 export async function getQueryTemplates(): Promise<QueryTemplate[]> {
-  return request(`${BASE_URL}/templates`, {
-    method: 'GET',
-  });
+  try {
+    console.log('获取模板列表');
+    const response = await request(`${BASE_URL}/templates`, {
+      method: 'GET',
+    });
+
+    console.log('模板列表原始响应:', response);
+
+    // 确保每个模板的 groups 属性正确解析
+    if (Array.isArray(response)) {
+      return response.map(template => {
+        // 如果 groups 是字符串，尝试解析为 JSON
+        if (typeof template.groups === 'string') {
+          try {
+            template.groups = JSON.parse(template.groups);
+          } catch (error) {
+            console.error(`Failed to parse template groups for template ${template.id}:`, error);
+            template.groups = [];
+          }
+        }
+
+        // 如果 groups 不是数组，初始化为空数组
+        if (!Array.isArray(template.groups)) {
+          console.warn(`Template ${template.id} groups is not an array, initializing as empty array`);
+          template.groups = [];
+        }
+
+        // 确保每个组和块都有有效的 ID
+        template.groups = template.groups.map((group: any) => {
+          // 如果组没有 ID，生成一个
+          if (!group.id) {
+            group.id = generateUUID();
+          }
+
+          // 确保 blocks 是数组
+          if (!Array.isArray(group.blocks)) {
+            group.blocks = [];
+          } else {
+            // 处理每个块
+            group.blocks = group.blocks.map((block: any) => {
+              // 如果块没有 ID，生成一个
+              if (!block.id) {
+                block.id = generateUUID();
+              }
+              return block;
+            });
+          }
+          return group;
+        });
+
+        console.log(`Processed template ${template.id}:`, template);
+        return template;
+      });
+    }
+
+    console.warn('模板列表响应不是数组');
+    return [];
+  } catch (error) {
+    console.error('获取模板列表失败:', error);
+    throw error;
+  }
 }
 
 // 获取查询模板
 export async function getQueryTemplate(id: number | string): Promise<QueryTemplate> {
-  return request(`${BASE_URL}/templates/${id}`, {
-    method: 'GET',
+  try {
+    console.log(`获取模板数据, id: ${id}`);
+    const response = await request(`${BASE_URL}/templates/${id}`, {
+      method: 'GET',
+    });
+
+    console.log(`模板原始响应:`, response);
+
+    // 将响应转换为 QueryTemplate 类型
+    const template = response as unknown as QueryTemplate;
+
+    // 如果 groups 是字符串，尝试解析为 JSON
+    if (typeof template.groups === 'string') {
+      try {
+        template.groups = JSON.parse(template.groups);
+        console.log('解析后的 groups:', template.groups);
+      } catch (error) {
+        console.error('Failed to parse template groups:', error);
+        template.groups = [];
+      }
+    }
+
+    // 如果 groups 不是数组，初始化为空数组
+    if (!Array.isArray(template.groups)) {
+      console.warn('Template groups is not an array, initializing as empty array');
+      template.groups = [];
+    }
+
+    // 确保每个组和块都有有效的 ID
+    template.groups = template.groups.map((group: any) => {
+      // 如果组没有 ID，生成一个
+      if (!group.id) {
+        group.id = generateUUID();
+      }
+
+      // 确保 blocks 是数组
+      if (!Array.isArray(group.blocks)) {
+        group.blocks = [];
+      } else {
+        // 处理每个块
+        group.blocks = group.blocks.map((block: any) => {
+          // 如果块没有 ID，生成一个
+          if (!block.id) {
+            block.id = generateUUID();
+          }
+          return block;
+        });
+      }
+      return group;
+    });
+
+    console.log('Processed single template:', template);
+    return template;
+  } catch (error) {
+    console.error(`获取模板失败, id: ${id}`, error);
+    throw error;
+  }
+}
+
+// 生成 UUID
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
   });
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jinzhu/now"
 	"gorm.io/gorm"
 )
 
@@ -15,56 +16,6 @@ import (
 const (
 	ErrDeviceNotFoundMsg = "device with ID %d not found"
 )
-
-// DeviceQuery 设备查询参数
-type DeviceQuery struct {
-	Page    int    `form:"page" json:"page"`       // 页码
-	Size    int    `form:"size" json:"size"`       // 每页数量
-	Keyword string `form:"keyword" json:"keyword"` // 搜索关键字
-}
-
-// DeviceResponse 设备响应
-type DeviceResponse struct {
-	ID             int64     `json:"id"`             // ID
-	CICode         string    `json:"ciCode"`         // 设备编码
-	IP             string    `json:"ip"`             // IP地址
-	ArchType       string    `json:"archType"`       // CPU架构
-	IDC            string    `json:"idc"`            // IDC
-	Room           string    `json:"room"`           // 机房
-	Cabinet        string    `json:"cabinet"`        // 所属机柜
-	CabinetNO      string    `json:"cabinetNo"`      // 机柜编号
-	InfraType      string    `json:"infraType"`      // 网络类型
-	IsLocalization bool      `json:"isLocalization"` // 是否国产化
-	NetZone        string    `json:"netZone"`        // 网络区域
-	Group          string    `json:"group"`          // 机器类别
-	AppID          string    `json:"appId"`          // APPID
-	OsCreateTime   string    `json:"osCreateTime"`   // 操作系统创建时间
-	CPU            float64   `json:"cpu"`            // CPU数量
-	Memory         float64   `json:"memory"`         // 内存大小
-	Model          string    `json:"model"`          // 型号
-	KvmIP          string    `json:"kvmIp"`          // KVM IP
-	OS             string    `json:"os"`             // 操作系统
-	Company        string    `json:"company"`        // 厂商
-	OSName         string    `json:"osName"`         // 操作系统名称
-	OSIssue        string    `json:"osIssue"`        // 操作系统版本
-	OSKernel       string    `json:"osKernel"`       // 操作系统内核
-	Status         string    `json:"status"`         // 状态
-	Role           string    `json:"role"`           // 角色
-	Cluster        string    `json:"cluster"`        // 所属集群
-	ClusterID      int       `json:"clusterId"`      // 集群ID
-	CreatedAt      time.Time `json:"createdAt"`      // 创建时间
-	UpdatedAt      time.Time `json:"updatedAt"`      // 更新时间
-}
-
-// DeviceRoleUpdateRequest 设备角色更新请求
-type DeviceRoleUpdateRequest struct {
-	Role string `json:"role" binding:"required"` // 新的角色值
-}
-
-// DeviceGroupUpdateRequest 设备用途更新请求
-type DeviceGroupUpdateRequest struct {
-	Group string `json:"group" binding:"required"` // 新的用途值
-}
 
 // DeviceService 设备服务
 type DeviceService struct {
@@ -74,6 +25,41 @@ type DeviceService struct {
 // NewDeviceService 创建设备服务
 func NewDeviceService(db *gorm.DB) *DeviceService {
 	return &DeviceService{db: db}
+}
+
+// buildDeviceBaseQuery 构建设备查询的基础查询，包含与 k8s_node 等表的关联
+func (s *DeviceService) buildDeviceBaseQuery(ctx context.Context) *gorm.DB {
+	// 获取今天的开始和结束时间
+	currentTime := time.Now()
+	todayStart := now.New(currentTime).BeginningOfDay()
+	todayEnd := now.New(currentTime).EndOfDay()
+
+	// 构建查询，添加 isSpecial 字段用于标识特殊设备
+	query := s.db.WithContext(ctx).Model(&portal.Device{}).
+		Select("device.*, " +
+			// 添加 isSpecial 字段，当满足以下条件之一时为 true：
+			// 1. 机器用途不为空
+			// 2. 可以关联到 label_feature
+			// 3. 可以关联到 taint_feature
+			"CASE WHEN device.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_special, " +
+			// 添加特性计数字段，用于前端显示
+			"(CASE WHEN device.`group` != '' THEN 1 ELSE 0 END + CASE WHEN lf.id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN tf.id IS NOT NULL THEN 1 ELSE 0 END) AS feature_count")
+
+	// 默认关联 k8s_node 表，并添加 status != Offline 筛选条件
+	query = query.Joins("LEFT JOIN k8s_node ON LOWER(device.ci_code) = LOWER(k8s_node.nodename) AND (k8s_node.status != 'Offline' OR k8s_node.status IS NULL)")
+
+	// 关联 k8s_node_label 表和 label_feature 表，用于判断是否为特殊设备
+	query = query.Joins("LEFT JOIN k8s_node_label ON k8s_node.id = k8s_node_label.node_id AND k8s_node_label.created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"))
+	query = query.Joins("LEFT JOIN label_feature lf ON k8s_node_label.key = lf.key")
+
+	// 关联 k8s_node_taint 表和 taint_feature 表，用于判断是否为特殊设备
+	query = query.Joins("LEFT JOIN k8s_node_taint ON k8s_node.id = k8s_node_taint.node_id AND k8s_node_taint.created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"))
+	query = query.Joins("LEFT JOIN taint_feature tf ON k8s_node_taint.key = tf.key")
+
+	// 使用 GROUP BY 确保每个设备只返回一行
+	query = query.Group("device.id")
+
+	return query
 }
 
 // processMultilineKeyword 处理多行查询关键字
@@ -122,7 +108,8 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 	var models []portal.Device
 	var total int64
 
-	db := s.db.WithContext(ctx).Model(&portal.Device{})
+	// 使用基础查询，包含与 k8s_node 等表的关联
+	db := s.buildDeviceBaseQuery(ctx)
 
 	// 应用关键字搜索
 	if query.Keyword != emptyString {
@@ -147,9 +134,9 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 
 				// 第一个IP使用 Where，后续IP使用 Or
 				if i == 0 {
-					db = db.Where("ip LIKE ?", ip)
+					db = db.Where("device.ip LIKE ?", ip)
 				} else {
-					db = db.Or("ip LIKE ?", ip)
+					db = db.Or("device.ip LIKE ?", ip)
 				}
 			}
 		} else {
@@ -160,16 +147,16 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 				// 第一个关键字使用 Where，后续关键字使用 Or
 				if i == 0 {
 					db = db.Where(
-						"ci_code LIKE ? OR ip LIKE ? OR arch_type LIKE ? OR cluster LIKE ? OR "+
-							"role LIKE ? OR idc LIKE ? OR room LIKE ? OR cabinet LIKE ? OR "+
-							"cabinet_no LIKE ? OR infra_type LIKE ? OR net_zone LIKE ? OR appid LIKE ? OR `group` LIKE ?",
+						"device.ci_code LIKE ? OR device.ip LIKE ? OR device.arch_type LIKE ? OR device.cluster LIKE ? OR "+
+							"device.role LIKE ? OR device.idc LIKE ? OR device.room LIKE ? OR device.cabinet LIKE ? OR "+
+							"device.cabinet_no LIKE ? OR device.infra_type LIKE ? OR device.net_zone LIKE ? OR device.appid LIKE ? OR device.`group` LIKE ?",
 						keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword,
 					)
 				} else {
 					db = db.Or(
-						"ci_code LIKE ? OR ip LIKE ? OR arch_type LIKE ? OR cluster LIKE ? OR "+
-							"role LIKE ? OR idc LIKE ? OR room LIKE ? OR cabinet LIKE ? OR "+
-							"cabinet_no LIKE ? OR infra_type LIKE ? OR net_zone LIKE ? OR appid LIKE ? OR `group` LIKE ?",
+						"device.ci_code LIKE ? OR device.ip LIKE ? OR device.arch_type LIKE ? OR device.cluster LIKE ? OR "+
+							"device.role LIKE ? OR device.idc LIKE ? OR device.room LIKE ? OR device.cabinet LIKE ? OR "+
+							"device.cabinet_no LIKE ? OR device.infra_type LIKE ? OR device.net_zone LIKE ? OR device.appid LIKE ? OR device.`group` LIKE ?",
 						keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword,
 					)
 				}
@@ -229,6 +216,12 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 			Role:           model.Role,
 			Cluster:        model.Cluster,
 			ClusterID:      model.ClusterID,
+			AcceptanceTime: model.AcceptanceTime,
+			DiskCount:      model.DiskCount,
+			DiskDetail:     model.DiskDetail,
+			NetworkSpeed:   model.NetworkSpeed,
+			IsSpecial:      model.IsSpecial,
+			FeatureCount:   model.FeatureCount,
 			CreatedAt:      time.Time(model.CreatedAt),
 			UpdatedAt:      time.Time(model.UpdatedAt),
 		}
@@ -246,7 +239,9 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 
 func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceResponse, error) {
 	var model portal.Device
-	err := s.db.WithContext(ctx).Where("id = ?", id).First(&model).Error
+	// 使用基础查询，包含与 k8s_node 等表的关联
+	db := s.buildDeviceBaseQuery(ctx).Where("device.id = ?", id)
+	err := db.First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf(ErrDeviceNotFoundMsg, id)
@@ -282,6 +277,12 @@ func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceRespons
 		Role:           model.Role,
 		Cluster:        model.Cluster,
 		ClusterID:      model.ClusterID,
+		AcceptanceTime: model.AcceptanceTime,
+		DiskCount:      model.DiskCount,
+		DiskDetail:     model.DiskDetail,
+		NetworkSpeed:   model.NetworkSpeed,
+		IsSpecial:      model.IsSpecial,
+		FeatureCount:   model.FeatureCount,
 		CreatedAt:      time.Time(model.CreatedAt),
 		UpdatedAt:      time.Time(model.UpdatedAt),
 	}, nil
@@ -336,8 +337,11 @@ func (s *DeviceService) UpdateDeviceGroup(ctx context.Context, id int64, request
 func (s *DeviceService) ExportDevices(ctx context.Context) ([]byte, error) {
 	var devices []portal.Device
 
+	// 使用基础查询，包含与 k8s_node 等表的关联
+	db := s.buildDeviceBaseQuery(ctx)
+
 	// 获取所有设备信息
-	if err := s.db.WithContext(ctx).Find(&devices).Error; err != nil {
+	if err := db.Find(&devices).Error; err != nil {
 		return nil, fmt.Errorf("failed to get devices for export: %w", err)
 	}
 

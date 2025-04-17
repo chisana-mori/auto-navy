@@ -46,7 +46,6 @@ func (h *DeviceHandler) RegisterRoutes(r *gin.RouterGroup) {
 		deviceGroup.GET(idPath, h.getDevice)
 		deviceGroup.GET("", h.listDevices)
 		deviceGroup.GET("/export", h.exportDevices)
-		deviceGroup.PATCH(idPath+"/role", h.updateDeviceRole)   // 新增更新角色的路由
 		deviceGroup.PATCH(idPath+"/group", h.updateDeviceGroup) // 新增更新用途的路由
 	}
 }

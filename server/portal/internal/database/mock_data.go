@@ -1,7 +1,9 @@
 package database
 
 import (
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -12,691 +14,795 @@ import (
 	"navy-ng/models/portal"
 )
 
-// K8s Cluster IDs.
+// Constants for mock data generation
 const (
-	clusterIDProdEast  int64 = 101
-	clusterIDProdNorth int64 = 102
-	clusterIDTestSH    int64 = 103
-	clusterIDDevSZ     int64 = 104
-	clusterIDUATBJ     int64 = 105
+	statusRunning = "Running"
+	statusReady   = "Ready"
+	statusOffline = "Offline"
+
+	clusterProdID int64 = 1
+	clusterTestID int64 = 2
+
+	labelSourceInternal = 0
+	labelSourceExternal = 1
+
+	taintTypeSystem   = "system"
+	taintTypeCustom   = "custom"
+	taintTypeHardware = "hardware"
+
+	effectNoSchedule = "NoSchedule"
+	effectNoExecute  = "NoExecute"
+
+	colorGreen      = "#4CAF50"
+	colorBlue       = "#2196F3"
+	colorYellow     = "#FFC107"
+	colorPurple     = "#9C27B0"
+	colorPink       = "#E91E63"
+	colorRed        = "#F44336"
+	colorDeepPurple = "#673AB7"
+	colorCyan       = "#00BCD4"
+	colorOrange     = "#FF9800"
+	colorBrown      = "#795548"
 )
 
-// F5 Info IDs.
-const (
-	f5IDFinanceProd   int64 = 1
-	f5IDHRProd        int64 = 2
-	f5IDMarketingTest int64 = 3
-	f5IDCRMDev        int64 = 4
-	f5IDPaymentProd   int64 = 5
-	f5IDCMSUAT        int64 = 6
-	f5IDSearchProd    int64 = 7
-	f5IDStorageProd   int64 = 8
-	f5IDAuthTest      int64 = 9
-	f5IDReportUAT     int64 = 10
-)
+// ClearAndSeedDatabase clears relevant tables and seeds them with consistent mock data.
+func ClearAndSeedDatabase(db *gorm.DB) error {
+	log.Println("Starting database clearing and seeding...")
 
-// Status Constants.
-const (
-	statusRunning  = "running"
-	statusActive   = "active"
-	statusHealthy  = "healthy"
-	statusStopped  = "stopped"
-	statusInactive = "inactive"
-	statusOffline  = "offline"
-	statusDegraded = "degraded"
-)
-
-// Port Constants.
-const (
-	port443  = "443"
-	port80   = "80"
-	port8080 = "8080"
-	port8000 = "8000"
-	port9200 = "9200"
-)
-
-// 空字符串常量
-const emptyString = ""
-
-// InsertMockOpsJobs 插入运维任务模拟数据
-func InsertMockOpsJobs(db *gorm.DB) error {
-	// 获取当前时间
-	now := time.Now()
-	// 创建一些不同状态的任务
-	yesterday := now.Add(-24 * time.Hour)
-	lastWeek := now.Add(-7 * 24 * time.Hour)
-
-	// 创建模拟任务数据
-	mockJobs := []portal.OpsJob{
-		{
-			Name:        "更新F5配置",
-			Description: "更新生产环境F5负载均衡器配置",
-			Status:      "completed",
-			Progress:    100,
-			StartTime:   yesterday,
-			EndTime:     yesterday.Add(30 * time.Minute),
-			LogContent:  "2023-05-10 10:00:00 [INFO] 开始更新F5配置\n2023-05-10 10:15:00 [INFO] 备份当前配置\n2023-05-10 10:20:00 [INFO] 应用新配置\n2023-05-10 10:30:00 [INFO] 配置更新完成",
-		},
-		{
-			Name:        "重启应用服务器",
-			Description: "重启测试环境应用服务器",
-			Status:      "running",
-			Progress:    60,
-			StartTime:   now.Add(-30 * time.Minute),
-			LogContent:  "2023-05-11 14:30:00 [INFO] 开始重启应用服务器\n2023-05-11 14:35:00 [INFO] 停止服务\n2023-05-11 14:40:00 [INFO] 清理缓存\n2023-05-11 14:45:00 [INFO] 启动服务中...",
-		},
-		{
-			Name:        "数据库备份",
-			Description: "执行每周数据库完整备份",
-			Status:      "failed",
-			Progress:    45,
-			StartTime:   lastWeek,
-			EndTime:     lastWeek.Add(2 * time.Hour),
-			LogContent:  "2023-05-05 01:00:00 [INFO] 开始数据库备份\n2023-05-05 01:30:00 [INFO] 备份进行中...\n2023-05-05 02:00:00 [ERROR] 备份失败: 磁盘空间不足\n2023-05-05 02:01:00 [INFO] 清理临时文件",
-		},
-		{
-			Name:        "部署新版本",
-			Description: "部署应用v2.3.0版本到UAT环境",
-			Status:      "pending",
-			Progress:    0,
-			LogContent:  "",
-		},
-		{
-			Name:        "网络配置更新",
-			Description: "更新防火墙规则",
-			Status:      "completed",
-			Progress:    100,
-			StartTime:   now.Add(-2 * 24 * time.Hour),
-			EndTime:     now.Add(-2 * 24 * time.Hour).Add(45 * time.Minute),
-			LogContent:  "2023-05-09 09:00:00 [INFO] 开始更新防火墙规则\n2023-05-09 09:15:00 [INFO] 备份当前规则\n2023-05-09 09:30:00 [INFO] 应用新规则\n2023-05-09 09:45:00 [INFO] 规则更新完成",
-		},
+	// 1. Clear existing data in reverse dependency order (or tables that can be cleared)
+	tablesToClear := []string{
+		"ops_job",             // Assuming no critical FKs pointing to it
+		"f5_info",             // Assuming no critical FKs pointing to it
+		"query_template",      // Assuming no critical FKs pointing to it
+		"device_app",          // 添加DeviceApp表，依赖于device表
+		"k8s_node_taint",      // Depends on k8s_node, taint_feature
+		"k8s_node_label",      // Depends on k8s_node, label_feature
+		"device",              // Related to k8s_node, k8s_etcd
+		"k8s_node",            // Depends on k8s_cluster
+		"k8s_etcd",            // Depends on k8s_cluster
+		"label_feature_value", // Depends on label_feature
+		"label_feature",       // Independent
+		"taint_feature",       // Independent
+		"k8s_cluster",         // Independent
 	}
 
-	// 插入模拟数据
-	for _, job := range mockJobs {
-		if err := db.Create(&job).Error; err != nil {
-			log.Printf("Warning: failed to insert mock ops job: %v", err)
-			return err
+	log.Println("Clearing tables...")
+	for _, table := range tablesToClear {
+		if err := db.Exec(fmt.Sprintf("DELETE FROM %s", table)).Error; err != nil {
+			// Log warning but continue if possible, crucial tables might block seeding
+			log.Printf("Warning: failed to clear table %s: %v. Seeding might be incomplete.", table, err)
 		}
 	}
 
-	log.Printf("成功插入 %d 条运维任务模拟数据", len(mockJobs))
-	return nil
-}
-
-// ClearAndSeedData 清空现有数据并插入样例数据
-func ClearAndSeedData(db *gorm.DB) error {
-	// 清空现有数据
-	if err := db.Exec("DELETE FROM f5_info").Error; err != nil {
-		log.Printf("Warning: failed to delete f5_info data: %v", err)
+	// Optional: Reset auto-increment sequences if using SQLite
+	sequencesToReset := []string{
+		"ops_job",
+		"f5_info",
+		"query_template",
+		"device_app", // 添加DeviceApp表序列重置
+		"k8s_node_label",
+		"k8s_node_taint",
+		"device",
+		"k8s_node",
+		"k8s_etcd",
+		"label_feature_value",
+		"label_feature",
+		"taint_feature",
+		"k8s_cluster",
+	}
+	log.Println("Resetting sequences (SQLite only)...")
+	for _, seq := range sequencesToReset {
+		// This command is specific to SQLite
+		if err := db.Exec(fmt.Sprintf("DELETE FROM sqlite_sequence WHERE name='%s'", seq)).Error; err != nil {
+			// Log warning, as this might fail on other DBs or if the table didn't exist
+			// log.Printf("Warning: failed to reset sequence for %s: %v", seq, err)
+		}
 	}
 
-	// 插入F5信息数据
-	insertMockF5Info(db)
+	// 2. Seed data in dependency order
+	log.Println("Seeding K8s Clusters...")
+	clusters, err := seedK8sClusters(db)
+	if err != nil {
+		return fmt.Errorf("failed to seed k8s clusters: %w", err)
+	}
 
+	log.Println("Seeding Label Features...")
+	labelFeatures, err := seedLabelFeatures(db)
+	if err != nil {
+		return fmt.Errorf("failed to seed label features: %w", err)
+	}
+
+	log.Println("Seeding Taint Features...")
+	taintFeatures, err := seedTaintFeatures(db)
+	if err != nil {
+		return fmt.Errorf("failed to seed taint features: %w", err)
+	}
+
+	log.Println("Seeding K8s Nodes...")
+	nodes, err := seedK8sNodes(db, clusters)
+	if err != nil {
+		return fmt.Errorf("failed to seed k8s nodes: %w", err)
+	}
+
+	log.Println("Seeding K8s ETCD...")
+	etcds, err := seedK8sEtcd(db, clusters)
+	if err != nil {
+		return fmt.Errorf("failed to seed k8s etcd: %w", err)
+	}
+
+	log.Println("Seeding Devices...")
+	devices, err := seedDevices(db, nodes, etcds)
+	if err != nil {
+		return fmt.Errorf("failed to seed devices: %w", err)
+	}
+	// Note: Devices are seeded, but their 'role' and 'cluster' might be updated later based on actual relations
+
+	log.Println("Seeding K8s Node Labels...")
+	if err := seedK8sNodeLabels(db, nodes, labelFeatures); err != nil {
+		return fmt.Errorf("failed to seed k8s node labels: %w", err)
+	}
+
+	log.Println("Seeding K8s Node Taints...")
+	if err := seedK8sNodeTaints(db, nodes, taintFeatures); err != nil {
+		return fmt.Errorf("failed to seed k8s node taints: %w", err)
+	}
+
+	log.Println("Updating Device Roles/Clusters based on K8s relations...")
+	if err := updateDeviceRelations(db, nodes, etcds, clusters); err != nil {
+		return fmt.Errorf("failed to update device relations: %w", err)
+	}
+
+	// 添加DeviceApp数据生成
+	log.Println("Seeding Device Apps...")
+	if err := seedDeviceApps(db, devices); err != nil {
+		return fmt.Errorf("failed to seed device apps: %w", err)
+	}
+
+	// Seed other independent data (optional)
+	log.Println("Seeding F5 Info...")
+	if err := seedF5Info(db, clusters); err != nil { // Pass clusters if F5 needs cluster IDs
+		log.Printf("Warning: failed to seed F5 info: %v", err)
+	}
+
+	log.Println("Seeding Ops Jobs...")
+	if err := seedOpsJobs(db); err != nil {
+		log.Printf("Warning: failed to seed Ops Jobs: %v", err)
+	}
+
+	log.Println("Database seeding completed successfully.")
 	return nil
 }
 
-// 插入K8s集群数据
-func insertMockK8sClusters(db *gorm.DB) {
-	// 创建模拟K8s集群数据
+// --- Seeding Functions --- //
+
+func seedK8sClusters(db *gorm.DB) ([]portal.K8sCluster, error) {
 	mockClusters := []portal.K8sCluster{
 		{
-			BaseModel: portal.BaseModel{ID: clusterIDProdEast},
-			Name:      "生产集群-华东",
-			Region:    "上海",
-			Endpoint:  "https://k8s-prod-east.example.com:6443",
+			BaseModel: portal.BaseModel{ID: clusterProdID},
+			Name:      "cluster-prod",
+			Region:    "shanghai",
+			Endpoint:  "https://k8s-prod.example.com:6443",
 			Status:    statusRunning,
 		},
 		{
-			BaseModel: portal.BaseModel{ID: clusterIDProdNorth},
-			Name:      "生产集群-华北",
-			Region:    "北京",
-			Endpoint:  "https://k8s-prod-north.example.com:6443",
-			Status:    statusRunning,
-		},
-		{
-			BaseModel: portal.BaseModel{ID: clusterIDTestSH},
-			Name:      "测试集群-上海",
-			Region:    "上海",
-			Endpoint:  "https://k8s-test-sh.example.com:6443",
-			Status:    statusRunning,
-		},
-		{
-			BaseModel: portal.BaseModel{ID: clusterIDDevSZ},
-			Name:      "开发集群-深圳",
-			Region:    "深圳",
-			Endpoint:  "https://k8s-dev-sz.example.com:6443",
-			Status:    statusStopped,
-		},
-		{
-			BaseModel: portal.BaseModel{ID: clusterIDUATBJ},
-			Name:      "UAT集群-北京",
-			Region:    "北京",
-			Endpoint:  "https://k8s-uat-bj.example.com:6443",
+			BaseModel: portal.BaseModel{ID: clusterTestID},
+			Name:      "cluster-test",
+			Region:    "beijing",
+			Endpoint:  "https://k8s-test.example.com:6443",
 			Status:    statusRunning,
 		},
 	}
+	if err := db.Create(&mockClusters).Error; err != nil {
+		return nil, err
+	}
+	log.Printf("Inserted %d K8s Clusters", len(mockClusters))
+	return mockClusters, nil
+}
 
-	for _, cluster := range mockClusters {
-		if err := db.Create(&cluster).Error; err != nil {
-			log.Printf("Warning: failed to create k8s cluster %d: %v", cluster.ID, err)
+func seedLabelFeatures(db *gorm.DB) ([]portal.LabelManagement, error) {
+	labels := []portal.LabelManagement{
+		{Name: "Kubernetes Hostname", Key: "kubernetes.io/hostname", Source: labelSourceExternal, IsControl: true, Range: "node", IDC: "all", Status: 0, IsDenyList: false, Color: colorGreen},
+		{Name: "GPU Support", Key: "nvidia.com/gpu", Source: labelSourceExternal, IsControl: true, Range: "node", IDC: "all", Status: 0, IsDenyList: false, Color: colorBlue},
+		{Name: "Environment", Key: "env", Source: labelSourceInternal, IsControl: true, Range: "node", IDC: "all", Status: 0, IsDenyList: false, Color: colorYellow},
+		{Name: "Region", Key: "topology.kubernetes.io/region", Source: labelSourceExternal, IsControl: true, Range: "node", IDC: "all", Status: 0, IsDenyList: false, Color: colorPurple},
+		{Name: "Custom Workload", Key: "workload-type", Source: labelSourceInternal, IsControl: true, Range: "node", IDC: "all", Status: 0, IsDenyList: false, Color: colorPink},
+	}
+
+	// Add Timestamps before creation
+	for i := range labels {
+		currentTime := time.Now()
+		labels[i].CreatedAt = portal.NavyTime(currentTime)
+		labels[i].UpdatedAt = portal.NavyTime(currentTime)
+	}
+
+	if err := db.Create(&labels).Error; err != nil {
+		return nil, err
+	}
+
+	// Seed Label Values (Optional, based on requirements)
+	labelValuesData := map[string][]string{
+		"kubernetes.io/hostname":        {"prod-node-1", "prod-node-2", "test-node-1"},
+		"nvidia.com/gpu":                {"true", "false"},
+		"env":                           {"prod", "staging", "dev"},
+		"topology.kubernetes.io/region": {"shanghai", "beijing"},
+		"workload-type":                 {"batch", "web", "database"},
+	}
+
+	labelMap := make(map[string]int64)
+	for _, l := range labels {
+		labelMap[l.Key] = l.ID
+	}
+
+	var valuesToInsert []portal.LabelValue
+	for key, values := range labelValuesData {
+		if labelID, ok := labelMap[key]; ok {
+			for _, value := range values {
+				valuesToInsert = append(valuesToInsert, portal.LabelValue{
+					LabelID: labelID,
+					Value:   value,
+				})
+			}
+		}
+	}
+	if len(valuesToInsert) > 0 {
+		if err := db.Create(&valuesToInsert).Error; err != nil {
+			log.Printf("Warning: failed to seed label values: %v", err)
+			// Continue even if values fail
 		}
 	}
 
-	log.Printf("成功插入 %d 条K8s集群数据", len(mockClusters))
+	log.Printf("Inserted %d Label Features", len(labels))
+	return labels, nil
 }
 
-// 插入F5信息数据
-func insertMockF5Info(db *gorm.DB) {
-	// 获取当前时间
-	now := time.Now()
-	yesterday := now.Add(-24 * time.Hour)
-	lastWeek := now.Add(-7 * 24 * time.Hour)
-	lastMonth := now.Add(-30 * 24 * time.Hour)
-
-	// 创建模拟F5信息数据
-	mockF5s := []portal.F5Info{
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDFinanceProd},
-			Name:          "财务系统-生产",
-			VIP:           "10.100.1.1",
-			Port:          port443,
-			AppID:         "FIN-APP-001",
-			InstanceGroup: "finance-prod",
-			Status:        statusActive,
-			PoolName:      "finance-pool-prod",
-			PoolStatus:    statusHealthy,
-			PoolMembers:   "192.168.1.10:443 online,192.168.1.11:443 online",
-			K8sClusterID:  clusterIDProdEast,
-			Domains:       "finance.example.com",
-			GrafanaParams: "http://grafana.example.com/d/finance-prod",
-			Ignored:       false,
-			CreatedAt:     lastMonth,
-			UpdatedAt:     yesterday,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDHRProd},
-			Name:          "人力资源系统-生产",
-			VIP:           "10.100.1.2",
-			Port:          port80,
-			AppID:         "HR-APP-001",
-			InstanceGroup: "hr-prod",
-			Status:        statusActive,
-			PoolName:      "hr-pool-prod",
-			PoolStatus:    statusHealthy,
-			PoolMembers:   "192.168.2.10:80 online,192.168.2.11:80 online",
-			K8sClusterID:  clusterIDProdNorth,
-			Domains:       "hr.example.com",
-			GrafanaParams: "http://grafana.example.com/d/hr-prod",
-			Ignored:       false,
-			CreatedAt:     lastMonth,
-			UpdatedAt:     yesterday,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDMarketingTest},
-			Name:          "营销系统-测试",
-			VIP:           "10.200.1.1",
-			Port:          port8080,
-			AppID:         "MKT-APP-002",
-			InstanceGroup: "marketing-test",
-			Status:        statusActive,
-			PoolName:      "marketing-pool-test",
-			PoolStatus:    statusDegraded,
-			PoolMembers:   "192.168.3.10:8080 online,192.168.3.11:8080 offline",
-			K8sClusterID:  clusterIDTestSH,
-			Domains:       "marketing-test.example.com",
-			GrafanaParams: "http://grafana.example.com/d/marketing-test",
-			Ignored:       false,
-			CreatedAt:     lastWeek,
-			UpdatedAt:     yesterday,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDCRMDev},
-			Name:          "CRM系统-开发",
-			VIP:           "10.200.2.1",
-			Port:          port8000,
-			AppID:         "CRM-APP-003",
-			InstanceGroup: "crm-dev",
-			Status:        statusInactive,
-			PoolName:      "crm-pool-dev",
-			PoolStatus:    statusOffline,
-			PoolMembers:   "192.168.4.10:8000 offline",
-			K8sClusterID:  clusterIDDevSZ,
-			Domains:       "crm-dev.example.com",
-			GrafanaParams: "http://grafana.example.com/d/crm-dev",
-			Ignored:       true,
-			CreatedAt:     lastWeek,
-			UpdatedAt:     now,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDPaymentProd},
-			Name:          "支付系统-生产",
-			VIP:           "10.100.2.1",
-			Port:          port443,
-			AppID:         "PAY-APP-001",
-			InstanceGroup: "payment-prod",
-			Status:        statusActive,
-			PoolName:      "payment-pool-prod",
-			PoolStatus:    statusHealthy,
-			PoolMembers:   "192.168.5.10:443 online,192.168.5.11:443 online,192.168.5.12:443 online",
-			K8sClusterID:  clusterIDProdEast,
-			Domains:       "payment.example.com,pay.example.com",
-			GrafanaParams: "http://grafana.example.com/d/payment-prod",
-			Ignored:       false,
-			CreatedAt:     lastMonth,
-			UpdatedAt:     now,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDCMSUAT},
-			Name:          "内容管理-UAT",
-			VIP:           "10.200.3.1",
-			Port:          port8080,
-			AppID:         "CMS-APP-002",
-			InstanceGroup: "cms-uat",
-			Status:        statusActive,
-			PoolName:      "cms-pool-uat",
-			PoolStatus:    statusHealthy,
-			PoolMembers:   "192.168.6.10:8080 online,192.168.6.11:8080 offline",
-			K8sClusterID:  clusterIDUATBJ,
-			Domains:       "cms-uat.example.com",
-			GrafanaParams: "http://grafana.example.com/d/cms-uat",
-			Ignored:       false,
-			CreatedAt:     lastWeek,
-			UpdatedAt:     yesterday,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDSearchProd},
-			Name:          "搜索服务-生产",
-			VIP:           "10.100.3.1",
-			Port:          port9200,
-			AppID:         "SEARCH-APP-001",
-			InstanceGroup: "search-prod",
-			Status:        statusActive,
-			PoolName:      "search-pool-prod",
-			PoolStatus:    statusHealthy,
-			PoolMembers:   "192.168.7.10:9200 online,192.168.7.11:9200 online,192.168.7.12:9200 online",
-			K8sClusterID:  clusterIDProdEast,
-			Domains:       "search.example.com,search-api.example.com",
-			GrafanaParams: "http://grafana.example.com/d/search-prod",
-			Ignored:       false,
-			CreatedAt:     lastMonth,
-			UpdatedAt:     lastWeek,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDStorageProd},
-			Name:          "文件存储-生产",
-			VIP:           "10.100.4.1",
-			Port:          port443,
-			AppID:         "STORAGE-APP-001",
-			InstanceGroup: "storage-prod",
-			Status:        statusActive,
-			PoolName:      "storage-pool-prod",
-			PoolStatus:    statusHealthy,
-			PoolMembers:   "192.168.8.10:443 online,192.168.8.11:443 online",
-			K8sClusterID:  clusterIDProdNorth,
-			Domains:       "storage.example.com,files.example.com",
-			GrafanaParams: "http://grafana.example.com/d/storage-prod",
-			Ignored:       false,
-			CreatedAt:     lastMonth,
-			UpdatedAt:     yesterday,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDAuthTest},
-			Name:          "用户认证-测试",
-			VIP:           "10.200.4.1",
-			Port:          port8080,
-			AppID:         "AUTH-APP-002",
-			InstanceGroup: "auth-test",
-			Status:        statusActive,
-			PoolName:      "auth-pool-test",
-			PoolStatus:    statusDegraded,
-			PoolMembers:   "192.168.9.10:8080 offline",
-			K8sClusterID:  clusterIDTestSH,
-			Domains:       "auth-test.example.com",
-			GrafanaParams: "http://grafana.example.com/d/auth-test",
-			Ignored:       false,
-			CreatedAt:     lastWeek,
-			UpdatedAt:     yesterday,
-		},
-		{
-			BaseModel:     portal.BaseModel{ID: f5IDReportUAT},
-			Name:          "报表系统-UAT",
-			VIP:           "10.200.5.1",
-			Port:          port8080,
-			AppID:         "REPORT-APP-002",
-			InstanceGroup: "report-uat",
-			Status:        statusInactive,
-			PoolName:      "report-pool-uat",
-			PoolStatus:    statusOffline,
-			PoolMembers:   "192.168.10.10:8080 offline",
-			K8sClusterID:  clusterIDUATBJ,
-			Domains:       "report-uat.example.com",
-			GrafanaParams: "http://grafana.example.com/d/report-uat",
-			Ignored:       true,
-			CreatedAt:     lastWeek,
-			UpdatedAt:     now,
-		},
+func seedTaintFeatures(db *gorm.DB) ([]portal.TaintManagement, error) {
+	taints := []portal.TaintManagement{
+		{Key: "node-role.kubernetes.io/master", Value: "", Effect: effectNoSchedule, Description: "Master node taint", Type: taintTypeSystem, Status: 0, Color: colorRed},
+		{Key: "node-role.kubernetes.io/control-plane", Value: "", Effect: effectNoSchedule, Description: "Control plane node taint", Type: taintTypeSystem, Status: 0, Color: colorRed},
+		{Key: "nvidia.com/gpu", Value: "present", Effect: effectNoSchedule, Description: "GPU node taint", Type: taintTypeHardware, Status: 0, Color: colorCyan},
+		{Key: "custom/maintenance", Value: "true", Effect: effectNoSchedule, Description: "Maintenance mode taint", Type: taintTypeCustom, Status: 0, Color: colorOrange},
+		{Key: "special-workload", Value: "true", Effect: effectNoExecute, Description: "Taint for special workloads", Type: taintTypeCustom, Status: 0, Color: colorBrown},
 	}
 
-	for _, f5 := range mockF5s {
-		if err := db.Create(&f5).Error; err != nil {
-			log.Printf("Warning: failed to create f5 info %d: %v", f5.ID, err)
-		}
+	// Add Timestamps before creation
+	for i := range taints {
+		currentTime := time.Now()
+		taints[i].CreatedAt = portal.NavyTime(currentTime)
+		taints[i].UpdatedAt = portal.NavyTime(currentTime)
 	}
+
+	if err := db.Create(&taints).Error; err != nil {
+		return nil, err
+	}
+	log.Printf("Inserted %d Taint Features", len(taints))
+	return taints, nil
 }
 
-// InsertMockDevices 插入设备模拟数据
-func InsertMockDevices(db *gorm.DB) error {
-	// 清空现有设备数据
-	if err := db.Exec("DELETE FROM device").Error; err != nil {
-		log.Printf("Warning: failed to delete device data: %v", err)
+func seedK8sNodes(db *gorm.DB, clusters []portal.K8sCluster) ([]portal.K8sNode, error) {
+	nodes := []portal.K8sNode{
+		{
+			BaseModel:     portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			NodeName:      "prod-node-1", // Matches a device CICode
+			HostIP:        "10.1.1.11",   // Matches a device IP
+			Role:          "worker",
+			OSImage:       "Ubuntu 20.04.4 LTS",
+			KernelVersion: "5.4.0-109-generic",
+			Status:        statusReady,
+			K8sClusterID:  clusterProdID,
+			DiskCount:     2,
+			DiskDetail:    "sda:1TB,sdb:1TB",
+			NetworkSpeed:  10000, // 10Gbps
+			GPU:           "none",
+		},
+		{
+			BaseModel:     portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			NodeName:      "prod-node-2", // Matches a device CICode
+			HostIP:        "10.1.1.12",
+			Role:          "master",
+			OSImage:       "Ubuntu 20.04.4 LTS",
+			KernelVersion: "5.4.0-109-generic",
+			Status:        statusReady,
+			K8sClusterID:  clusterProdID,
+			DiskCount:     1,
+			DiskDetail:    "sda:500GB",
+			NetworkSpeed:  10000,
+			GPU:           "nvidia-tesla-t4",
+		},
+		{
+			BaseModel:     portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			NodeName:      "test-node-1", // Matches a device CICode
+			HostIP:        "10.2.1.11",   // Matches a device IP
+			Role:          "worker",
+			OSImage:       "CentOS Stream 8",
+			KernelVersion: "4.18.0-373.el8.x86_64",
+			Status:        statusReady,
+			K8sClusterID:  clusterTestID,
+			DiskCount:     1,
+			DiskDetail:    "vda:200GB",
+			NetworkSpeed:  1000,
+			GPU:           "none",
+		},
+		{
+			BaseModel:     portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			NodeName:      "offline-node", // Does not match any device
+			HostIP:        "10.1.5.5",
+			Role:          "worker",
+			OSImage:       "Ubuntu 18.04.6 LTS",
+			KernelVersion: "4.15.0-171-generic",
+			Status:        statusOffline,
+			K8sClusterID:  clusterProdID,
+			DiskCount:     1,
+			DiskDetail:    "sda:500GB",
+			NetworkSpeed:  1000,
+			GPU:           "none",
+		},
 	}
+	if err := db.Create(&nodes).Error; err != nil {
+		return nil, err
+	}
+	log.Printf("Inserted %d K8s Nodes", len(nodes))
+	return nodes, nil
+}
 
-	// 创建模拟设备数据
-	mockDevices := []portal.Device{
+func seedK8sEtcd(db *gorm.DB, clusters []portal.K8sCluster) ([]portal.K8sETCD, error) {
+	etcds := []portal.K8sETCD{
 		{
-			CICode:         "SYSOPS00409045",
-			IP:             "29.19.50.124",
-			ArchType:       "x86_64",
-			IDC:            "601",
-			Room:           "OF601-02P",
-			Cabinet:        "central",
-			CabinetNO:      "01",
-			InfraType:      "physical",
-			IsLocalization: false,
-			NetZone:        "10703",
-			Group:          "qf-core601-flannel-2",
-			AppID:          "",
-			OsCreateTime:   "2023-01-01",
-			CPU:            8.0,
-			Memory:         16.0,
-			Model:          "Dell R740",
-			KvmIP:          "29.19.150.124",
-			OS:             "CentOS 7.9",
-			Company:        "Dell",
-			OSName:         "CentOS",
-			OSIssue:        "7.9",
-			OSKernel:       "3.10.0-1160.el7.x86_64",
-			Status:         "Running",
-			Role:           "x86",
-			Cluster:        "work",
-			ClusterID:      1,
+			BaseModel: portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Instance:  "10.1.1.21", // Matches a device IP
+			Role:      "etcd-member-prod",
+			ServerId:  "prod-etcd-1",
+			ClusterID: int(clusterProdID),
 		},
 		{
-			CICode:         "SYSOPS00409044",
-			IP:             "29.19.50.123",
-			ArchType:       "x86_64",
-			IDC:            "601",
-			Room:           "OF601-04P",
-			Cabinet:        "central",
-			CabinetNO:      "02",
-			InfraType:      "physical",
-			IsLocalization: false,
-			NetZone:        "10703",
-			Group:          "qf-core601-flannel-2",
-			AppID:          "",
-			OsCreateTime:   "2023-01-02",
-			CPU:            16.0,
-			Memory:         32.0,
-			Model:          "Dell R740",
-			KvmIP:          "29.19.150.123",
-			OS:             "CentOS 7.9",
-			Company:        "Dell",
-			OSName:         "CentOS",
-			OSIssue:        "7.9",
-			OSKernel:       "3.10.0-1160.el7.x86_64",
-			Status:         "Running",
-			Role:           "x86",
-			Cluster:        "work",
-			ClusterID:      1,
+			BaseModel: portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Instance:  "10.1.1.22", // Matches a device IP
+			Role:      "etcd-member-prod",
+			ServerId:  "prod-etcd-2",
+			ClusterID: int(clusterProdID),
 		},
 		{
-			CICode:         "SYSOPS00409043",
-			IP:             "29.19.50.122",
-			ArchType:       "x86_64",
-			IDC:            "601",
-			Room:           "OF601-07P",
-			Cabinet:        "central",
-			CabinetNO:      "03",
-			InfraType:      "physical",
-			IsLocalization: false,
-			NetZone:        "10703",
-			Group:          "qf-core601-flannel-2",
-			AppID:          "",
-			OsCreateTime:   "2023-01-03",
-			CPU:            32.0,
-			Memory:         64.0,
-			Model:          "Dell R740",
-			KvmIP:          "29.19.150.122",
-			OS:             "CentOS 7.9",
-			Company:        "Dell",
-			OSName:         "CentOS",
-			OSIssue:        "7.9",
-			OSKernel:       "3.10.0-1160.el7.x86_64",
-			Status:         "Running",
-			Role:           "x86",
-			Cluster:        "work",
-			ClusterID:      1,
+			BaseModel: portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Instance:  "10.2.1.21", // Matches a device IP
+			Role:      "etcd-member-test",
+			ServerId:  "test-etcd-1",
+			ClusterID: int(clusterTestID),
+		},
+	}
+	if err := db.Create(&etcds).Error; err != nil {
+		return nil, err
+	}
+	log.Printf("Inserted %d K8s ETCD instances", len(etcds))
+	return etcds, nil
+}
+
+func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([]portal.Device, error) {
+	devices := []portal.Device{
+		// Devices matching K8s Nodes
+		{
+			BaseModel: portal.BaseModel{ID: 1001},
+			DeviceID:  1001,
+			CICode:    "prod-node-1", // Match node[0].NodeName
+			IP:        "10.1.1.11",   // Match node[0].HostIP
+			ArchType:  "x86_64", IDC: "shanghai", Room: "A1", Cabinet: "R1", CabinetNO: "U10", InfraType: "physical", NetZone: "prod-net", Group: "compute", Status: statusRunning,
+			AppID: "compute-1001-init", // 初始AppID
 		},
 		{
-			CICode:         "SYSOPS00409042",
-			IP:             "29.19.50.121",
-			ArchType:       "x86_64",
-			IDC:            "601",
-			Room:           "OF601-08P",
-			Cabinet:        "central",
-			CabinetNO:      "04",
-			InfraType:      "physical",
-			IsLocalization: false,
-			NetZone:        "10703",
-			Group:          "qf-core601-flannel-2",
-			AppID:          "",
-			OsCreateTime:   "2023-01-04",
-			CPU:            32.0,
-			Memory:         64.0,
-			Model:          "Dell R740",
-			KvmIP:          "29.19.150.121",
-			OS:             "CentOS 7.9",
-			Company:        "Dell",
-			OSName:         "CentOS",
-			OSIssue:        "7.9",
-			OSKernel:       "3.10.0-1160.el7.x86_64",
-			Status:         "Running",
-			Role:           "x86",
-			Cluster:        "work",
-			ClusterID:      1,
+			BaseModel: portal.BaseModel{ID: 1002},
+			DeviceID:  1002,
+			CICode:    "prod-node-2", // Match node[1].NodeName
+			IP:        "10.1.1.12",   // Match node[1].HostIP
+			ArchType:  "x86_64", IDC: "shanghai", Room: "A1", Cabinet: "R1", CabinetNO: "U11", InfraType: "physical", NetZone: "prod-net", Group: "gpu-compute", Status: statusRunning,
+			AppID: "gpu-compute-1002-init", // 初始AppID
 		},
 		{
-			CICode:         "EQUHST00093218",
-			IP:             "29.20.50.24",
-			ArchType:       "aarch64",
-			IDC:            "203",
-			Room:           "C203-10C",
-			Cabinet:        "mgt",
-			CabinetNO:      "05",
-			InfraType:      "physical",
-			IsLocalization: true,
-			NetZone:        "85004",
-			Group:          "ARM",
-			AppID:          "",
-			OsCreateTime:   "2023-02-01",
-			CPU:            64.0,
-			Memory:         128.0,
-			Model:          "Huawei TaiShan 200",
-			KvmIP:          "29.20.150.24",
-			OS:             "OpenEuler 20.03",
-			Company:        "Huawei",
-			OSName:         "OpenEuler",
-			OSIssue:        "20.03",
-			OSKernel:       "4.19.90-2003.4.0.0036.oe1.aarch64",
-			Status:         "Running",
-			Role:           "ARM",
-			Cluster:        "",
-			ClusterID:      0,
+			BaseModel: portal.BaseModel{ID: 1003},
+			DeviceID:  1003,
+			CICode:    "test-node-1", // Match node[2].NodeName
+			IP:        "10.2.1.11",   // Match node[2].HostIP
+			ArchType:  "x86_64", IDC: "beijing", Room: "B1", Cabinet: "R5", CabinetNO: "U05", InfraType: "virtual", NetZone: "test-net", Group: "compute", Status: statusRunning,
+			AppID: "compute-1003-init", // 初始AppID
+		},
+		// Devices matching K8s ETCD
+		{
+			BaseModel: portal.BaseModel{ID: 1004},
+			DeviceID:  1004,
+			CICode:    "etcd-host-1",
+			IP:        "10.1.1.21", // Match etcd[0].Instance
+			ArchType:  "x86_64", IDC: "shanghai", Room: "A2", Cabinet: "R2", CabinetNO: "U01", InfraType: "physical", NetZone: "mgmt-net", Group: "etcd", Status: statusRunning,
+			AppID: "etcd-1004-init", // 初始AppID
 		},
 		{
-			CICode:         "EQUHST00093215",
-			IP:             "29.20.50.20",
-			ArchType:       "aarch64",
-			IDC:            "203",
-			Room:           "C203-01C",
-			Cabinet:        "mgt",
-			CabinetNO:      "06",
-			InfraType:      "physical",
-			IsLocalization: true,
-			NetZone:        "85004",
-			Group:          "ARM",
-			AppID:          "",
-			OsCreateTime:   "2023-02-02",
-			CPU:            64.0,
-			Memory:         128.0,
-			Model:          "Huawei TaiShan 200",
-			KvmIP:          "29.20.150.20",
-			OS:             "OpenEuler 20.03",
-			Company:        "Huawei",
-			OSName:         "OpenEuler",
-			OSIssue:        "20.03",
-			OSKernel:       "4.19.90-2003.4.0.0036.oe1.aarch64",
-			Status:         "Running",
-			Role:           "ARM",
-			Cluster:        "",
-			ClusterID:      0,
+			BaseModel: portal.BaseModel{ID: 1005},
+			DeviceID:  1005,
+			CICode:    "etcd-host-2",
+			IP:        "10.1.1.22", // Match etcd[1].Instance
+			ArchType:  "x86_64", IDC: "shanghai", Room: "A2", Cabinet: "R2", CabinetNO: "U02", InfraType: "physical", NetZone: "mgmt-net", Group: "etcd", Status: statusRunning,
+			AppID: "etcd-1005-init", // 初始AppID
 		},
 		{
-			CICode:         "EQUHST00093217",
-			IP:             "29.20.50.22",
-			ArchType:       "aarch64",
-			IDC:            "203",
-			Room:           "C203-05C",
-			Cabinet:        "mgt",
-			CabinetNO:      "07",
-			InfraType:      "physical",
-			IsLocalization: true,
-			NetZone:        "85004",
-			Group:          "ARM",
-			AppID:          "",
-			OsCreateTime:   "2023-02-03",
-			CPU:            64.0,
-			Memory:         128.0,
-			Model:          "Huawei TaiShan 200",
-			KvmIP:          "29.20.150.22",
-			OS:             "OpenEuler 20.03",
-			Company:        "Huawei",
-			OSName:         "OpenEuler",
-			OSIssue:        "20.03",
-			OSKernel:       "4.19.90-2003.4.0.0036.oe1.aarch64",
-			Status:         "Running",
-			Role:           "ARM",
-			Cluster:        "",
-			ClusterID:      0,
+			BaseModel: portal.BaseModel{ID: 1006},
+			DeviceID:  1006,
+			CICode:    "etcd-host-3",
+			IP:        "10.2.1.21", // Match etcd[2].Instance
+			ArchType:  "x86_64", IDC: "beijing", Room: "B2", Cabinet: "R6", CabinetNO: "U01", InfraType: "physical", NetZone: "mgmt-net", Group: "etcd", Status: statusRunning,
+			AppID: "etcd-1006-init", // 初始AppID
 		},
+		// Unrelated Device
 		{
-			CICode:         "EQUHST00093216",
-			IP:             "29.20.50.21",
-			ArchType:       "aarch64",
-			IDC:            "203",
-			Room:           "C203-08C",
-			Cabinet:        "mgt",
-			CabinetNO:      "08",
-			InfraType:      "physical",
-			IsLocalization: true,
-			NetZone:        "85004",
-			Group:          "ARM",
-			AppID:          "",
-			OsCreateTime:   "2023-02-04",
-			CPU:            64.0,
-			Memory:         128.0,
-			Model:          "Huawei TaiShan 200",
-			KvmIP:          "29.20.150.21",
-			OS:             "OpenEuler 20.03",
-			Company:        "Huawei",
-			OSName:         "OpenEuler",
-			OSIssue:        "20.03",
-			OSKernel:       "4.19.90-2003.4.0.0036.oe1.aarch64",
-			Status:         "Running",
-			Role:           "ARM",
-			Cluster:        "",
-			ClusterID:      0,
-		},
-		{
-			CICode:         "SYSOPS00408553",
-			IP:             "29.21.89.120",
-			ArchType:       "x86_64",
-			IDC:            "203",
-			Room:           "C203-12H",
-			Cabinet:        "central",
-			CabinetNO:      "09",
-			InfraType:      "physical",
-			IsLocalization: false,
-			NetZone:        "85004",
-			Group:          "orinoc-etcd",
-			AppID:          "",
-			OsCreateTime:   "2023-03-01",
-			CPU:            16.0,
-			Memory:         32.0,
-			Model:          "Dell R740",
-			KvmIP:          "29.21.189.120",
-			OS:             "CentOS 7.9",
-			Company:        "Dell",
-			OSName:         "CentOS",
-			OSIssue:        "7.9",
-			OSKernel:       "3.10.0-1160.el7.x86_64",
-			Status:         "Running",
-			Role:           "x86",
-			Cluster:        "etcd",
-			ClusterID:      2,
-		},
-		{
-			CICode:         "SYSOPS00408552",
-			IP:             "29.21.89.91",
-			ArchType:       "x86_64",
-			IDC:            "203",
-			Room:           "C203-14H",
-			Cabinet:        "central",
-			CabinetNO:      "10",
-			InfraType:      "physical",
-			IsLocalization: false,
-			NetZone:        "85004",
-			Group:          "orinoc-etcd",
-			AppID:          "",
-			OsCreateTime:   "2023-03-02",
-			CPU:            16.0,
-			Memory:         32.0,
-			Model:          "Dell R740",
-			KvmIP:          "29.21.189.91",
-			OS:             "CentOS 7.9",
-			Company:        "Dell",
-			OSName:         "CentOS",
-			OSIssue:        "7.9",
-			OSKernel:       "3.10.0-1160.el7.x86_64",
-			Status:         "Running",
-			Role:           "x86",
-			Cluster:        "etcd",
-			ClusterID:      2,
+			BaseModel: portal.BaseModel{ID: 1007},
+			DeviceID:  1007,
+			CICode:    "storage-svr-1",
+			IP:        "10.5.1.100", // Does not match any node or etcd
+			ArchType:  "x86_64", IDC: "shanghai", Room: "C1", Cabinet: "R10", CabinetNO: "U20", InfraType: "physical", NetZone: "storage-net", Group: "storage", Status: statusRunning,
+			AppID: "storage-1007-init", // 初始AppID
 		},
 	}
 
-	// 插入数据
-	for _, device := range mockDevices {
-		if err := db.Create(&device).Error; err != nil {
-			log.Printf("Warning: failed to create device %s: %v", device.CICode, err)
+	// Set Timestamps before creation
+	now := portal.NavyTime(time.Now())
+	for i := range devices {
+		devices[i].CreatedAt = now
+		devices[i].UpdatedAt = now
+	}
+
+	if err := db.Create(&devices).Error; err != nil {
+		return nil, err
+	}
+	log.Printf("Inserted %d Devices", len(devices))
+	return devices, nil
+}
+
+func seedK8sNodeLabels(db *gorm.DB, nodes []portal.K8sNode, features []portal.LabelManagement) error {
+	// Create a map for easy feature lookup by key
+	featureMap := make(map[string]portal.LabelManagement)
+	for _, f := range features {
+		featureMap[f.Key] = f
+	}
+
+	var labelsToInsert []portal.K8sNodeLabel
+	now := portal.NavyTime(time.Now())
+
+	// Add labels to specific nodes
+	// Node 0 (prod-node-1)
+	if _, ok := featureMap["env"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[0].ID, Key: "env", Value: "prod"})
+	}
+	if _, ok := featureMap["workload-type"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[0].ID, Key: "workload-type", Value: "web"})
+	}
+	if _, ok := featureMap["topology.kubernetes.io/region"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[0].ID, Key: "topology.kubernetes.io/region", Value: "shanghai"})
+	}
+
+	// Node 1 (prod-node-2)
+	if _, ok := featureMap["env"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[1].ID, Key: "env", Value: "prod"})
+	}
+	if _, ok := featureMap["nvidia.com/gpu"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[1].ID, Key: "nvidia.com/gpu", Value: "true"})
+	}
+	if _, ok := featureMap["topology.kubernetes.io/region"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[1].ID, Key: "topology.kubernetes.io/region", Value: "shanghai"})
+	}
+
+	// Node 2 (test-node-1)
+	if _, ok := featureMap["env"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[2].ID, Key: "env", Value: "test"})
+	}
+	if _, ok := featureMap["topology.kubernetes.io/region"]; ok {
+		labelsToInsert = append(labelsToInsert, portal.K8sNodeLabel{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[2].ID, Key: "topology.kubernetes.io/region", Value: "beijing"})
+	}
+
+	if len(labelsToInsert) > 0 {
+		if err := db.Create(&labelsToInsert).Error; err != nil {
 			return err
 		}
 	}
-
-	log.Printf("成功插入 %d 条设备模拟数据", len(mockDevices))
+	log.Printf("Inserted %d K8s Node Labels", len(labelsToInsert))
 	return nil
 }
 
-// ConfigureCORS 配置CORS中间件
+func seedK8sNodeTaints(db *gorm.DB, nodes []portal.K8sNode, features []portal.TaintManagement) error {
+	// Create a map for easy feature lookup by key
+	featureMap := make(map[string]portal.TaintManagement)
+	for _, f := range features {
+		featureMap[f.Key] = f
+	}
+
+	var taintsToInsert []portal.K8sNodeTaint
+	now := portal.NavyTime(time.Now())
+
+	// Add taints to specific nodes
+	// Node 1 (prod-node-2, master/gpu)
+	if f, ok := featureMap["node-role.kubernetes.io/master"]; ok {
+		taintsToInsert = append(taintsToInsert, portal.K8sNodeTaint{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[1].ID, Key: f.Key, Value: f.Value, Effect: f.Effect})
+	}
+	if f, ok := featureMap["nvidia.com/gpu"]; ok {
+		taintsToInsert = append(taintsToInsert, portal.K8sNodeTaint{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[1].ID, Key: f.Key, Value: f.Value, Effect: f.Effect})
+	}
+
+	// Node 3 (offline-node)
+	if f, ok := featureMap["custom/maintenance"]; ok {
+		taintsToInsert = append(taintsToInsert, portal.K8sNodeTaint{BaseModel: portal.BaseModel{CreatedAt: now}, NodeID: nodes[3].ID, Key: f.Key, Value: f.Value, Effect: f.Effect})
+	}
+
+	if len(taintsToInsert) > 0 {
+		if err := db.Create(&taintsToInsert).Error; err != nil {
+			return err
+		}
+	}
+	log.Printf("Inserted %d K8s Node Taints", len(taintsToInsert))
+	return nil
+}
+
+// updateDeviceRelations updates device 'role' and 'cluster' based on matched k8s_node/k8s_etcd.
+func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD, clusters []portal.K8sCluster) error {
+	clusterMap := make(map[int64]portal.K8sCluster)
+	for _, c := range clusters {
+		clusterMap[c.ID] = c
+	}
+
+	// Update based on k8s_node
+	log.Println("Updating devices based on k8s_node matches...")
+	for _, node := range nodes {
+		cluster, ok := clusterMap[node.K8sClusterID]
+		if !ok {
+			log.Printf("Warning: Cluster ID %d not found for node %s", node.K8sClusterID, node.NodeName)
+			continue
+		}
+		updates := map[string]interface{}{
+			"role":       node.Role,
+			"cluster":    cluster.Name,
+			"cluster_id": int(cluster.ID), // Convert int64 to int for Device model
+		}
+		// Use case-insensitive matching for ci_code and nodename
+		result := db.Model(&portal.Device{}).Where("LOWER(ci_code) = LOWER(?) AND ci_code != ''", node.NodeName).Updates(updates)
+		if result.Error != nil {
+			log.Printf("Warning: failed to update device for node %s: %v", node.NodeName, result.Error)
+		} else if result.RowsAffected > 0 {
+			log.Printf("Updated %d device(s) for node %s", result.RowsAffected, node.NodeName)
+		}
+	}
+
+	// Update based on k8s_etcd
+	log.Println("Updating devices based on k8s_etcd matches (if not already updated by node)...")
+	for _, etcd := range etcds {
+		cluster, ok := clusterMap[int64(etcd.ClusterID)] // Convert int to int64 for map lookup
+		if !ok {
+			log.Printf("Warning: Cluster ID %d not found for etcd %s", etcd.ClusterID, etcd.Instance)
+			continue
+		}
+		updates := map[string]interface{}{
+			"role":       etcd.Role, // Use Role from K8sETCD model
+			"cluster":    cluster.Name,
+			"cluster_id": etcd.ClusterID,
+		}
+		// Update only if IP matches AND the device wasn't already updated by a k8s_node match
+		// We check if cluster_id is NULL or 0 assuming non-k8s devices won't have a cluster_id set initially
+		result := db.Model(&portal.Device{}).
+			Where("ip = ? AND ip != ''", etcd.Instance).
+			Where("cluster_id IS NULL OR cluster_id = 0"). // Avoid overwriting node match
+			Updates(updates)
+		if result.Error != nil {
+			log.Printf("Warning: failed to update device for etcd %s: %v", etcd.Instance, result.Error)
+		} else if result.RowsAffected > 0 {
+			log.Printf("Updated %d device(s) for etcd %s", result.RowsAffected, etcd.Instance)
+		}
+	}
+
+	return nil
+}
+
+// --- Other Seeding Functions (Keep or integrate as needed) --- //
+
+func seedF5Info(db *gorm.DB, clusters []portal.K8sCluster) error {
+	// Basic F5 mock data, link to existing cluster IDs if possible
+	clusterIDMap := make(map[string]int64)
+	for _, c := range clusters {
+		clusterIDMap[c.Region] = c.ID // Example mapping by region
+	}
+
+	prodClusterID := clusterIDMap["shanghai"] // Default to shanghai if needed
+	if prodClusterID == 0 {
+		prodClusterID = clusterProdID
+	}
+	testClusterID := clusterIDMap["beijing"] // Default to beijing if needed
+	if testClusterID == 0 {
+		testClusterID = clusterTestID
+	}
+
+	mockF5s := []portal.F5Info{
+		{BaseModel: portal.BaseModel{ID: 1}, Name: "App1-Prod", VIP: "10.1.10.1", Port: "443", K8sClusterID: prodClusterID, Status: "active", PoolStatus: "healthy"},
+		{BaseModel: portal.BaseModel{ID: 2}, Name: "App2-Test", VIP: "10.2.10.1", Port: "80", K8sClusterID: testClusterID, Status: "active", PoolStatus: "offline"},
+		// Add more realistic F5 data as needed
+	}
+
+	// Set timestamps using time.Time
+	currentTime := time.Now()
+	for i := range mockF5s {
+		mockF5s[i].CreatedAt = currentTime // Assign time.Time directly
+		mockF5s[i].UpdatedAt = currentTime // Assign time.Time directly
+	}
+
+	if err := db.Create(&mockF5s).Error; err != nil {
+		return err
+	}
+	log.Printf("Inserted %d F5 Info records", len(mockF5s))
+	return nil
+}
+
+func seedOpsJobs(db *gorm.DB) error {
+	now := time.Now()
+	yesterday := now.Add(-24 * time.Hour)
+	mockJobs := []portal.OpsJob{
+		{Name: "Deploy Web v1.2", Status: "completed", Progress: 100, StartTime: yesterday, EndTime: yesterday.Add(15 * time.Minute), LogContent: "Deployment successful"},
+		{Name: "Backup Database", Status: "running", Progress: 75, StartTime: now.Add(-1 * time.Hour), LogContent: "Backup in progress..."},
+		{Name: "Update Firewall", Status: "pending", Progress: 0},
+		// Add more jobs
+	}
+	if err := db.Create(&mockJobs).Error; err != nil {
+		return err
+	}
+	log.Printf("Inserted %d Ops Jobs", len(mockJobs))
+	return nil
+}
+
+// ConfigureCORS - Keep this utility function if used by the main application setup
 func ConfigureCORS(r *gin.Engine) {
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowOrigins:     []string{"http://localhost:3000"}, // Adjust as needed
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+}
+
+// --- Deprecated / To Be Removed --- //
+
+/*
+// InsertMockOpsJobs - Deprecated: Logic merged into seedOpsJobs
+func InsertMockOpsJobs(db *gorm.DB) error { ... }
+*/
+
+/*
+// insertMockF5Info - Deprecated: Logic merged into seedF5Info
+func insertMockF5Info(db *gorm.DB) { ... }
+*/
+
+/*
+// InsertMockDevices - Deprecated: Logic merged into seedDevices
+func InsertMockDevices(db *gorm.DB) error { ... }
+*/
+
+/*
+// InsertMockLabelAndTaintData - Deprecated: Logic merged into seedLabelFeatures/seedTaintFeatures
+func InsertMockLabelAndTaintData(db *gorm.DB) error { ... }
+*/
+
+/*
+// insertMockK8sClusters - Deprecated: Logic merged into seedK8sClusters
+func insertMockK8sClusters(db *gorm.DB) { ... }
+*/
+
+// 添加seedDeviceApps函数
+func seedDeviceApps(db *gorm.DB, devices []portal.Device) error {
+	// 首先查询已有设备，确保有正确的AppID值可以关联
+	var existingDevices []portal.Device
+	if len(devices) == 0 {
+		if err := db.Find(&existingDevices).Error; err != nil {
+			return fmt.Errorf("failed to query existing devices: %w", err)
+		}
+		devices = existingDevices
+	}
+
+	// 为不同类型的设备组创建应用
+	appTypes := map[string][]string{
+		"compute":     {"web-service", "api-service", "compute-app"},
+		"gpu-compute": {"ml-training", "ai-inference", "data-processing"},
+		"etcd":        {"etcd-service", "key-value-store", "configuration-service"},
+		"storage":     {"object-storage", "database-service", "backup-service"},
+	}
+
+	// 创建DeviceApp记录
+	var deviceApps []portal.DeviceApp
+	now := time.Now()
+
+	// 用于存储已经分配的AppID，确保不重复
+	assignedAppIds := make(map[string]bool)
+
+	// 用于记录设备ID和对应的AppID，以便后续批量更新
+	deviceAppMap := make(map[int64]string)
+
+	// 为每个设备创建一个或多个应用
+	for _, device := range devices {
+		// 确保设备有分组信息
+		if device.Group == "" {
+			continue
+		}
+
+		// 为该设备组选择应用类型
+		appNames, exists := appTypes[device.Group]
+		if !exists {
+			// 如果没有预定义的类型，使用通用应用
+			appNames = []string{"general-service"}
+		}
+
+		// 为每个设备随机选择1-2个应用
+		numApps := 1
+		if len(appNames) > 1 {
+			numApps = rand.Intn(2) + 1 // 1 或 2
+		}
+
+		for i := 0; i < numApps && i < len(appNames); i++ {
+			// 创建唯一的AppID: 设备组前缀-设备ID-序号
+			appID := fmt.Sprintf("%s-%d-%d", device.Group, device.ID, i+1)
+
+			// 跳过已经分配的AppID
+			if assignedAppIds[appID] {
+				continue
+			}
+			assignedAppIds[appID] = true
+
+			// 创建DeviceApp记录
+			app := portal.DeviceApp{
+				BaseModel: portal.BaseModel{
+					CreatedAt: portal.NavyTime(now),
+					UpdatedAt: portal.NavyTime(now),
+				},
+				AppId:       appID,
+				Type:        0, // 0 表示设备
+				Name:        appNames[i],
+				Owner:       "system",
+				Feature:     fmt.Sprintf("Application for %s", device.Group),
+				Description: fmt.Sprintf("Auto-generated application for device %s in group %s", device.CICode, device.Group),
+				Status:      1, // 1 表示停止收集
+			}
+			deviceApps = append(deviceApps, app)
+
+			// 记录设备ID和对应的AppID（使用第一个应用）
+			if _, exists := deviceAppMap[device.ID]; !exists {
+				deviceAppMap[device.ID] = appID
+			}
+		}
+	}
+
+	// 创建一些组件类型的DeviceApp
+	componentTypes := []string{"monitor", "logger", "network-agent", "security-scanner"}
+	for i, compType := range componentTypes {
+		appID := fmt.Sprintf("component-%d", i+1)
+		app := portal.DeviceApp{
+			BaseModel: portal.BaseModel{
+				CreatedAt: portal.NavyTime(now),
+				UpdatedAt: portal.NavyTime(now),
+			},
+			AppId:       appID,
+			Type:        1, // 1 表示组件
+			Name:        compType,
+			Owner:       "admin",
+			Feature:     fmt.Sprintf("System component for %s", compType),
+			Description: fmt.Sprintf("Auto-generated component for system %s functionality", compType),
+			Status:      1, // 1 表示停止收集
+		}
+		deviceApps = append(deviceApps, app)
+	}
+
+	// 插入DeviceApp记录
+	if len(deviceApps) > 0 {
+		if err := db.Create(&deviceApps).Error; err != nil {
+			return fmt.Errorf("failed to create device apps: %w", err)
+		}
+	}
+
+	// 批量更新设备的AppID字段，建立关联
+	log.Printf("Updating AppID for %d devices", len(deviceAppMap))
+	for deviceID, appID := range deviceAppMap {
+		if err := db.Model(&portal.Device{}).Where("id = ?", deviceID).Update("appid", appID).Error; err != nil {
+			log.Printf("Warning: failed to update device AppID for device %d: %v", deviceID, err)
+		}
+	}
+
+	log.Printf("Inserted %d Device Apps", len(deviceApps))
+	return nil
 }

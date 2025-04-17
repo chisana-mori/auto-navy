@@ -1,5 +1,10 @@
 package service
 
+import (
+	"navy-ng/models/portal"
+	"time"
+)
+
 // DeviceQuery 设备查询参数
 // swagger:model
 type DeviceQueryDTO struct {
@@ -51,4 +56,80 @@ type DeviceListResponse struct {
 	Total int64            `json:"total" example:"100" swagger:"description=总数"`
 	Page  int              `json:"page" example:"1" swagger:"description=当前页码"`
 	Size  int              `json:"size" example:"10" swagger:"description=每页数量"`
+}
+
+// --- Request/Query Structs ---
+
+// DeviceQuery (Simplified version, if needed for basic keyword search, otherwise remove)
+// Consider removing if ListDevices in device.go is removed.
+type DeviceQuery struct {
+	Page    int    `form:"page" json:"page"`       // 页码
+	Size    int    `form:"size" json:"size"`       // 每页数量
+	Keyword string `form:"keyword" json:"keyword"` // 搜索关键字 (For simple search)
+}
+
+// DeviceRoleUpdateRequest Request to update device role
+type DeviceRoleUpdateRequest struct {
+	Role string `json:"role" binding:"required"` // 新的角色值
+}
+
+// DeviceGroupUpdateRequest Request to update device group/category
+type DeviceGroupUpdateRequest struct {
+	Group string `json:"group"` // 新的用途值
+}
+
+// --- Response Structs ---
+
+// DeviceResponse Standard response for a single device or item in a list
+type DeviceResponse struct {
+	ID             int64     `json:"id"`             // ID
+	DeviceID       int64     `json:"deviceId"`       // 设备ID (Ensure this is populated)
+	CICode         string    `json:"ciCode"`         // 设备编码
+	IP             string    `json:"ip"`             // IP地址
+	ArchType       string    `json:"archType"`       // CPU架构
+	IDC            string    `json:"idc"`            // IDC
+	Room           string    `json:"room"`           // 机房
+	Cabinet        string    `json:"cabinet"`        // 所属机柜
+	CabinetNO      string    `json:"cabinetNo"`      // 机柜编号
+	InfraType      string    `json:"infraType"`      // 网络类型
+	IsLocalization bool      `json:"isLocalization"` // 是否国产化
+	NetZone        string    `json:"netZone"`        // 网络区域
+	Group          string    `json:"group"`          // 机器类别
+	AppID          string    `json:"appId"`          // APPID
+	OsCreateTime   string    `json:"osCreateTime"`   // 操作系统创建时间
+	CPU            float64   `json:"cpu"`            // CPU数量
+	Memory         float64   `json:"memory"`         // 内存大小
+	Model          string    `json:"model"`          // 型号
+	KvmIP          string    `json:"kvmIp"`          // KVM IP
+	OS             string    `json:"os"`             // 操作系统
+	Company        string    `json:"company"`        // 厂商
+	OSName         string    `json:"osName"`         // 操作系统名称
+	OSIssue        string    `json:"osIssue"`        // 操作系统版本
+	OSKernel       string    `json:"osKernel"`       // 操作系统内核
+	Status         string    `json:"status"`         // 状态
+	AcceptanceTime string    `json:"acceptanceTime"` // 验收时间
+	CreatedAt      time.Time `json:"createdAt"`      // 创建时间
+	UpdatedAt      time.Time `json:"updatedAt"`      // 更新时间
+	IsSpecial      bool      `json:"isSpecial"`      // 是否为特殊设备 (用于前端高亮)
+
+	// Fields from K8s relations and device table
+	Role         string `json:"role,omitempty"`         // 最终角色 (来自 k8s_node 或 k8s_etcd 或 device)
+	Cluster      string `json:"cluster,omitempty"`      // 最终集群名称 (来自 k8s_node 或 k8s_etcd 或 device)
+	ClusterID    int    `json:"clusterId,omitempty"`    // 集群ID (来自 k8s_node 或 k8s_etcd 或 device)
+	DiskCount    int    `json:"diskCount,omitempty"`    // 磁盘数量 (来自 device 表)
+	DiskDetail   string `json:"diskDetail,omitempty"`   // 磁盘详情 (来自 device 表)
+	NetworkSpeed string `json:"networkSpeed,omitempty"` // 网络速度 (来自 device 表)
+	FeatureCount int    `json:"featureCount,omitempty"` // 特性数量 (用于前端显示)
+}
+
+// deviceQueryResult is an intermediate struct used for scanning results
+// from the complex device query, including the calculated IsSpecial flag
+// and potentially nullable fields from LEFT JOINs.
+type deviceQueryResult struct {
+	portal.Device          // Embed the base Device model
+	IsSpecial      bool    `gorm:"column:is_special"`
+	K8sRole        *string `gorm:"column:k8s_role"`
+	K8sClusterID   *int    `gorm:"column:k8s_cluster_id"`
+	K8sClusterName *string `gorm:"column:k8s_cluster_name"`
+	SourceTable    *string `gorm:"column:source_table"`
 }

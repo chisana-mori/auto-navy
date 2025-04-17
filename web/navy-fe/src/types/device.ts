@@ -28,8 +28,17 @@ export interface Device {
   role: string;         // 角色
   cluster: string;      // 所属集群
   clusterId: number;    // 集群ID
+  acceptanceTime: string; // 验收时间
+  diskCount?: number;   // 磁盘数量
+  diskDetail?: string;  // 磁盘详情
+  networkSpeed?: string; // 网络速度
   createdAt: string;    // 创建时间
   updatedAt: string;    // 更新时间
+
+  // 特性标记，用于前端显示
+  isSpecial?: boolean;   // 是否为特殊设备
+  featureCount?: number; // 特性数量
+  featureDetails?: string[]; // 特性详情
 }
 
 export interface DeviceListResponse {

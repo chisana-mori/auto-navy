@@ -6,6 +6,7 @@ package portal
 // Device 设备信息.
 type Device struct {
 	BaseModel
+	DeviceID       int64   `gorm:"column:device_id;not null" json:"deviceId"`                      // 设备ID
 	CICode         string  `gorm:"column:ci_code;type:varchar(255);index" json:"ciCode"`           // 设备编码
 	IP             string  `gorm:"column:ip;type:varchar(50);index" json:"ip"`                     // IP地址
 	ArchType       string  `gorm:"column:arch_type;type:varchar(50)" json:"archType" query:"like"` // CPU架构
@@ -32,6 +33,14 @@ type Device struct {
 	Role           string  `gorm:"column:role;type:varchar(100)" json:"role" query:"like"`         // 角色
 	Cluster        string  `gorm:"column:cluster;type:varchar(255)" json:"cluster" query:"like"`   // 所属集群
 	ClusterID      int     `gorm:"column:cluster_id;type:int" json:"clusterId"`                    // 集群ID
+	AcceptanceTime string  `gorm:"column:acceptance_time;type:varchar(100)" json:"acceptanceTime"` // 验收时间
+	DiskCount      int     `gorm:"column:disk_count" json:"diskCount"`                             // 磁盘数量
+	DiskDetail     string  `gorm:"column:disk_detail" json:"diskDetail"`                           // 磁盘详情
+	NetworkSpeed   string  `gorm:"column:network_speed" json:"networkSpeed"`                       // 网络速度
+
+	// 特性标记，用于前端显示
+	IsSpecial    bool `gorm:"column:is_special" json:"isSpecial"`       // 是否为特殊设备
+	FeatureCount int  `gorm:"column:feature_count" json:"featureCount"` // 特性数量
 }
 
 // TableName 指定表名.

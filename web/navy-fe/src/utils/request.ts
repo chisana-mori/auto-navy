@@ -31,7 +31,9 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    console.log('收到响应:', response.status, response.config.url, response.data);
+    console.log('收到响应:', response.status, response.config.url);
+    console.log('响应数据:', JSON.stringify(response.data));
+
     // 检查是否包含新的响应格式
     if (response.data && response.data.code !== undefined) {
       // 如果状态码表示错误，抛出错误
@@ -41,8 +43,10 @@ request.interceptors.response.use(
         throw error;
       }
       // 返回data字段中的数据
+      console.log('处理后的响应数据:', response.data.data);
       return response.data.data;
     }
+    console.log('处理后的响应数据:', response.data);
     return response.data;
   },
   (error) => {

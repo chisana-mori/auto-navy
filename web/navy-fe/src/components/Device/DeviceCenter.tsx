@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, Card, Table, Button, message, Space, Tooltip, Modal, Form, Input, Tag, Typography, Select, Spin, Pagination } from 'antd';
-import type { SelectProps } from 'antd/es/select';
+// import type { SelectProps } from 'antd/es/select';
 import {
   DatabaseOutlined,
   DownloadOutlined,
   ReloadOutlined,
   EditOutlined,
   PlayCircleOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  FileSearchOutlined,
+  PlusOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Device, DeviceListResponse } from '../../types/device';
 import { FilterGroup } from '../../types/deviceQuery';
-import { getDeviceList, downloadDeviceExcel, updateDeviceRole, updateDeviceGroup } from '../../services/deviceService';
+import { getDeviceList, downloadDeviceExcel, updateDeviceGroup } from '../../services/deviceService';
+import { getDeviceFeatureDetails } from '../../services/deviceQueryService';
 import { queryDevices, getQueryTemplates, getQueryTemplate, getDeviceFieldValues, deleteQueryTemplate } from '../../services/deviceQueryService';
 import { generateQuerySummary } from '../../utils/queryUtils';
 import SimpleQueryPanel from './SimpleQueryPanel';
@@ -25,31 +28,48 @@ const { TabPane } = Tabs;
 const { Paragraph } = Typography;
 const { Option } = Select;
 
+// 查询结果类型
+type QueryResult = {
+  devices: Device[];
+  pagination: {
+    current: number;
+    pageSize: number;
+    total: number;
+  };
+  loading: boolean;
+  lastUpdated: Date | null;
+};
+
 // 查询状态类型
 type QueryState = {
   mode: 'simple' | 'advanced' | 'template';
   simpleParams: {
     keyword: string;
+    results: QueryResult; // 基本查询的独立结果
   };
   advancedParams: {
     groups: FilterGroup[];
     sourceTemplateId?: number;  // 模板来源ID
     sourceTemplateName?: string;  // 模板来源名称
+    results: QueryResult; // 高级查询的独立结果
   };
   templateParams: {
     templateId: number | null;
     templateName: string;
+    results: QueryResult; // 模板查询的独立结果
   };
-  results: {
-    devices: Device[];
-    pagination: {
-      current: number;
-      pageSize: number;
-      total: number;
-    };
-    loading: boolean;
-    lastUpdated: Date | null;
-  };
+};
+
+// 初始结果状态
+const initialQueryResult: QueryResult = {
+  devices: [],
+  pagination: {
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  },
+  loading: false,
+  lastUpdated: null,
 };
 
 // 初始状态
@@ -57,23 +77,16 @@ const initialQueryState: QueryState = {
   mode: 'simple',
   simpleParams: {
     keyword: '',
+    results: { ...initialQueryResult },
   },
   advancedParams: {
     groups: [],
+    results: { ...initialQueryResult },
   },
   templateParams: {
     templateId: null,
     templateName: '',
-  },
-  results: {
-    devices: [],
-    pagination: {
-      current: 1,
-      pageSize: 10,
-      total: 0,
-    },
-    loading: false,
-    lastUpdated: null,
+    results: { ...initialQueryResult },
   },
 };
 
@@ -149,9 +162,12 @@ const DeviceCenter: React.FC = () => {
         // 加载初始设备列表（无查询条件）
         setQueryState(prev => ({
           ...prev,
-          results: {
-            ...prev.results,
-            loading: true,
+          simpleParams: {
+            ...prev.simpleParams,
+            results: {
+              ...prev.simpleParams.results,
+              loading: true,
+            }
           }
         }));
 
@@ -164,15 +180,18 @@ const DeviceCenter: React.FC = () => {
         if (response) {
           setQueryState(prev => ({
             ...prev,
-            results: {
-              devices: response.list || [],
-              pagination: {
-                current: 1,
-                pageSize: 10,
-                total: response.total || 0,
-              },
-              loading: false,
-              lastUpdated: new Date(),
+            simpleParams: {
+              ...prev.simpleParams,
+              results: {
+                devices: response.list || [],
+                pagination: {
+                  current: 1,
+                  pageSize: 10,
+                  total: response.total || 0,
+                },
+                loading: false,
+                lastUpdated: new Date(),
+              }
             }
           }));
         }
@@ -180,9 +199,12 @@ const DeviceCenter: React.FC = () => {
         console.error('Failed to load initial data:', error);
         setQueryState(prev => ({
           ...prev,
-          results: {
-            ...prev.results,
-            loading: false,
+          simpleParams: {
+            ...prev.simpleParams,
+            results: {
+              ...prev.simpleParams.results,
+              loading: false,
+            }
           }
         }));
       }
@@ -215,16 +237,57 @@ const DeviceCenter: React.FC = () => {
 
   // 执行查询的通用函数
   const executeQuery = useCallback(async () => {
-    const { mode, simpleParams, advancedParams, templateParams, results } = queryState;
-    const { pagination } = results;
+    const { mode, simpleParams, advancedParams, templateParams } = queryState;
 
-    setQueryState(prev => ({
-      ...prev,
-      results: {
-        ...prev.results,
-        loading: true,
-      }
-    }));
+    // 获取当前标签页的分页信息
+    let currentPagination;
+    switch (mode) {
+      case 'simple':
+        currentPagination = simpleParams.results.pagination;
+        // 设置加载状态
+        setQueryState(prev => ({
+          ...prev,
+          simpleParams: {
+            ...prev.simpleParams,
+            results: {
+              ...prev.simpleParams.results,
+              loading: true,
+            }
+          }
+        }));
+        break;
+      case 'advanced':
+        currentPagination = advancedParams.results.pagination;
+        // 设置加载状态
+        setQueryState(prev => ({
+          ...prev,
+          advancedParams: {
+            ...prev.advancedParams,
+            results: {
+              ...prev.advancedParams.results,
+              loading: true,
+            }
+          }
+        }));
+        break;
+      case 'template':
+        currentPagination = templateParams.results.pagination;
+        // 设置加载状态
+        setQueryState(prev => ({
+          ...prev,
+          templateParams: {
+            ...prev.templateParams,
+            results: {
+              ...prev.templateParams.results,
+              loading: true,
+            }
+          }
+        }));
+        break;
+      default:
+        currentPagination = simpleParams.results.pagination;
+        break;
+    }
 
     try {
       let response: DeviceListResponse | undefined;
@@ -234,26 +297,32 @@ const DeviceCenter: React.FC = () => {
           // 处理多行查询
           const processedKeyword = processMultilineKeyword(simpleParams.keyword);
           response = await getDeviceList({
-            page: pagination.current,
-            size: pagination.pageSize,
+            page: currentPagination.current,
+            size: currentPagination.pageSize,
             keyword: processedKeyword,
           });
           break;
         case 'advanced':
           response = await queryDevices({
             groups: advancedParams.groups,
-            page: pagination.current,
-            size: pagination.pageSize,
+            page: currentPagination.current,
+            size: currentPagination.pageSize,
           });
           break;
         case 'template':
+          console.log('Template case in executeQuery, templateParams:', templateParams);
           if (templateParams.templateId) {
+            console.log('Template ID exists, fetching template:', templateParams.templateId);
             const template = await getQueryTemplate(templateParams.templateId);
+            console.log('Template fetched:', template);
             response = await queryDevices({
               groups: template.groups,
-              page: pagination.current,
-              size: pagination.pageSize,
+              page: currentPagination.current,
+              size: currentPagination.pageSize,
             });
+            console.log('Query response:', response);
+          } else {
+            console.log('No template ID found, skipping query');
           }
           break;
       }
@@ -261,18 +330,61 @@ const DeviceCenter: React.FC = () => {
       if (response) {
         // 使用类型断言来确保 TypeScript 知道 response 不会是 undefined
         const safeResponse = response as DeviceListResponse;
-        setQueryState(prev => ({
-          ...prev,
-          results: {
-            devices: safeResponse.list || [],
-            pagination: {
-              ...prev.results.pagination,
-              total: safeResponse.total || 0,
-            },
-            loading: false,
-            lastUpdated: new Date(),
-          }
-        }));
+
+        // 根据当前标签页更新结果
+        switch (mode) {
+          case 'simple':
+            setQueryState(prev => ({
+              ...prev,
+              simpleParams: {
+                ...prev.simpleParams,
+                results: {
+                  devices: safeResponse.list || [],
+                  pagination: {
+                    ...prev.simpleParams.results.pagination,
+                    total: safeResponse.total || 0,
+                  },
+                  loading: false,
+                  lastUpdated: new Date(),
+                }
+              }
+            }));
+            break;
+          case 'advanced':
+            setQueryState(prev => ({
+              ...prev,
+              advancedParams: {
+                ...prev.advancedParams,
+                results: {
+                  devices: safeResponse.list || [],
+                  pagination: {
+                    ...prev.advancedParams.results.pagination,
+                    total: safeResponse.total || 0,
+                  },
+                  loading: false,
+                  lastUpdated: new Date(),
+                }
+              }
+            }));
+            break;
+          case 'template':
+            setQueryState(prev => ({
+              ...prev,
+              templateParams: {
+                ...prev.templateParams,
+                results: {
+                  devices: safeResponse.list || [],
+                  pagination: {
+                    ...prev.templateParams.results.pagination,
+                    total: safeResponse.total || 0,
+                  },
+                  loading: false,
+                  lastUpdated: new Date(),
+                }
+              }
+            }));
+            break;
+        }
 
         message.success('查询成功');
       }
@@ -280,18 +392,65 @@ const DeviceCenter: React.FC = () => {
       console.error('查询失败:', error);
       message.error('查询失败');
 
-      setQueryState(prev => ({
-        ...prev,
-        results: {
-          ...prev.results,
-          loading: false,
-        }
-      }));
+      // 根据当前标签页重置加载状态
+      switch (mode) {
+        case 'simple':
+          setQueryState(prev => ({
+            ...prev,
+            simpleParams: {
+              ...prev.simpleParams,
+              results: {
+                ...prev.simpleParams.results,
+                loading: false,
+              }
+            }
+          }));
+          break;
+        case 'advanced':
+          setQueryState(prev => ({
+            ...prev,
+            advancedParams: {
+              ...prev.advancedParams,
+              results: {
+                ...prev.advancedParams.results,
+                loading: false,
+              }
+            }
+          }));
+          break;
+        case 'template':
+          setQueryState(prev => ({
+            ...prev,
+            templateParams: {
+              ...prev.templateParams,
+              results: {
+                ...prev.templateParams.results,
+                loading: false,
+              }
+            }
+          }));
+          break;
+      }
     }
   }, [queryState]);
 
+  // 当前活动标签页的结果
+  const getCurrentResults = () => {
+    switch (queryState.mode) {
+      case 'simple':
+        return queryState.simpleParams.results;
+      case 'advanced':
+        return queryState.advancedParams.results;
+      case 'template':
+        return queryState.templateParams.results;
+      default:
+        return queryState.simpleParams.results;
+    }
+  };
+
   // 处理Tab切换
   const handleTabChange = (activeKey: string) => {
+    // 更新模式，但保持每个标签页的结果不变
     setQueryState(prev => ({
       ...prev,
       mode: activeKey as 'simple' | 'advanced' | 'template',
@@ -310,12 +469,15 @@ const DeviceCenter: React.FC = () => {
   const handleSimpleQuery = () => {
     setQueryState(prev => ({
       ...prev,
-      results: {
-        ...prev.results,
-        pagination: {
-          ...prev.results.pagination,
-          current: 1, // 重置到第一页
-        },
+      simpleParams: {
+        ...prev.simpleParams,
+        results: {
+          ...prev.simpleParams.results,
+          pagination: {
+            ...prev.simpleParams.results.pagination,
+            current: 1, // 重置到第一页
+          },
+        }
       }
     }));
 
@@ -329,12 +491,15 @@ const DeviceCenter: React.FC = () => {
 
     setQueryState(prev => ({
       ...prev,
-      results: {
-        ...prev.results,
-        pagination: {
-          ...prev.results.pagination,
-          current: 1, // 重置到第一页
-        },
+      advancedParams: {
+        ...prev.advancedParams,
+        results: {
+          ...prev.advancedParams.results,
+          pagination: {
+            ...prev.advancedParams.results.pagination,
+            current: 1, // 重置到第一页
+          },
+        }
       }
     }));
 
@@ -346,29 +511,102 @@ const DeviceCenter: React.FC = () => {
     setQueryState(prev => ({
       ...prev,
       advancedParams: {
+        ...prev.advancedParams,
         groups,
       }
     }));
   };
 
   // 处理模板查询
-  const handleTemplateQuery = (templateId: number, templateName: string) => {
+  const handleTemplateQuery = async (templateId: number, templateName: string) => {
+    console.log('handleTemplateQuery called with templateId:', templateId, 'templateName:', templateName);
+
+    // 先更新状态
     setQueryState(prev => ({
       ...prev,
       templateParams: {
+        ...prev.templateParams,
         templateId,
         templateName,
-      },
-      results: {
-        ...prev.results,
-        pagination: {
-          ...prev.results.pagination,
-          current: 1, // 重置到第一页
-        },
+        results: {
+          ...prev.templateParams.results,
+          loading: true, // 设置加载状态
+          pagination: {
+            ...prev.templateParams.results.pagination,
+            current: 1, // 重置到第一页
+          },
+        }
       }
     }));
 
-    executeQuery();
+    try {
+      // 直接获取模板并执行查询，而不是依赖状态更新
+      console.log('Fetching template:', templateId);
+      const template = await getQueryTemplate(templateId);
+      console.log('Template fetched:', template);
+
+      if (template && template.groups) {
+        const currentPagination = queryState.templateParams.results.pagination;
+
+        console.log('Executing query with template groups:', template.groups);
+        const response = await queryDevices({
+          groups: template.groups,
+          page: 1, // 始终从第一页开始
+          size: currentPagination.pageSize,
+        });
+        console.log('Query response:', response);
+
+        if (response) {
+          // 更新查询结果
+          setQueryState(prev => ({
+            ...prev,
+            templateParams: {
+              ...prev.templateParams,
+              results: {
+                devices: response.list || [],
+                pagination: {
+                  ...prev.templateParams.results.pagination,
+                  current: 1,
+                  total: response.total || 0,
+                },
+                loading: false,
+                lastUpdated: new Date(),
+              }
+            }
+          }));
+
+          message.success('查询成功');
+        }
+      } else {
+        message.warning('模板数据不完整');
+        // 重置加载状态
+        setQueryState(prev => ({
+          ...prev,
+          templateParams: {
+            ...prev.templateParams,
+            results: {
+              ...prev.templateParams.results,
+              loading: false,
+            }
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('查询失败:', error);
+      message.error('查询失败');
+
+      // 重置加载状态
+      setQueryState(prev => ({
+        ...prev,
+        templateParams: {
+          ...prev.templateParams,
+          results: {
+            ...prev.templateParams.results,
+            loading: false,
+          }
+        }
+      }));
+    }
   };
 
   // 删除模板
@@ -392,6 +630,7 @@ const DeviceCenter: React.FC = () => {
             setQueryState(prev => ({
               ...prev,
               templateParams: {
+                ...prev.templateParams,
                 templateId: null,
                 templateName: '',
               },
@@ -431,6 +670,7 @@ const DeviceCenter: React.FC = () => {
           ...prev,
           mode: 'advanced',
           advancedParams: {
+            ...prev.advancedParams,
             groups: processedGroups,
             sourceTemplateId: templateId,  // 添加模板来源ID
             sourceTemplateName: template.name  // 添加模板来源名称
@@ -448,20 +688,100 @@ const DeviceCenter: React.FC = () => {
   };
 
   // 处理分页变化
-  const handlePaginationChange = (page: number, pageSize?: number) => {
-    setQueryState(prev => ({
-      ...prev,
-      results: {
-        ...prev.results,
-        pagination: {
-          ...prev.results.pagination,
-          current: page,
-          pageSize: pageSize || prev.results.pagination.pageSize,
-        },
-      }
-    }));
+  const handlePaginationChange = async (page: number, pageSize?: number) => {
+    // 根据当前标签页更新分页信息
+    switch (queryState.mode) {
+      case 'simple':
+        setQueryState(prev => ({
+          ...prev,
+          simpleParams: {
+            ...prev.simpleParams,
+            results: {
+              ...prev.simpleParams.results,
+              pagination: {
+                ...prev.simpleParams.results.pagination,
+                current: page,
+                pageSize: pageSize || prev.simpleParams.results.pagination.pageSize,
+              },
+            }
+          }
+        }));
+        break;
+      case 'advanced':
+        setQueryState(prev => ({
+          ...prev,
+          advancedParams: {
+            ...prev.advancedParams,
+            results: {
+              ...prev.advancedParams.results,
+              pagination: {
+                ...prev.advancedParams.results.pagination,
+                current: page,
+                pageSize: pageSize || prev.advancedParams.results.pagination.pageSize,
+              },
+            }
+          }
+        }));
+        break;
+      case 'template':
+        setQueryState(prev => ({
+          ...prev,
+          templateParams: {
+            ...prev.templateParams,
+            results: {
+              ...prev.templateParams.results,
+              pagination: {
+                ...prev.templateParams.results.pagination,
+                current: page,
+                pageSize: pageSize || prev.templateParams.results.pagination.pageSize,
+              },
+            }
+          }
+        }));
 
-    executeQuery();
+        // 对于模板查询，直接执行查询而不是调用executeQuery
+        if (queryState.templateParams.templateId) {
+          try {
+            const template = await getQueryTemplate(queryState.templateParams.templateId);
+            if (template && template.groups) {
+              const response = await queryDevices({
+                groups: template.groups,
+                page: page,
+                size: pageSize || queryState.templateParams.results.pagination.pageSize,
+              });
+
+              if (response) {
+                setQueryState(prev => ({
+                  ...prev,
+                  templateParams: {
+                    ...prev.templateParams,
+                    results: {
+                      devices: response.list || [],
+                      pagination: {
+                        ...prev.templateParams.results.pagination,
+                        current: page,
+                        total: response.total || 0,
+                      },
+                      loading: false,
+                      lastUpdated: new Date(),
+                    }
+                  }
+                }));
+              }
+            }
+          } catch (error) {
+            console.error('分页查询失败:', error);
+            message.error('分页查询失败');
+          }
+          return; // 不执行下面的executeQuery()
+        }
+        break;
+    }
+
+    // 对于简单查询和高级查询，使用executeQuery
+    if (queryState.mode !== 'template') {
+      executeQuery();
+    }
   };
 
   // 导出设备信息
@@ -503,7 +823,8 @@ const DeviceCenter: React.FC = () => {
   // 处理用途编辑
   const handleRoleEdit = (device: Device) => {
     setEditingDevice(device);
-    roleForm.setFieldsValue({ group: device.group });
+    // 在 tags 模式下，需要设置数组值，确保当前用途被选中
+    roleForm.setFieldsValue({ group: device.group ? [device.group] : [] });
     fetchGroupOptions(); // 获取机器用途选项
     setRoleEditVisible(true);
   };
@@ -516,28 +837,118 @@ const DeviceCenter: React.FC = () => {
 
       // 处理 tags 模式下的值，只取第一个值
       let groupValue = values.group;
-      if (Array.isArray(groupValue) && groupValue.length > 0) {
-        groupValue = groupValue[0];
-      } else if (Array.isArray(groupValue) && groupValue.length === 0) {
-        message.warning('请输入或选择机器用途');
-        return;
+      if (Array.isArray(groupValue)) {
+        if (groupValue.length > 0) {
+          groupValue = groupValue[0];
+        } else {
+          // 空数组表示空值
+          groupValue = '';
+        }
       }
+      // 允许 groupValue 为空
 
       await updateDeviceGroup(editingDevice.id, groupValue);
       message.success('用途更新成功');
 
-      // 更新本地数据
-      setQueryState(prev => ({
-        ...prev,
-        results: {
-          ...prev.results,
-          devices: prev.results.devices.map(device =>
-            device.id === editingDevice.id
-              ? { ...device, group: groupValue }
-              : device
-          ),
-        }
-      }));
+      // 更新本地数据 - 根据当前标签页更新设备列表
+      switch (queryState.mode) {
+        case 'simple':
+          setQueryState(prev => ({
+            ...prev,
+            simpleParams: {
+              ...prev.simpleParams,
+              results: {
+                ...prev.simpleParams.results,
+                devices: prev.simpleParams.results.devices.map(device => {
+                  if (device.id === editingDevice.id) {
+                    // 更新用途
+                    const updatedDevice = { ...device, group: groupValue };
+
+                    // 如果用途为空，判断是否还有其他特性
+                    if (!groupValue && (device.featureCount === undefined || device.featureCount <= 1)) {
+                      // 如果用途为空且特性计数小于等于1（只有用途或没有特性）
+                      // 则设置为非特殊设备
+                      updatedDevice.isSpecial = false;
+                      updatedDevice.featureCount = 0;
+                    } else if (groupValue && device.isSpecial !== true) {
+                      // 如果设置了用途但之前不是特殊设备，则标记为特殊设备
+                      updatedDevice.isSpecial = true;
+                      updatedDevice.featureCount = 1;
+                    }
+
+                    return updatedDevice;
+                  }
+                  return device;
+                }),
+              }
+            }
+          }));
+          break;
+        case 'advanced':
+          setQueryState(prev => ({
+            ...prev,
+            advancedParams: {
+              ...prev.advancedParams,
+              results: {
+                ...prev.advancedParams.results,
+                devices: prev.advancedParams.results.devices.map(device => {
+                  if (device.id === editingDevice.id) {
+                    // 更新用途
+                    const updatedDevice = { ...device, group: groupValue };
+
+                    // 如果用途为空，判断是否还有其他特性
+                    if (!groupValue && (device.featureCount === undefined || device.featureCount <= 1)) {
+                      // 如果用途为空且特性计数小于等于1（只有用途或没有特性）
+                      // 则设置为非特殊设备
+                      updatedDevice.isSpecial = false;
+                      updatedDevice.featureCount = 0;
+                    } else if (groupValue && device.isSpecial !== true) {
+                      // 如果设置了用途但之前不是特殊设备，则标记为特殊设备
+                      updatedDevice.isSpecial = true;
+                      updatedDevice.featureCount = 1;
+                    }
+
+                    return updatedDevice;
+                  }
+                  return device;
+                }),
+              }
+            }
+          }));
+          break;
+        case 'template':
+          setQueryState(prev => ({
+            ...prev,
+            templateParams: {
+              ...prev.templateParams,
+              results: {
+                ...prev.templateParams.results,
+                devices: prev.templateParams.results.devices.map(device => {
+                  if (device.id === editingDevice.id) {
+                    // 更新用途
+                    const updatedDevice = { ...device, group: groupValue };
+
+                    // 如果用途为空，判断是否还有其他特性
+                    if (!groupValue && (device.featureCount === undefined || device.featureCount <= 1)) {
+                      // 如果用途为空且特性计数小于等于1（只有用途或没有特性）
+                      // 则设置为非特殊设备
+                      updatedDevice.isSpecial = false;
+                      updatedDevice.featureCount = 0;
+                    } else if (groupValue && device.isSpecial !== true) {
+                      // 如果设置了用途但之前不是特殊设备，则标记为特殊设备
+                      updatedDevice.isSpecial = true;
+                      updatedDevice.featureCount = 1;
+                    }
+
+                    return updatedDevice;
+                  }
+                  return device;
+                }),
+              }
+            }
+          }));
+          break;
+      }
 
       // 如果是新的用途值，添加到选项中
       if (!groupOptions.includes(groupValue)) {
@@ -658,17 +1069,17 @@ const DeviceCenter: React.FC = () => {
     simpleParams,
     advancedParams,
     templateParams,
-    results
   } = queryState;
 
+  // 获取当前标签页的结果
+  const results = getCurrentResults();
   const { devices, pagination, loading, lastUpdated } = results;
 
   // 渲染模板列表
   const renderTemplateList = () => {
-    // 搜索框和标题
+    // 搜索框
     const renderSearchHeader = () => (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Typography.Title level={5} style={{ margin: 0 }}>查询模板</Typography.Title>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
         <Input.Search
           placeholder="搜索模板名称或描述"
           allowClear
@@ -684,8 +1095,31 @@ const DeviceCenter: React.FC = () => {
       return (
         <>
           {renderSearchHeader()}
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <p>暂无保存的查询模板</p>
+          <div className="empty-template-container">
+            <div className="empty-template-icon">
+              <FileSearchOutlined />
+            </div>
+            <div className="empty-template-title">暂无查询模板</div>
+            <div className="empty-template-description">
+              您可以在高级查询中创建查询条件，然后将其保存为模板以便于快速复用。
+              模板可以帮助您更高效地管理常用查询，提高工作效率。
+            </div>
+            <div className="empty-template-actions">
+              <Button
+                type="primary"
+                size="large"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  // 切换到高级查询标签页
+                  setQueryState(prev => ({
+                    ...prev,
+                    mode: 'advanced',
+                  }));
+                }}
+              >
+                创建新查询
+              </Button>
+            </div>
           </div>
         </>
       );
@@ -717,8 +1151,23 @@ const DeviceCenter: React.FC = () => {
         {renderSearchHeader()}
 
         {filteredTemplates.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <p>没有找到匹配的模板</p>
+          <div className="empty-template-container" style={{ minHeight: '200px' }}>
+            <div className="empty-template-icon">
+              <FileSearchOutlined />
+            </div>
+            <div className="empty-template-title">没有找到匹配的模板</div>
+            <div className="empty-template-description">
+              请尝试使用其他关键词进行搜索，或清除搜索条件查看所有模板。
+              <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                <Button
+                  type="primary"
+                  onClick={() => handleTemplateSearch('')}
+                  icon={<ReloadOutlined />}
+                >
+                  显示所有模板
+                </Button>
+              </div>
+            </div>
           </div>
         ) : (
           <>
@@ -730,7 +1179,7 @@ const DeviceCenter: React.FC = () => {
                 return (
                   <Card
                     key={template.id}
-                    title={template.name}
+                    title={<span style={{ fontWeight: 600, fontSize: '16px', color: '#1890ff' }}>{template.name}</span>}
                     className="template-card"
                     extra={
                       <Space>
@@ -768,20 +1217,41 @@ const DeviceCenter: React.FC = () => {
                     }
                   >
                     {template.description && (
-                      <Paragraph style={{ marginBottom: 8 }}>
-                        <strong>描述：</strong>{template.description}
+                      <Paragraph style={{
+                        marginBottom: 12,
+                        padding: '8px 10px',
+                        background: 'rgba(0, 0, 0, 0.02)',
+                        borderRadius: '6px',
+                        border: '1px dashed rgba(0, 0, 0, 0.09)'
+                      }}>
+                        <strong style={{ color: '#555' }}>描述：</strong>{template.description}
                       </Paragraph>
                     )}
 
-                    <Paragraph style={{ marginBottom: 8 }}>
+                    <Paragraph style={{
+                      marginBottom: 12,
+                      display: 'inline-block',
+                      padding: '4px 10px',
+                      background: 'rgba(82, 196, 26, 0.1)',
+                      borderRadius: '12px',
+                      color: '#52c41a',
+                      fontWeight: 500
+                    }}>
                       <strong>条件组：</strong>{template.groups?.length || 0}个
                     </Paragraph>
 
                     <Paragraph
                       ellipsis={{ rows: 2, expandable: true, symbol: '展开' }}
-                      style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', marginBottom: 0 }}
+                      style={{
+                        background: 'rgba(24, 144, 255, 0.05)',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        marginBottom: 0,
+                        border: '1px solid rgba(24, 144, 255, 0.1)',
+                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+                      }}
                     >
-                      <strong>查询条件：</strong>{querySummary}
+                      <strong style={{ color: '#1890ff' }}>查询条件：</strong>{querySummary}
                     </Paragraph>
                   </Card>
                 );
@@ -827,7 +1297,10 @@ const DeviceCenter: React.FC = () => {
               onKeywordChange={(keyword) =>
                 setQueryState(prev => ({
                   ...prev,
-                  simpleParams: { keyword }
+                  simpleParams: {
+                    ...prev.simpleParams,
+                    keyword
+                  }
                 }))
               }
               onSearch={handleSimpleQuery}
@@ -846,7 +1319,7 @@ const DeviceCenter: React.FC = () => {
               onSwitchToTemplateTab={switchToTemplateTab} // 切换到模板标签页
             />
           </TabPane>
-          <TabPane tab="查询模板" key="template">
+          <TabPane tab="模板" key="template">
             {renderTemplateList()}
           </TabPane>
         </Tabs>
@@ -904,6 +1377,303 @@ const DeviceCenter: React.FC = () => {
                 showQuickJumper: true,
               }}
               loading={loading}
+              onRow={(record) => {
+                // 根据条件决定背景色
+                let bgColor = '';
+                if (record.isSpecial) {
+                  // 浅黄色背景 - 特殊设备
+                  bgColor = '#fffbe6';
+                } else if (record.cluster && record.cluster.trim() !== '') {
+                  // 浅绿色背景 - 集群不为空且非特殊设备
+                  bgColor = '#f6ffed';
+                }
+
+                return {
+                  style: { backgroundColor: bgColor },
+                  onMouseEnter: async (e) => {
+                    // 检查当前鼠标是否在“详情”按钮上或附近
+                    const target = e.target as HTMLElement;
+                    const isOnDetailButton = target.tagName === 'BUTTON' ||
+                                            target.tagName === 'SPAN' ||
+                                            target.closest('button') !== null;
+
+                    // 检查当前URL是否包含详情页路径
+                    const isDetailPage = window.location.pathname.includes(`/device/${record.id}/detail`) ||
+                                         window.location.pathname.includes('/detail') ||
+                                         window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail');
+
+                    // 如果是特殊设备且不在详情页且不在“详情”按钮上，显示提示框
+                    if (record.isSpecial && !isDetailPage && !isOnDetailButton) {
+                      try {
+                        // 创建提示框
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'device-feature-tooltip';
+
+                        // 初始内容 - 美化样式
+                        tooltip.innerHTML = `
+                          <div style="font-weight: 600; font-size: 14px; color: #1677ff; margin-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 6px;">
+                            <span style="margin-right: 5px;">&#x1F4CB;</span>设备特性
+                          </div>
+                          <div style="color: #666; font-size: 13px;">
+                            <div style="display: flex; align-items: center;">
+                              <span style="margin-right: 5px;">&#x231B;</span>正在加载特性详情...
+                            </div>
+                          </div>
+                        `;
+
+                        // 计算位置 - 跟随鼠标
+                        tooltip.style.position = 'fixed';
+                        tooltip.style.left = `${e.clientX + 15}px`; // 鼠标右侧偏移15px
+                        tooltip.style.top = `${e.clientY - 20}px`;  // 鼠标上方偏移20px
+
+                        // 美化样式 - 半透明卡片
+                        tooltip.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                        tooltip.style.backdropFilter = 'blur(5px)'; // 模糊效果
+                        tooltip.style.border = '1px solid rgba(217, 217, 217, 0.6)';
+                        tooltip.style.borderRadius = '8px';
+                        tooltip.style.padding = '12px';
+                        tooltip.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                        tooltip.style.zIndex = '1000';
+                        tooltip.style.maxWidth = '350px';
+                        tooltip.style.transition = 'all 0.2s ease-in-out';
+
+                        document.body.appendChild(tooltip);
+
+                        // 存储提示框引用，便于移除
+                        e.currentTarget.tooltip = tooltip;
+
+                        // 创建一个引用副本，避免使用 e.currentTarget
+                        const tooltipElement = tooltip;
+                        const rowElement = e.currentTarget;
+
+                        // 添加鼠标移动事件，使提示框跟随鼠标
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          // 检查当前URL是否包含详情页路径
+                          const isDetailPage = window.location.pathname.includes(`/device/${record.id}/detail`) ||
+                                               window.location.pathname.includes('/detail') ||
+                                               window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail');
+
+                          // 如果在详情页面上，隐藏提示框并返回
+                          if (isDetailPage && tooltipElement && document.body.contains(tooltipElement)) {
+                            tooltipElement.style.display = 'none';
+                            return;
+                          }
+
+                          // 检查当前鼠标是否在“详情”按钮上或附近
+                          const target = moveEvent.target as HTMLElement;
+                          const isOnDetailButton = target.tagName === 'BUTTON' ||
+                                                  target.tagName === 'SPAN' ||
+                                                  target.closest('button') !== null;
+
+                          // 如果鼠标在“详情”按钮上，隐藏提示框
+                          if (isOnDetailButton && tooltipElement && document.body.contains(tooltipElement)) {
+                            tooltipElement.style.display = 'none';
+                            return;
+                          } else if (tooltipElement && !isDetailPage) {
+                            tooltipElement.style.display = 'block';
+                          }
+
+                          // 检查元素和提示框是否仍然存在
+                          if (rowElement && rowElement.tooltip && tooltipElement && document.body.contains(tooltipElement)) {
+                            // 更新提示框位置
+                            tooltipElement.style.left = `${moveEvent.clientX + 15}px`;
+                            tooltipElement.style.top = `${moveEvent.clientY - 20}px`;
+
+                            // 检查是否超出右边界
+                            const tooltipRect = tooltipElement.getBoundingClientRect();
+                            const windowWidth = window.innerWidth;
+                            if (tooltipRect.right > windowWidth) {
+                              // 如果超出右边界，则将提示框放在鼠标左侧
+                              tooltipElement.style.left = `${moveEvent.clientX - tooltipRect.width - 15}px`;
+                            }
+                          } else {
+                            // 如果元素或提示框不存在，移除事件监听器
+                            document.removeEventListener('mousemove', handleMouseMove);
+                          }
+                        };
+
+                        // 将鼠标移动事件处理函数存储在元素上，便于移除
+                        e.currentTarget.handleMouseMove = handleMouseMove;
+                        document.addEventListener('mousemove', handleMouseMove);
+
+                        // 构建特性详情数组
+                        const featureDetails: string[] = [];
+
+                        // 添加机器用途
+                        if (record.group && record.group.trim() !== '') {
+                          featureDetails.push(`机器用途: ${record.group}`);
+                        }
+
+                        // 如果有标签特性或污点特性，获取详情
+                        if (record.featureCount && record.featureCount > (record.group ? 1 : 0)) {
+                          // 获取设备特性详情
+                          const details = await getDeviceFeatureDetails(record.ciCode);
+
+                          // 添加标签详情
+                          if (details.labels && details.labels.length > 0) {
+                            featureDetails.push(`存在标签:`);
+                            details.labels.forEach(label => {
+                              featureDetails.push(`  ${label.key}=${label.value}`);
+                            });
+                          }
+
+                          // 添加污点详情
+                          if (details.taints && details.taints.length > 0) {
+                            featureDetails.push(`存在污点:`);
+                            details.taints.forEach(taint => {
+                              featureDetails.push(`  ${taint.key}=${taint.value}:${taint.effect}`);
+                            });
+                          }
+                        }
+
+                        // 更新提示框内容 - 美化样式
+                        let tooltipContent = `
+                          <div style="font-weight: 600; font-size: 14px; color: #1677ff; margin-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 6px;">
+                            <span style="margin-right: 5px;">&#x1F4CB;</span>设备特性
+                          </div>
+                          <div style="color: #666; font-size: 13px;">
+                        `;
+
+                        // 添加机器用途信息
+                        const groupInfo = featureDetails.find(detail => detail.startsWith('机器用途:'));
+                        if (groupInfo) {
+                          const groupValue = groupInfo.split(':')[1].trim();
+                          tooltipContent += `
+                            <div style="margin-bottom: 12px;">
+                              <div style="display: flex; align-items: center;">
+                                <span style="margin-right: 5px; color: #1677ff;">&#x1F4BB;</span>
+                                <span style="font-weight: 500;">机器用途:</span>
+                              </div>
+                              <div>
+                                <span style="background-color: rgba(22, 119, 255, 0.1); padding: 2px 8px; border-radius: 4px; color: #1677ff; display: inline-block; text-align: left;">${groupValue.trim()}</span>
+                              </div>
+                            </div>
+                          `;
+                        }
+
+                        // 添加标签信息
+                        const labelIndex = featureDetails.findIndex(detail => detail === '存在标签:');
+                        if (labelIndex !== -1) {
+                          tooltipContent += `
+                            <div style="margin-bottom: 8px;">
+                              <div style="display: flex; align-items: center;">
+                                <span style="margin-right: 5px; color: #52c41a;">&#x1F3F7;</span>
+                                <span style="font-weight: 500;">标签信息:</span>
+                              </div>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                          `;
+
+                          // 收集标签详情
+                          let i = labelIndex + 1;
+                          while (i < featureDetails.length && featureDetails[i].startsWith('  ')) {
+                            const labelParts = featureDetails[i].trim().split('=');
+                            if (labelParts.length === 2) {
+                              tooltipContent += `
+                                <div style="margin-bottom: 8px;">
+                                  <div style="color: #666; font-weight: 500;">${labelParts[0]}:</div>
+                                  <div>
+                                    <span style="background-color: rgba(82, 196, 26, 0.1); padding: 2px 8px; border-radius: 4px; color: #52c41a; display: inline-block; text-align: left;">${labelParts[1].trim()}</span>
+                                  </div>
+                                </div>
+                              `;
+                            }
+                            i++;
+                          }
+
+                          tooltipContent += `</div>`;
+                        }
+
+                        // 添加污点信息
+                        const taintIndex = featureDetails.findIndex(detail => detail === '存在污点:');
+                        if (taintIndex !== -1) {
+                          tooltipContent += `
+                            <div style="margin-bottom: 8px;">
+                              <div style="display: flex; align-items: center;">
+                                <span style="margin-right: 5px; color: #f5222d;">&#x26A0;</span>
+                                <span style="font-weight: 500;">污点信息:</span>
+                              </div>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                          `;
+
+                          // 收集污点详情
+                          let i = taintIndex + 1;
+                          while (i < featureDetails.length && featureDetails[i].startsWith('  ')) {
+                            const taintInfo = featureDetails[i].trim();
+                            const taintParts = taintInfo.split('=');
+                            if (taintParts.length === 2) {
+                              const keyPart = taintParts[0];
+                              const valueParts = taintParts[1].split(':');
+                              if (valueParts.length === 2) {
+                                const valuePart = valueParts[0];
+                                const effectPart = valueParts[1];
+
+                                // 根据 effect 类型选择颜色
+                                let effectColor = '#f5222d'; // 默认红色
+                                if (effectPart === 'PreferNoSchedule') {
+                                  effectColor = '#faad14'; // 黄色
+                                } else if (effectPart === 'NoExecute') {
+                                  effectColor = '#f5222d'; // 红色
+                                }
+
+                                tooltipContent += `
+                                  <div style="margin-bottom: 12px;">
+                                    <div style="color: #666; font-weight: 500;">${keyPart}:</div>
+                                    <div>
+                                      <div>
+                                        <span style="background-color: rgba(245, 34, 45, 0.1); padding: 2px 8px; border-radius: 4px; color: #f5222d; display: inline-block; text-align: left;">${valuePart.trim()}</span>
+                                      </div>
+                                      <div>
+                                        <span style="background-color: rgba(0, 0, 0, 0.04); padding: 2px 8px; border-radius: 4px; color: ${effectColor}; font-size: 12px; display: inline-block; text-align: left;">${effectPart.trim()}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                `;
+                              }
+                            }
+                            i++;
+                          }
+
+                          tooltipContent += `</div>`;
+                        }
+
+                        tooltipContent += `</div>`;
+                        tooltip.innerHTML = tooltipContent;
+                      } catch (error) {
+                        console.error('获取设备特性详情失败:', error);
+                      }
+                    }
+                  },
+                  onMouseLeave: (e) => {
+                    try {
+                      // 安全地移除提示框
+                      const tooltip = e.currentTarget?.tooltip;
+                      if (tooltip && document.body.contains(tooltip)) {
+                        document.body.removeChild(tooltip);
+                      }
+
+                      // 清除引用
+                      if (e.currentTarget) {
+                        e.currentTarget.tooltip = null;
+                      }
+
+                      // 安全地移除鼠标移动事件监听器
+                      const handleMouseMove = e.currentTarget?.handleMouseMove;
+                      if (handleMouseMove) {
+                        document.removeEventListener('mousemove', handleMouseMove);
+
+                        // 清除引用
+                        if (e.currentTarget) {
+                          e.currentTarget.handleMouseMove = null;
+                        }
+                      }
+                    } catch (error) {
+                      console.error('清除提示框资源失败:', error);
+                    }
+                  }
+                };
+              }}
             />
           </>
         )}
@@ -919,19 +1689,19 @@ const DeviceCenter: React.FC = () => {
         className="group-edit-modal"
         centered
       >
-        <Form form={roleForm} layout="vertical">
+        <Form form={roleForm} layout="vertical" preserve={false}>
           <Form.Item
             name="group"
             label="机器用途"
-            rules={[{ required: true, message: '请输入机器用途' }]}
+            rules={[]}
+            help="可以设置为空值"
           >
-            <Select<string, { value: string; children: React.ReactNode }>
+            <Select<string[], { value: string; children: React.ReactNode }>
               showSearch
               allowClear
               loading={loadingGroupOptions}
-              placeholder="请选择或输入机器用途"
+              placeholder="请选择或输入机器用途，清空表示无用途"
               style={{ width: '100%' }}
-              showArrow
               notFoundContent={loadingGroupOptions ? <Spin size="small" /> : null}
               mode="tags"
               maxTagCount={1}

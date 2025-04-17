@@ -17,19 +17,19 @@ export function generateQuerySummary(groups: FilterGroup[], maxLength: number = 
     });
 
     const groupSummary = blockSummaries.join(` ${getOperatorText(group.operator)} `);
-    
+
     // 如果不是最后一个组，添加组间操作符
     const isLastGroup = groupIndex === groups.length - 1;
     return isLastGroup ? `(${groupSummary})` : `(${groupSummary}) ${getOperatorText(group.operator)}`;
   });
 
   let summary = summaries.join(' ');
-  
+
   // 如果摘要太长，截断并添加省略号
   if (summary.length > maxLength) {
     summary = summary.substring(0, maxLength - 3) + '...';
   }
-  
+
   return summary;
 }
 
@@ -41,26 +41,26 @@ export function generateQuerySummary(groups: FilterGroup[], maxLength: number = 
 function generateBlockSummary(block: FilterBlock): string {
   const fieldName = getFieldName(block);
   const conditionText = getConditionText(block.conditionType);
-  
+
   // 对于存在和不存在条件，不需要显示值
   if (block.conditionType === ConditionType.Exists) {
     return `${fieldName}存在`;
   }
-  
+
   if (block.conditionType === ConditionType.NotExists) {
     return `${fieldName}不存在`;
   }
-  
+
   // 处理数组值
   let valueText = '';
   if (Array.isArray(block.value)) {
-    valueText = block.value.length > 2 
-      ? `[${block.value.slice(0, 2).join(', ')}...]` 
+    valueText = block.value.length > 2
+      ? `[${block.value.slice(0, 2).join(', ')}...]`
       : `[${block.value.join(', ')}]`;
   } else {
     valueText = block.value || '';
   }
-  
+
   return `${fieldName}${conditionText}${valueText}`;
 }
 
@@ -72,13 +72,15 @@ function generateBlockSummary(block: FilterBlock): string {
 function getFieldName(block: FilterBlock): string {
   // 使用field或key，优先使用field
   const fieldName = block.field || block.key || '';
-  
+
   // 根据筛选类型添加前缀
   switch (block.type) {
     case FilterType.NodeLabel:
       return `标签[${fieldName}]`;
     case FilterType.Taint:
       return `污点[${fieldName}]`;
+    case FilterType.NodeInfo:
+      return `节点信息[${fieldName}]`;
     case FilterType.Device:
       return fieldName;
     default:

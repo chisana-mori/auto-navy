@@ -33,6 +33,14 @@ const DeviceDetail: React.FC = () => {
   const [data, setData] = useState<Device | null>(null);
 
   useEffect(() => {
+    // 移除所有可能存在的悬浮提示框
+    const tooltips = document.querySelectorAll('.device-feature-tooltip');
+    tooltips.forEach(tooltip => {
+      if (document.body.contains(tooltip)) {
+        document.body.removeChild(tooltip);
+      }
+    });
+
     const fetchData = async () => {
       if (!id) return;
       setLoading(true);
@@ -49,6 +57,27 @@ const DeviceDetail: React.FC = () => {
 
     fetchData();
   }, [id]);
+
+  // 添加一个额外的 useEffect 钩子，用于在详情页面卸载时移除所有事件监听器
+  useEffect(() => {
+    // 添加一个全局点击事件，用于移除所有悬浮提示框
+    const handleClick = () => {
+      const tooltips = document.querySelectorAll('.device-feature-tooltip');
+      tooltips.forEach(tooltip => {
+        if (document.body.contains(tooltip)) {
+          document.body.removeChild(tooltip);
+        }
+      });
+    };
+
+    // 添加事件监听器
+    document.addEventListener('click', handleClick);
+
+    // 清理函数
+    return () => {
+      document.removeEventListener('click', handleClick);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -100,6 +129,7 @@ const DeviceDetail: React.FC = () => {
           </div>
 
           <div className="section-content">
+            <FieldItem label="APPID" value={data.appId} />
             <FieldItem label="设备编码" value={data.ciCode} />
             <FieldItem label="IP地址" value={data.ip} />
             <FieldItem label="机器用途" value={data.group} />
@@ -107,6 +137,7 @@ const DeviceDetail: React.FC = () => {
             <FieldItem label="状态" value={data.status} />
             <FieldItem label="厂商" value={data.company} />
             <FieldItem label="是否国产化" value={data.isLocalization ? '是' : '否'} />
+            <FieldItem label="验收时间" value={data.acceptanceTime} />
             <FieldItem label="创建时间" value={data.createdAt} />
             <FieldItem label="更新时间" value={data.updatedAt} />
           </div>
@@ -124,6 +155,9 @@ const DeviceDetail: React.FC = () => {
             <FieldItem label="CPU数量" value={data.cpu} />
             <FieldItem label="内存大小" value={data.memory} />
             <FieldItem label="KVM IP" value={data.kvmIp} />
+            <FieldItem label="磁盘数量" value={data.diskCount} />
+            <FieldItem label="磁盘详情" value={data.diskDetail} />
+            <FieldItem label="网络速度" value={data.networkSpeed} />
           </div>
         </div>
 
@@ -138,7 +172,7 @@ const DeviceDetail: React.FC = () => {
             <FieldItem label="所属集群" value={data.cluster} />
             <FieldItem label="集群ID" value={data.clusterId} />
             <FieldItem label="角色" value={data.role} />
-            <FieldItem label="APPID" value={data.appId} />
+
           </div>
         </div>
 

@@ -44,6 +44,7 @@ func (h *DeviceQueryHandler) RegisterRoutes(r *gin.RouterGroup) {
 		deviceQueryGroup.GET("/label-values", h.getLabelValues)
 		deviceQueryGroup.GET("/taint-values", h.getTaintValues)
 		deviceQueryGroup.GET("/device-field-values", h.getDeviceFieldValues)
+		deviceQueryGroup.GET("/device-feature-details", h.getDeviceFeatureDetails)
 		deviceQueryGroup.POST("/query", h.queryDevices)
 		deviceQueryGroup.POST("/templates", h.saveTemplate)
 		deviceQueryGroup.GET("/templates", h.getTemplates)
@@ -150,6 +151,33 @@ func (h *DeviceQueryHandler) getDeviceFieldValues(c *gin.Context) {
 	}
 
 	render.Success(c, values)
+}
+
+// @Summary 获取设备特性详情
+// @Description 获取设备的标签和污点详情
+// @Tags 设备查询
+// @Accept json
+// @Produce json
+// @Param ci_code query string true "设备编码" example:"node-1"
+// @Success 200 {object} service.DeviceFeatureDetails "成功获取设备特性详情"
+// @Failure 400 {object} service.ErrorResponse "参数错误"
+// @Failure 500 {object} service.ErrorResponse "获取设备特性详情失败"
+// @Router /device-query/device-feature-details [get]
+// getDeviceFeatureDetails handles GET /device-query/device-feature-details requests.
+func (h *DeviceQueryHandler) getDeviceFeatureDetails(c *gin.Context) {
+	ciCode := c.Query("ci_code")
+	if ciCode == "" {
+		render.BadRequest(c, "ci_code is required")
+		return
+	}
+
+	details, err := h.service.GetDeviceFeatureDetails(c.Request.Context(), ciCode)
+	if err != nil {
+		render.InternalServerError(c, fmt.Sprintf("Failed to get device feature details: %s", err.Error()))
+		return
+	}
+
+	render.Success(c, details)
 }
 
 // @Summary 查询设备

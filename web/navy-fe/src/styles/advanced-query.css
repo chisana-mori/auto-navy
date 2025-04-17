@@ -1,0 +1,238 @@
+/* 高级查询面板样式优化 */
+
+/* 整体布局 */
+.advanced-query-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 筛选组样式优化 */
+.filter-group {
+  position: relative;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background-color: #fff;
+  overflow: visible;
+}
+
+/* 筛选组标题栏 */
+.filter-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background-color: #fafafa;
+  border-radius: 8px 8px 0 0;
+}
+
+/* 为同一筛选组的条件添加浅色背景 */
+.filter-blocks {
+  background-color: #f9f9f9;
+  border-radius: 0 0 8px 8px;
+  padding: 16px;
+  padding-top: 30px; /* 增加顶部空间，为第一个条件的删除按钮留出空间 */
+}
+
+/* 筛选块样式优化 */
+.filter-block {
+  background-color: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+  margin-top: 20px; /* 增加顶部空间用于删除按钮 */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+  position: relative;
+  padding-bottom: 24px; /* 增加底部空间用于添加按钮 */
+}
+
+.filter-block:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-block:last-child {
+  margin-bottom: 0;
+}
+
+/* 筛选块头部 */
+.filter-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  position: relative; /* 确保删除按钮定位正确 */
+}
+
+/* 筛选块底部操作区 */
+.filter-block-bottom-actions {
+  position: absolute;
+  bottom: -12px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  height: 20px;
+}
+
+/* 删除单个条件按钮 */
+.delete-block-button {
+  position: relative;
+  z-index: 5;
+  background-color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: #ff4d4f;
+  border: 1px solid #ffccc7;
+}
+
+.delete-block-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background-color: #fff1f0;
+}
+
+/* 筛选块内容布局优化 */
+.filter-block-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.filter-block-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 添加条件按钮 - 浮动按钮 */
+.add-condition-button {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background-color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.add-condition-button:hover {
+  transform: translateX(-50%) scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* 删除条件按钮 - 浮动按钮 */
+.delete-condition-button {
+  position: absolute;
+  bottom: -12px;
+  left: calc(50% + 45px);
+  z-index: 10;
+  background-color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: #ff4d4f;
+}
+
+.delete-condition-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background-color: #fff1f0;
+}
+
+/* 条件组底部操作区 */
+.filter-group-bottom-actions {
+  position: relative;
+  height: 20px;
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 添加条件下拉菜单 */
+.add-condition-dropdown {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+}
+
+.add-condition-dropdown-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-condition-dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+/* 添加条件组按钮优化 */
+.filter-group-actions {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+/* 空状态样式 */
+.empty-blocks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: #bfbfbf;
+}
+
+/* 查询操作按钮 */
+.query-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background-color: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .filter-block-content {
+    grid-template-columns: 1fr;
+  }
+}
