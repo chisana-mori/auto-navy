@@ -877,8 +877,21 @@ const DeviceCenter: React.FC = () => {
       await updateDeviceGroup(editingDevice.id, groupValue);
       message.success('用途更新成功');
 
-      // 更新本地数据 - 根据当前标签页更新设备列表
-      switch (queryState.mode) {
+      // 重新获取设备列表，确保 isSpecial 字段的正确性
+      // 由于后端已经正确计算了 featureCount，所以需要重新获取数据
+      executeQuery();
+
+      // 如果是新的用途值，添加到选项中
+      if (groupValue && !groupOptions.includes(groupValue)) {
+        setGroupOptions(prev => [...prev, groupValue]);
+      }
+
+      setRoleEditVisible(false);
+    } catch (error) {
+      console.error('用途更新失败:', error);
+      message.error('用途更新失败');
+    }
+  };
         case 'simple':
           setQueryState(prev => ({
             ...prev,

@@ -41,20 +41,35 @@ func (s *DeviceService) buildDeviceBaseQuery(ctx context.Context) *gorm.DB {
 			// 1. 机器用途不为空
 			// 2. 可以关联到 label_feature
 			// 3. 可以关联到 taint_feature
-			"CASE WHEN device.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_special, " +
+			// 4. 当 device.group 和 cluster 为空，但可以关联到 device_app 时
+			"CASE WHEN device.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL OR " +
+			"     ((device.`group` = '' OR device.`group` IS NULL) AND (device.cluster = '' OR device.cluster IS NULL) AND da.name IS NOT NULL AND da.name != '') " +
+			"THEN TRUE ELSE FALSE END AS is_special, " +
 			// 添加特性计数字段，用于前端显示
-			"(CASE WHEN device.`group` != '' THEN 1 ELSE 0 END + CASE WHEN lf.id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN tf.id IS NOT NULL THEN 1 ELSE 0 END) AS feature_count")
+			"(CASE WHEN device.`group` != '' THEN 1 ELSE 0 END + " +
+			" CASE WHEN lf.id IS NOT NULL THEN 1 ELSE 0 END + " +
+			" CASE WHEN tf.id IS NOT NULL THEN 1 ELSE 0 END + " +
+			" CASE WHEN (device.`group` = '' OR device.`group` IS NULL) AND (device.cluster = '' OR device.cluster IS NULL) AND da.name IS NOT NULL AND da.name != '' THEN 1 ELSE 0 END" +
+			") AS feature_count, " +
+			// 当设备的 cluster 为空时，将 device_app.name 添加到 group 字段中
+			"CASE WHEN device.cluster = '' OR device.cluster IS NULL THEN " +
+			"  CASE WHEN device.`group` = '' OR device.`group` IS NULL THEN da.name " +
+			"  ELSE CONCAT(device.`group`, ';', da.name) END " +
+			"ELSE device.`group` END AS `group`")
 
 	// 默认关联 k8s_node 表，并添加 status != Offline 筛选条件
 	query = query.Joins("LEFT JOIN k8s_node ON LOWER(device.ci_code) = LOWER(k8s_node.nodename) AND (k8s_node.status != 'Offline' OR k8s_node.status IS NULL)")
 
 	// 关联 k8s_node_label 表和 label_feature 表，用于判断是否为特殊设备
-	query = query.Joins("LEFT JOIN k8s_node_label ON k8s_node.id = k8s_node_label.node_id AND k8s_node_label.created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"))
+	query = query.Joins("LEFT JOIN k8s_node_label ON k8s_node.id = k8s_node_label.node_id AND k8s_node_label.created_at BETWEEN ? AND ?", todayStart, todayEnd)
 	query = query.Joins("LEFT JOIN label_feature lf ON k8s_node_label.key = lf.key")
 
 	// 关联 k8s_node_taint 表和 taint_feature 表，用于判断是否为特殊设备
-	query = query.Joins("LEFT JOIN k8s_node_taint ON k8s_node.id = k8s_node_taint.node_id AND k8s_node_taint.created_at BETWEEN ? AND ?", todayStart.Format("2006-01-02 15:04:05"), todayEnd.Format("2006-01-02 15:04:05"))
+	query = query.Joins("LEFT JOIN k8s_node_taint ON k8s_node.id = k8s_node_taint.node_id AND k8s_node_taint.created_at BETWEEN ? AND ?", todayStart, todayEnd)
 	query = query.Joins("LEFT JOIN taint_feature tf ON k8s_node_taint.key = tf.key")
+
+	// 关联 device_app 表，用于获取设备的来源信息
+	query = query.Joins("LEFT JOIN device_app da ON device.appid = da.app_id")
 
 	// 使用 GROUP BY 确保每个设备只返回一行
 	query = query.Group("device.id")

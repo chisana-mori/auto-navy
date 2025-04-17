@@ -429,6 +429,55 @@
   border-radius: 2px;
 }
 
+/* 机器用途文本样式 */
+.group-text {
+  position: relative;
+  display: inline-block;
+  max-width: 140px; /* 宽度设置为正好显示10个中文字符 */
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding: 2px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+/* 优雅的截断样式 */
+.group-text.has-more {
+  position: relative;
+  padding-right: 4px;
+  text-overflow: ellipsis;
+}
+
+/* 默认渐变效果（白色背景） */
+.group-text.has-more::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 80px; /* 增加宽度，从第6个字符开始渐变 */
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 1) 90%);
+  pointer-events: none;
+}
+
+/* 特殊设备渐变效果（浅黄色背景 #fffbe6） */
+.group-text.has-more.special-bg::after {
+  background: linear-gradient(to right, rgba(255, 251, 230, 0), rgba(255, 251, 230, 0.7) 50%, rgba(255, 251, 230, 1) 90%);
+}
+
+/* 集群设备渐变效果（浅绿色背景 #f6ffed） */
+.group-text.has-more.cluster-bg::after {
+  background: linear-gradient(to right, rgba(246, 255, 237, 0), rgba(246, 255, 237, 0.7) 50%, rgba(246, 255, 237, 1) 90%);
+}
+
+/* 强制下拉框朝下显示 */
+.group-edit-modal .ant-select-dropdown {
+  top: 100% !important;
+  bottom: auto !important;
+  margin-top: 4px !important;
+}
+
 /* 空状态模板页面样式 */
 .empty-template-container {
   display: flex;
