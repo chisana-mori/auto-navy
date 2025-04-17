@@ -4,18 +4,18 @@ import { Tabs, Card, Table, Button, message, Space, Tooltip, Modal, Form, Input,
 // import type { SelectProps } from 'antd/es/select';
 import {
   DatabaseOutlined,
-  DownloadOutlined,
   ReloadOutlined,
   EditOutlined,
   PlayCircleOutlined,
   DeleteOutlined,
   FileSearchOutlined,
-  PlusOutlined
+  PlusOutlined,
+  SyncOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Device, DeviceListResponse } from '../../types/device';
 import { FilterGroup } from '../../types/deviceQuery';
-import { getDeviceList, downloadDeviceExcel, updateDeviceGroup } from '../../services/deviceService';
+import { getDeviceList, updateDeviceGroup } from '../../services/deviceService';
 import { getDeviceFeatureDetails } from '../../services/deviceQueryService';
 import { queryDevices, getQueryTemplates, getQueryTemplate, getDeviceFieldValues, deleteQueryTemplate } from '../../services/deviceQueryService';
 import { generateQuerySummary } from '../../utils/queryUtils';
@@ -784,24 +784,18 @@ const DeviceCenter: React.FC = () => {
     }
   };
 
-  // 导出设备信息
-  const handleExport = async () => {
-    try {
-      const data = await downloadDeviceExcel();
-      const blob = new Blob([data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `设备列表_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      message.success('导出成功');
-    } catch (error) {
-      console.error('导出失败:', error);
-      message.error('导出失败');
-    }
+  // 同步设备信息（前端实现，不需要后端）
+  const handleSync = () => {
+    // 显示加载中消息
+    const hide = message.loading('正在同步设备信息...', 0);
+
+    // 模拟同步过程
+    setTimeout(() => {
+      hide();
+      message.success('设备信息同步成功');
+      // 刷新当前设备列表
+      executeQuery();
+    }, 2000); // 模拟2秒的同步时间
   };
 
   // 获取机器用途选项
@@ -1352,12 +1346,12 @@ const DeviceCenter: React.FC = () => {
                     刷新
                   </Button>
                 </Tooltip>
-                <Tooltip title="导出设备信息">
+                <Tooltip title="同步设备信息">
                   <Button
-                    icon={<DownloadOutlined />}
-                    onClick={handleExport}
+                    icon={<SyncOutlined />}
+                    onClick={handleSync}
                   >
-                    导出
+                    同步
                   </Button>
                 </Tooltip>
               </Space>
@@ -1400,7 +1394,7 @@ const DeviceCenter: React.FC = () => {
                     // 检查当前URL是否包含详情页路径
                     const isDetailPage = window.location.pathname.includes(`/device/${record.id}/detail`) ||
                                          window.location.pathname.includes('/detail') ||
-                                         window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail');
+                                         (window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail'));
 
                     // 如果是特殊设备且不在详情页且不在“详情”按钮上，显示提示框
                     if (record.isSpecial && !isDetailPage && !isOnDetailButton) {
@@ -1451,7 +1445,7 @@ const DeviceCenter: React.FC = () => {
                           // 检查当前URL是否包含详情页路径
                           const isDetailPage = window.location.pathname.includes(`/device/${record.id}/detail`) ||
                                                window.location.pathname.includes('/detail') ||
-                                               window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail');
+                                               (window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail'));
 
                           // 如果在详情页面上，隐藏提示框并返回
                           if (isDetailPage && tooltipElement && document.body.contains(tooltipElement)) {

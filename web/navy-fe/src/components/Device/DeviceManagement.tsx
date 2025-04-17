@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Table, Card, Input, Button, message, Space, Modal, Select, Form, Tag, Spin } from 'antd';
 import { CloudServerOutlined, DownloadOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table/interface';
-import { getDeviceList, downloadDeviceExcel, updateDeviceRole, updateDeviceGroup } from '../../services/deviceService';
+import { getDeviceList, downloadDeviceExcel, updateDeviceGroup } from '../../services/deviceService';
 import { getDeviceFieldValues } from '../../services/deviceQueryService';
 import type { Device, DeviceQuery } from '../../types/device';
 import { useNavigate } from 'react-router-dom';

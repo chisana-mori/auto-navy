@@ -236,11 +236,11 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 }
 
 // GetDevice 获取设备详情
-
+// 简化实现，不再使用多表连接，只获取设备基本信息
 func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceResponse, error) {
 	var model portal.Device
-	// 使用基础查询，包含与 k8s_node 等表的关联
-	db := s.buildDeviceBaseQuery(ctx).Where("device.id = ?", id)
+	// 直接查询设备表，不使用多表连接
+	db := s.db.WithContext(ctx).Model(&portal.Device{}).Where("id = ?", id)
 	err := db.First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -249,6 +249,7 @@ func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceRespons
 		return nil, fmt.Errorf("failed to get device: %w", err)
 	}
 
+	// 构建响应
 	return &DeviceResponse{
 		ID:             model.ID,
 		CICode:         model.CICode,
@@ -281,10 +282,11 @@ func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceRespons
 		DiskCount:      model.DiskCount,
 		DiskDetail:     model.DiskDetail,
 		NetworkSpeed:   model.NetworkSpeed,
-		IsSpecial:      model.IsSpecial,
-		FeatureCount:   model.FeatureCount,
-		CreatedAt:      time.Time(model.CreatedAt),
-		UpdatedAt:      time.Time(model.UpdatedAt),
+		// 设备详情页不需要特殊标记，设置为默认值
+		IsSpecial:    false,
+		FeatureCount: 0,
+		CreatedAt:    time.Time(model.CreatedAt),
+		UpdatedAt:    time.Time(model.UpdatedAt),
 	}, nil
 }
 

@@ -5,7 +5,6 @@ import {
   Card,
   Select,
   Space,
-  Divider,
   Typography,
   message,
   Tooltip,
@@ -13,22 +12,18 @@ import {
   Form,
   Input,
   Badge,
-  Tag,
-  Dropdown,
-  Menu
+  Tag
 } from 'antd';
 import {
   PlusOutlined,
   SaveOutlined,
   DeleteOutlined,
-  ToolOutlined,
   FilterOutlined,
   SearchOutlined,
   CloseCircleOutlined,
   DesktopOutlined,
   TagsOutlined,
-  ExclamationCircleOutlined,
-  DownOutlined
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 // 使用CSS动画替代react-transition-group
 import { v4 as uuidv4 } from 'uuid';
@@ -52,14 +47,15 @@ import {
 const { Text } = Typography;
 const { Option } = Select;
 
+// 注释掉未使用的函数
 // 转义特殊字符，防止SQL注入
-const escapeValue = (value: string): string => {
-  if (!value) return '';
-  // 转义 % 和 _ 等特殊字符
-  let escapedValue = value.replace(/%/g, '\\%');
-  escapedValue = escapedValue.replace(/_/g, '\\_');
-  return escapedValue;
-};
+// const escapeValue = (value: string): string => {
+//   if (!value) return '';
+//   // 转义 % 和 _ 等特殊字符
+//   let escapedValue = value.replace(/%/g, '\\%');
+//   escapedValue = escapedValue.replace(/_/g, '\\_');
+//   return escapedValue;
+// };
 
 interface AdvancedQueryPanelProps {
   filterGroups: FilterGroup[];
@@ -86,6 +82,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
   const [filterOptions, setFilterOptions] = useState<Record<string, any>>({});
   const [templateModalVisible, setTemplateModalVisible] = useState(false);
   const [saveMode, setSaveMode] = useState<'save' | 'saveAs'>('save'); // 保存模式：保存或另存为
+  // 保留状态，因为它在代码中被使用
   const [isConditionModified, setIsConditionModified] = useState(false); // 条件是否已经被修改
   const [templateForm] = Form.useForm();
 
@@ -682,7 +679,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                 showSearch
                 allowClear
                 optionFilterProp="children"
-                dropdownMatchSelectWidth={false}
+                popupMatchSelectWidth={false}
                 // showArrow 属性已被废弃，现在是默认行为
                 tagRender={props => (
                   <Tag
@@ -794,7 +791,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                 updateFilterGroup(group.id, { operator: value });
               }}
               style={{ width: 240 }}
-              dropdownMatchSelectWidth={false}
+              popupMatchSelectWidth={false}
             >
               <Option value={LogicalOperator.And}>
                 <Space>
