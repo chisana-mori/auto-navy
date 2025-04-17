@@ -25,7 +25,7 @@ const (
 	SQLValueField       = "value"
 	SQLKeyField         = "`key`"
 	// 表别名
-	TableAliasDevice    = "d"
+	TableAliasDevice    = "device"
 	TableAliasK8sNode   = "kn"
 	TableAliasNodeLabel = "knl"
 	TableAliasNodeTaint = "knt"
@@ -139,7 +139,7 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 			fmt.Printf("Warning: Invalid or potentially unsafe column key detected: %s\n", block.Key)
 			return query // Return unchanged query if the key is suspicious
 		}
-		column = fmt.Sprintf("d.%s", snakeCase)
+		column = fmt.Sprintf("device.%s", snakeCase)
 		// Consider logging a warning here that a direct map entry is preferred
 		fmt.Printf("Warning: Column key '%s' not found in deviceFieldColumnMap, using generated '%s'. Consider adding it to the map.\n", block.Key, column)
 	}
@@ -275,45 +275,45 @@ type DeviceFieldValues struct {
 
 // deviceFieldColumnMap maps frontend keys to database column names for the device table
 var deviceFieldColumnMap = map[string]string{
-	"ciCode":          "d.ci_code",
-	"ci_code":         "d.ci_code",
-	"ip":              "d.ip",
-	"archType":        "d.arch_type",
-	"arch_type":       "d.arch_type",
-	"idc":             "d.idc",
-	"room":            "d.room",
-	"cabinet":         "d.cabinet",
-	"cabinetNo":       "d.cabinet_no",
-	"cabinet_no":      "d.cabinet_no",
-	"infraType":       "d.infra_type",
-	"infra_type":      "d.infra_type",
-	"isLocalization":  "d.is_localization",
-	"is_localization": "d.is_localization",
-	"netZone":         "d.net_zone",
-	"net_zone":        "d.net_zone",
-	"group":           "d.`group`",
-	"appId":           "d.appid",
-	"appid":           "d.appid",
-	"osCreateTime":    "d.os_create_time",
-	"os_create_time":  "d.os_create_time",
-	"cpu":             "d.cpu",
-	"memory":          "d.memory",
-	"model":           "d.model",
-	"kvmIp":           "d.kvm_ip",
-	"kvm_ip":          "d.kvm_ip",
-	"os":              "d.os",
-	"company":         "d.company",
-	"osName":          "d.os_name",
-	"os_name":         "d.os_name",
-	"osIssue":         "d.os_issue",
-	"os_issue":        "d.os_issue",
-	"osKernel":        "d.os_kernel",
-	"os_kernel":       "d.os_kernel",
-	"status":          "d.status",
-	"role":            "d.role",
-	"cluster":         "d.cluster",
-	"clusterId":       "d.cluster_id",
-	"cluster_id":      "d.cluster_id",
+	"ciCode":          "device.ci_code",
+	"ci_code":         "device.ci_code",
+	"ip":              "device.ip",
+	"archType":        "device.arch_type",
+	"arch_type":       "device.arch_type",
+	"idc":             "device.idc",
+	"room":            "device.room",
+	"cabinet":         "device.cabinet",
+	"cabinetNo":       "device.cabinet_no",
+	"cabinet_no":      "device.cabinet_no",
+	"infraType":       "device.infra_type",
+	"infra_type":      "device.infra_type",
+	"isLocalization":  "device.is_localization",
+	"is_localization": "device.is_localization",
+	"netZone":         "device.net_zone",
+	"net_zone":        "device.net_zone",
+	"group":           "device.`group`",
+	"appId":           "device.appid",
+	"appid":           "device.appid",
+	"osCreateTime":    "device.os_create_time",
+	"os_create_time":  "device.os_create_time",
+	"cpu":             "device.cpu",
+	"memory":          "device.memory",
+	"model":           "device.model",
+	"kvmIp":           "device.kvm_ip",
+	"kvm_ip":          "device.kvm_ip",
+	"os":              "device.os",
+	"company":         "device.company",
+	"osName":          "device.os_name",
+	"os_name":         "device.os_name",
+	"osIssue":         "device.os_issue",
+	"os_issue":        "device.os_issue",
+	"osKernel":        "device.os_kernel",
+	"os_kernel":       "device.os_kernel",
+	"status":          "device.status",
+	"role":            "device.role",
+	"cluster":         "device.cluster",
+	"clusterId":       "device.cluster_id",
+	"cluster_id":      "device.cluster_id",
 	// Add other direct mappings if needed
 }
 
@@ -495,7 +495,7 @@ func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field str
 		if !isValidColumnName(snakeCase) {
 			return nil, fmt.Errorf("invalid field name: %s", field)
 		}
-		column = fmt.Sprintf("d.%s", snakeCase)
+		column = fmt.Sprintf("device.%s", snakeCase)
 	}
 
 	// 从列名中提取字段名
@@ -649,18 +649,27 @@ func (s *DeviceQueryService) buildDeviceQuery(ctx context.Context) *gorm.DB {
 	todayEnd := now.New(currentTime).EndOfDay()
 
 	// 构建查询，添加 isSpecial 字段用于标识特殊设备
-	query := s.db.WithContext(ctx).Table("device d").
-		Select("d.id, d.ci_code, d.ip, d.arch_type, d.cluster, d.role, d.idc, d.room, d.cabinet, d.cabinet_no, d.infra_type, d.is_localization, d.net_zone, d.`group`, d.appid, d.os_create_time, d.cpu, d.memory, d.model, d.kvm_ip, d.os, d.company, d.os_name, d.os_issue, d.os_kernel, d.status, d.cluster_id, d.created_at, d.updated_at, d.acceptance_time, d.disk_count, d.disk_detail, d.network_speed, " +
+	query := s.db.WithContext(ctx).Table("device").
+		Select("device.*, " +
 			// 添加 isSpecial 字段，当满足以下条件之一时为 true：
 			// 1. 机器用途不为空
 			// 2. 可以关联到 label_feature
 			// 3. 可以关联到 taint_feature
-			"CASE WHEN d.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_special, " +
+			// 4. 当 device.group 和 cluster 为空，但可以关联到 device_app 时
+			"CASE WHEN device.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL OR " +
+			"     ((device.`group` = '' OR device.`group` IS NULL) AND (device.cluster = '' OR device.cluster IS NULL) AND da.name IS NOT NULL AND da.name != '') " +
+			"THEN TRUE ELSE FALSE END AS is_special, " +
 			// 添加特性计数字段，用于前端显示
-			"(CASE WHEN d.`group` != '' THEN 1 ELSE 0 END + CASE WHEN lf.id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN tf.id IS NOT NULL THEN 1 ELSE 0 END) AS feature_count")
+			"(CASE WHEN device.`group` != '' THEN 1 ELSE 0 END + " +
+			" CASE WHEN lf.id IS NOT NULL THEN 1 ELSE 0 END + " +
+			" CASE WHEN tf.id IS NOT NULL THEN 1 ELSE 0 END + " +
+			" CASE WHEN (device.`group` = '' OR device.`group` IS NULL) AND (device.cluster = '' OR device.cluster IS NULL) AND da.name IS NOT NULL AND da.name != '' THEN 1 ELSE 0 END" +
+			") AS feature_count, " +
+			// 只在 device.cluster 为空时获取 device_app.name
+			"CASE WHEN device.cluster = '' OR device.cluster IS NULL THEN da.name ELSE NULL END AS app_name")
 
 	// 默认关联 k8s_node 表，并添加 status != Offline 筛选条件
-	query = query.Joins("LEFT JOIN k8s_node kn ON LOWER(d.ci_code) = LOWER(kn.nodename) AND (kn.status != 'Offline' OR kn.status IS NULL)")
+	query = query.Joins("LEFT JOIN k8s_node kn ON LOWER(device.ci_code) = LOWER(kn.nodename) AND (kn.status != 'Offline' OR kn.status IS NULL)")
 
 	// 关联 k8s_node_label 表和 label_feature 表，用于判断是否为特殊设备
 	query = query.Joins("LEFT JOIN k8s_node_label knl ON kn.id = knl.node_id AND knl.created_at BETWEEN ? AND ?", todayStart, todayEnd)
@@ -670,8 +679,11 @@ func (s *DeviceQueryService) buildDeviceQuery(ctx context.Context) *gorm.DB {
 	query = query.Joins("LEFT JOIN k8s_node_taint knt ON kn.id = knt.node_id AND knt.created_at BETWEEN ? AND ?", todayStart, todayEnd)
 	query = query.Joins("LEFT JOIN taint_feature tf ON knt.key = tf.key")
 
+	// 关联 device_app 表，用于获取设备的来源信息
+	query = query.Joins("LEFT JOIN device_app da ON device.appid = da.app_id")
+
 	// 使用 GROUP BY 确保每个设备只返回一行
-	query = query.Group("d.id")
+	query = query.Group("device.id")
 
 	return query
 }
@@ -789,6 +801,7 @@ func mapDevicesToResponse(devices []portal.Device) []DeviceResponse {
 			NetZone:        device.NetZone,
 			Group:          device.Group,
 			AppID:          device.AppID,
+			AppName:        device.AppName,
 			OsCreateTime:   device.OsCreateTime,
 			CPU:            device.CPU,
 			Memory:         device.Memory,
@@ -1046,157 +1059,157 @@ func (s *DeviceQueryService) GetDeviceFields(ctx context.Context) ([]FilterOptio
 			ID:       "ci_code",
 			Label:    "设备编码",
 			Value:    "ci_code",
-			DbColumn: "d.ci_code",
+			DbColumn: "device.ci_code",
 		},
 		{
 			ID:       "ip",
 			Label:    "IP地址",
 			Value:    "ip",
-			DbColumn: "d.ip",
+			DbColumn: "device.ip",
 		},
 		{
 			ID:       "arch_type",
 			Label:    "CPU架构",
 			Value:    "arch_type",
-			DbColumn: "d.arch_type",
+			DbColumn: "device.arch_type",
 		},
 		{
 			ID:       "idc",
 			Label:    "IDC",
 			Value:    "idc",
-			DbColumn: "d.idc",
+			DbColumn: "device.idc",
 		},
 		{
 			ID:       "room",
 			Label:    "机房",
 			Value:    "room",
-			DbColumn: "d.room",
+			DbColumn: "device.room",
 		},
 		{
 			ID:       "cabinet",
 			Label:    "机柜",
 			Value:    "cabinet",
-			DbColumn: "d.cabinet",
+			DbColumn: "device.cabinet",
 		},
 		{
 			ID:       "cabinet_no",
 			Label:    "机柜编号",
 			Value:    "cabinet_no",
-			DbColumn: "d.cabinet_no",
+			DbColumn: "device.cabinet_no",
 		},
 		{
 			ID:       "infra_type",
 			Label:    "网络类型",
 			Value:    "infra_type",
-			DbColumn: "d.infra_type",
+			DbColumn: "device.infra_type",
 		},
 		{
 			ID:       "is_localization",
 			Label:    "是否国产化",
 			Value:    "is_localization",
-			DbColumn: "d.is_localization",
+			DbColumn: "device.is_localization",
 		},
 		{
 			ID:       "net_zone",
 			Label:    "网络区域",
 			Value:    "net_zone",
-			DbColumn: "d.net_zone",
+			DbColumn: "device.net_zone",
 		},
 		{
 			ID:       "group",
 			Label:    "机器类别",
 			Value:    "group",
-			DbColumn: "d.`group`",
+			DbColumn: "device.`group`",
 		},
 		{
 			ID:       "appid",
 			Label:    "APPID",
 			Value:    "appid",
-			DbColumn: "d.appid",
+			DbColumn: "device.appid",
 		},
 		{
 			ID:       "os_create_time",
 			Label:    "操作系统创建时间",
 			Value:    "os_create_time",
-			DbColumn: "d.os_create_time",
+			DbColumn: "device.os_create_time",
 		},
 		{
 			ID:       "cpu",
 			Label:    "CPU数量",
 			Value:    "cpu",
-			DbColumn: "d.cpu",
+			DbColumn: "device.cpu",
 		},
 		{
 			ID:       "memory",
 			Label:    "内存大小",
 			Value:    "memory",
-			DbColumn: "d.memory",
+			DbColumn: "device.memory",
 		},
 		{
 			ID:       "model",
 			Label:    "型号",
 			Value:    "model",
-			DbColumn: "d.model",
+			DbColumn: "device.model",
 		},
 		{
 			ID:       "kvm_ip",
 			Label:    "KVM IP",
 			Value:    "kvm_ip",
-			DbColumn: "d.kvm_ip",
+			DbColumn: "device.kvm_ip",
 		},
 		{
 			ID:       "os",
 			Label:    "操作系统",
 			Value:    "os",
-			DbColumn: "d.os",
+			DbColumn: "device.os",
 		},
 		{
 			ID:       "company",
 			Label:    "厂商",
 			Value:    "company",
-			DbColumn: "d.company",
+			DbColumn: "device.company",
 		},
 		{
 			ID:       "os_name",
 			Label:    "操作系统名称",
 			Value:    "os_name",
-			DbColumn: "d.os_name",
+			DbColumn: "device.os_name",
 		},
 		{
 			ID:       "os_issue",
 			Label:    "操作系统版本",
 			Value:    "os_issue",
-			DbColumn: "d.os_issue",
+			DbColumn: "device.os_issue",
 		},
 		{
 			ID:       "os_kernel",
 			Label:    "操作系统内核",
 			Value:    "os_kernel",
-			DbColumn: "d.os_kernel",
+			DbColumn: "device.os_kernel",
 		},
 		{
 			ID:       "status",
 			Label:    "状态",
 			Value:    "status",
-			DbColumn: "d.status",
+			DbColumn: "device.status",
 		},
 		{
 			ID:       "role",
 			Label:    "角色",
 			Value:    "role",
-			DbColumn: "d.role",
+			DbColumn: "device.role",
 		},
 		{
 			ID:       "cluster",
 			Label:    "集群",
 			Value:    "cluster",
-			DbColumn: "d.cluster",
+			DbColumn: "device.cluster",
 		},
 		{
 			ID:       "cluster_id",
 			Label:    "集群ID",
 			Value:    "cluster_id",
-			DbColumn: "d.cluster_id",
+			DbColumn: "device.cluster_id",
 		},
 	}, nil
 }

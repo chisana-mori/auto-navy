@@ -1018,19 +1018,30 @@ const DeviceCenter: React.FC = () => {
         // 从第6个字符开始渐变，最多显示10个字符
         const gradientThreshold = 6; // 从第6个字符开始渐变
 
+        // 组合机器用途和应用名称
+        let displayText = text || '';
+        if (!displayText && record.appName) {
+          // 如果机器用途为空但有应用名称，直接显示应用名称
+          displayText = record.appName;
+        } else if (displayText && record.appName) {
+          // 如果机器用途和应用名称都有，用分号连接
+          displayText = `${displayText};${record.appName}`;
+        }
+
         // 如果文本长度超过渐变阈值，则显示渐变效果
-        const hasMore = text && text.length > gradientThreshold;
+        const hasMore = displayText && displayText.length > gradientThreshold;
 
         // 根据记录的特性确定样式类
         let styleClass = 'group-text';
         if (hasMore) styleClass += ' has-more';
         if (record.isSpecial) styleClass += ' special-bg';
+        else if (record.appName && record.appName.trim() !== '') styleClass += ' special-bg';
         else if (record.cluster && record.cluster.trim() !== '') styleClass += ' cluster-bg';
 
         return (
           <Space>
             <span className={styleClass}>
-              {text || ''}
+              {displayText}
             </span>
             <Tooltip title="编辑用途">
               <Button
@@ -1426,6 +1437,9 @@ const DeviceCenter: React.FC = () => {
                 if (record.isSpecial) {
                   // 浅黄色背景 - 特殊设备
                   bgColor = '#fffbe6';
+                } else if (record.appName && record.appName.trim() !== '') {
+                  // 浅黄色背景 - 应用名称不为空
+                  bgColor = '#fffbe6';
                 } else if (record.cluster && record.cluster.trim() !== '') {
                   // 浅绿色背景 - 集群不为空且非特殊设备
                   bgColor = '#f6ffed';
@@ -1445,8 +1459,8 @@ const DeviceCenter: React.FC = () => {
                                          window.location.pathname.includes('/detail') ||
                                          (window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail'));
 
-                    // 如果是特殊设备且不在详情页且不在“详情”按钮上，显示提示框
-                    if (record.isSpecial && !isDetailPage && !isOnDetailButton) {
+                    // 如果是特殊设备或有应用名称，且不在详情页且不在“详情”按钮上，显示提示框
+                    if ((record.isSpecial || (record.appName && record.appName.trim() !== '')) && !isDetailPage && !isOnDetailButton) {
                       try {
                         // 创建提示框
                         const tooltip = document.createElement('div');
@@ -1547,6 +1561,11 @@ const DeviceCenter: React.FC = () => {
                           featureDetails.push(`机器用途: ${record.group}`);
                         }
 
+                        // 添加应用名称
+                        if (record.appName && record.appName.trim() !== '') {
+                          featureDetails.push(`应用名称: ${record.appName}`);
+                        }
+
                         // 如果有标签特性或污点特性，获取详情
                         if (record.featureCount && record.featureCount > (record.group ? 1 : 0)) {
                           // 获取设备特性详情
@@ -1589,6 +1608,23 @@ const DeviceCenter: React.FC = () => {
                               </div>
                               <div>
                                 <span style="background-color: rgba(22, 119, 255, 0.1); padding: 2px 8px; border-radius: 4px; color: #1677ff; display: inline-block; text-align: left;">${groupValue.trim()}</span>
+                              </div>
+                            </div>
+                          `;
+                        }
+
+                        // 添加应用名称信息
+                        const appNameInfo = featureDetails.find(detail => detail.startsWith('应用名称:'));
+                        if (appNameInfo) {
+                          const appNameValue = appNameInfo.split(':')[1].trim();
+                          tooltipContent += `
+                            <div style="margin-bottom: 12px;">
+                              <div style="display: flex; align-items: center;">
+                                <span style="margin-right: 5px; color: #722ed1;">&#x1F4F1;</span>
+                                <span style="font-weight: 500;">应用名称:</span>
+                              </div>
+                              <div>
+                                <span style="background-color: rgba(114, 46, 209, 0.1); padding: 2px 8px; border-radius: 4px; color: #722ed1; display: inline-block; text-align: left;">${appNameValue.trim()}</span>
                               </div>
                             </div>
                           `;

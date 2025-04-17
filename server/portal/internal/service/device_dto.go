@@ -96,6 +96,7 @@ type DeviceResponse struct {
 	NetZone        string    `json:"netZone"`        // 网络区域
 	Group          string    `json:"group"`          // 机器类别
 	AppID          string    `json:"appId"`          // APPID
+	AppName        string    `json:"appName"`        // 应用名称（来自 device_app 表）
 	OsCreateTime   string    `json:"osCreateTime"`   // 操作系统创建时间
 	CPU            float64   `json:"cpu"`            // CPU数量
 	Memory         float64   `json:"memory"`         // 内存大小
@@ -128,6 +129,8 @@ type DeviceResponse struct {
 type deviceQueryResult struct {
 	portal.Device          // Embed the base Device model
 	IsSpecial      bool    `gorm:"column:is_special"`
+	FeatureCount   int     `gorm:"column:feature_count"`
+	AppName        string  `gorm:"column:app_name"`
 	K8sRole        *string `gorm:"column:k8s_role"`
 	K8sClusterID   *int    `gorm:"column:k8s_cluster_id"`
 	K8sClusterName *string `gorm:"column:k8s_cluster_name"`

@@ -14,6 +14,7 @@ export interface Device {
   netZone: string;      // 网络区域
   group: string;        // 机器类别
   appId: string;        // APPID
+  appName?: string;     // 应用名称
   osCreateTime: string; // 操作系统创建时间
   cpu: number;          // CPU数量
   memory: number;       // 内存大小

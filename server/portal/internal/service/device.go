@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jinzhu/now"
 	"gorm.io/gorm"
 )
 
@@ -29,50 +28,9 @@ func NewDeviceService(db *gorm.DB) *DeviceService {
 
 // buildDeviceBaseQuery 构建设备查询的基础查询，包含与 k8s_node 等表的关联
 func (s *DeviceService) buildDeviceBaseQuery(ctx context.Context) *gorm.DB {
-	// 获取今天的开始和结束时间
-	currentTime := time.Now()
-	todayStart := now.New(currentTime).BeginningOfDay()
-	todayEnd := now.New(currentTime).EndOfDay()
-
-	// 构建查询，添加 isSpecial 字段用于标识特殊设备
-	query := s.db.WithContext(ctx).Model(&portal.Device{}).
-		Select("device.*, " +
-			// 添加 isSpecial 字段，当满足以下条件之一时为 true：
-			// 1. 机器用途不为空
-			// 2. 可以关联到 label_feature
-			// 3. 可以关联到 taint_feature
-			// 4. 当 device.group 和 cluster 为空，但可以关联到 device_app 时
-			"CASE WHEN device.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL OR " +
-			"     ((device.`group` = '' OR device.`group` IS NULL) AND (device.cluster = '' OR device.cluster IS NULL) AND da.name IS NOT NULL AND da.name != '') " +
-			"THEN TRUE ELSE FALSE END AS is_special, " +
-			// 添加特性计数字段，用于前端显示
-			"(CASE WHEN device.`group` != '' THEN 1 ELSE 0 END + " +
-			" CASE WHEN lf.id IS NOT NULL THEN 1 ELSE 0 END + " +
-			" CASE WHEN tf.id IS NOT NULL THEN 1 ELSE 0 END + " +
-			" CASE WHEN (device.`group` = '' OR device.`group` IS NULL) AND (device.cluster = '' OR device.cluster IS NULL) AND da.name IS NOT NULL AND da.name != '' THEN 1 ELSE 0 END" +
-			") AS feature_count, " +
-			// 当设备的 cluster 为空时，将 device_app.name 添加到 group 字段中
-			"CASE WHEN device.cluster = '' OR device.cluster IS NULL THEN " +
-			"  CASE WHEN device.`group` = '' OR device.`group` IS NULL THEN da.name " +
-			"  ELSE CONCAT(device.`group`, ';', da.name) END " +
-			"ELSE device.`group` END AS `group`")
-
-	// 默认关联 k8s_node 表，并添加 status != Offline 筛选条件
-	query = query.Joins("LEFT JOIN k8s_node ON LOWER(device.ci_code) = LOWER(k8s_node.nodename) AND (k8s_node.status != 'Offline' OR k8s_node.status IS NULL)")
-
-	// 关联 k8s_node_label 表和 label_feature 表，用于判断是否为特殊设备
-	query = query.Joins("LEFT JOIN k8s_node_label ON k8s_node.id = k8s_node_label.node_id AND k8s_node_label.created_at BETWEEN ? AND ?", todayStart, todayEnd)
-	query = query.Joins("LEFT JOIN label_feature lf ON k8s_node_label.key = lf.key")
-
-	// 关联 k8s_node_taint 表和 taint_feature 表，用于判断是否为特殊设备
-	query = query.Joins("LEFT JOIN k8s_node_taint ON k8s_node.id = k8s_node_taint.node_id AND k8s_node_taint.created_at BETWEEN ? AND ?", todayStart, todayEnd)
-	query = query.Joins("LEFT JOIN taint_feature tf ON k8s_node_taint.key = tf.key")
-
-	// 关联 device_app 表，用于获取设备的来源信息
-	query = query.Joins("LEFT JOIN device_app da ON device.appid = da.app_id")
-
-	// 使用 GROUP BY 确保每个设备只返回一行
-	query = query.Group("device.id")
+	// 使用 DeviceQueryService 的 buildDeviceQuery 方法
+	deviceQueryService := NewDeviceQueryService(s.db)
+	query := deviceQueryService.buildDeviceQuery(ctx)
 
 	return query
 }
@@ -217,6 +175,7 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 			NetZone:        model.NetZone,
 			Group:          model.Group,
 			AppID:          model.AppID,
+			AppName:        model.AppName,
 			OsCreateTime:   model.OsCreateTime,
 			CPU:            model.CPU,
 			Memory:         model.Memory,
@@ -251,11 +210,11 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 }
 
 // GetDevice 获取设备详情
-// 简化实现，不再使用多表连接，只获取设备基本信息
+// 使用基础查询，包含与 k8s_node 等表的关联，以获取 AppName 字段
 func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceResponse, error) {
 	var model portal.Device
-	// 直接查询设备表，不使用多表连接
-	db := s.db.WithContext(ctx).Model(&portal.Device{}).Where("id = ?", id)
+	// 使用基础查询，包含与 k8s_node 等表的关联
+	db := s.buildDeviceBaseQuery(ctx).Where("device.id = ?", id)
 	err := db.First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -279,6 +238,7 @@ func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceRespons
 		NetZone:        model.NetZone,
 		Group:          model.Group,
 		AppID:          model.AppID,
+		AppName:        model.AppName,
 		OsCreateTime:   model.OsCreateTime,
 		CPU:            model.CPU,
 		Memory:         model.Memory,
@@ -297,9 +257,9 @@ func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceRespons
 		DiskCount:      model.DiskCount,
 		DiskDetail:     model.DiskDetail,
 		NetworkSpeed:   model.NetworkSpeed,
-		// 设备详情页不需要特殊标记，设置为默认值
-		IsSpecial:    false,
-		FeatureCount: 0,
+		// 保留特性标记，便于前端显示
+		IsSpecial:    model.IsSpecial,
+		FeatureCount: model.FeatureCount,
 		CreatedAt:    time.Time(model.CreatedAt),
 		UpdatedAt:    time.Time(model.UpdatedAt),
 	}, nil

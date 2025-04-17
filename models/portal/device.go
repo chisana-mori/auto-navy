@@ -39,8 +39,9 @@ type Device struct {
 	NetworkSpeed   string  `gorm:"column:network_speed" json:"networkSpeed"`                       // 网络速度
 
 	// 特性标记，用于前端显示
-	IsSpecial    bool `gorm:"column:is_special" json:"isSpecial"`       // 是否为特殊设备
-	FeatureCount int  `gorm:"column:feature_count" json:"featureCount"` // 特性数量
+	IsSpecial    bool   `gorm:"column:is_special" json:"isSpecial"`       // 是否为特殊设备
+	FeatureCount int    `gorm:"column:feature_count" json:"featureCount"` // 特性数量
+	AppName      string `gorm:"column:app_name" json:"appName"`           // 特性数量
 }
 
 // TableName 指定表名.
