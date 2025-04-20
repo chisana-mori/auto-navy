@@ -168,7 +168,7 @@ func (i *internalF5Info) ToResponse(m *portal.F5Info) *F5InfoResponse {
 
 	// 如果K8s集群关联信息存在，获取集群名称
 	if m.K8sCluster.ID > 0 {
-		resp.K8sClusterName = m.K8sCluster.Name
+		resp.K8sClusterName = m.K8sCluster.ClusterName
 	}
 
 	return resp

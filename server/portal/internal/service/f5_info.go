@@ -76,7 +76,7 @@ func (s *F5InfoService) ListF5Infos(ctx context.Context,
 	}
 	if query.K8sClusterName != emptyString {
 		db = db.Joins("JOIN k8s_cluster ON k8s_cluster.id = f5_info.k8s_cluster_id").
-			Where("k8s_cluster.name LIKE ?", "%"+query.K8sClusterName+"%")
+			Where("k8s_cluster.clustername LIKE ?", "%"+query.K8sClusterName+"%")
 	}
 
 	// Count total records
@@ -177,7 +177,7 @@ func toF5InfoResponse(m *portal.F5Info) *F5InfoResponse {
 
 	// Check if K8sCluster relation is valid (not zero value) and has a valid ID
 	if !reflect.DeepEqual(m.K8sCluster, portal.K8sCluster{}) && m.K8sCluster.ID > 0 {
-		resp.K8sClusterName = m.K8sCluster.Name
+		resp.K8sClusterName = m.K8sCluster.ClusterName
 	}
 	return resp
 }

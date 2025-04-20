@@ -6,7 +6,6 @@ package portal
 // Device 设备信息.
 type Device struct {
 	BaseModel
-	DeviceID       int64   `gorm:"column:device_id;not null" json:"deviceId"`                      // 设备ID
 	CICode         string  `gorm:"column:ci_code;type:varchar(255);index" json:"ciCode"`           // 设备编码
 	IP             string  `gorm:"column:ip;type:varchar(50);index" json:"ip"`                     // IP地址
 	ArchType       string  `gorm:"column:arch_type;type:varchar(50)" json:"archType" query:"like"` // CPU架构

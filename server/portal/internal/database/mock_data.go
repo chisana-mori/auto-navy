@@ -176,25 +176,31 @@ func ClearAndSeedDatabase(db *gorm.DB) error {
 // --- Seeding Functions --- //
 
 func seedK8sClusters(db *gorm.DB) ([]portal.K8sCluster, error) {
-	mockClusters := []portal.K8sCluster{
-		{
-			BaseModel: portal.BaseModel{ID: clusterProdID},
-			Name:      "cluster-prod",
-			Region:    "shanghai",
-			Endpoint:  "https://k8s-prod.example.com:6443",
-			Status:    statusRunning,
-		},
-		{
-			BaseModel: portal.BaseModel{ID: clusterTestID},
-			Name:      "cluster-test",
-			Region:    "beijing",
-			Endpoint:  "https://k8s-test.example.com:6443",
-			Status:    statusRunning,
-		},
+	// Create clusters individually to handle the ID setting
+	prodCluster := portal.K8sCluster{
+		ClusterName: "cluster-prod",
+		Zone:        "shanghai",
+		ApiServer:   "https://k8s-prod.example.com:6443",
+		Status:      statusRunning,
+		ClusterID:   "cluster-prod-001", // 添加唯一的 cluster_id
 	}
-	if err := db.Create(&mockClusters).Error; err != nil {
+	if err := db.Create(&prodCluster).Error; err != nil {
 		return nil, err
 	}
+
+	testCluster := portal.K8sCluster{
+		ClusterName: "cluster-test",
+		Zone:        "beijing",
+		ApiServer:   "https://k8s-test.example.com:6443",
+		Status:      statusRunning,
+		ClusterID:   "cluster-test-001", // 添加唯一的 cluster_id
+	}
+	if err := db.Create(&testCluster).Error; err != nil {
+		return nil, err
+	}
+
+	// Return the created clusters
+	mockClusters := []portal.K8sCluster{prodCluster, testCluster}
 	log.Printf("Inserted %d K8s Clusters", len(mockClusters))
 	return mockClusters, nil
 }
@@ -380,7 +386,6 @@ func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([
 		// Devices matching K8s Nodes
 		{
 			BaseModel: portal.BaseModel{ID: 1001},
-			DeviceID:  1001,
 			CICode:    "prod-node-1", // Match node[0].NodeName
 			IP:        "10.1.1.11",   // Match node[0].HostIP
 			ArchType:  "x86_64", IDC: "shanghai", Room: "A1", Cabinet: "R1", CabinetNO: "U10", InfraType: "physical", NetZone: "prod-net", Group: "compute", Status: statusRunning,
@@ -388,7 +393,6 @@ func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([
 		},
 		{
 			BaseModel: portal.BaseModel{ID: 1002},
-			DeviceID:  1002,
 			CICode:    "prod-node-2", // Match node[1].NodeName
 			IP:        "10.1.1.12",   // Match node[1].HostIP
 			ArchType:  "x86_64", IDC: "shanghai", Room: "A1", Cabinet: "R1", CabinetNO: "U11", InfraType: "physical", NetZone: "prod-net", Group: "gpu-compute", Status: statusRunning,
@@ -396,7 +400,6 @@ func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([
 		},
 		{
 			BaseModel: portal.BaseModel{ID: 1003},
-			DeviceID:  1003,
 			CICode:    "test-node-1", // Match node[2].NodeName
 			IP:        "10.2.1.11",   // Match node[2].HostIP
 			ArchType:  "x86_64", IDC: "beijing", Room: "B1", Cabinet: "R5", CabinetNO: "U05", InfraType: "virtual", NetZone: "test-net", Group: "compute", Status: statusRunning,
@@ -405,7 +408,6 @@ func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([
 		// Devices matching K8s ETCD
 		{
 			BaseModel: portal.BaseModel{ID: 1004},
-			DeviceID:  1004,
 			CICode:    "etcd-host-1",
 			IP:        "10.1.1.21", // Match etcd[0].Instance
 			ArchType:  "x86_64", IDC: "shanghai", Room: "A2", Cabinet: "R2", CabinetNO: "U01", InfraType: "physical", NetZone: "mgmt-net", Group: "etcd", Status: statusRunning,
@@ -413,7 +415,6 @@ func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([
 		},
 		{
 			BaseModel: portal.BaseModel{ID: 1005},
-			DeviceID:  1005,
 			CICode:    "etcd-host-2",
 			IP:        "10.1.1.22", // Match etcd[1].Instance
 			ArchType:  "x86_64", IDC: "shanghai", Room: "A2", Cabinet: "R2", CabinetNO: "U02", InfraType: "physical", NetZone: "mgmt-net", Group: "etcd", Status: statusRunning,
@@ -421,7 +422,6 @@ func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([
 		},
 		{
 			BaseModel: portal.BaseModel{ID: 1006},
-			DeviceID:  1006,
 			CICode:    "etcd-host-3",
 			IP:        "10.2.1.21", // Match etcd[2].Instance
 			ArchType:  "x86_64", IDC: "beijing", Room: "B2", Cabinet: "R6", CabinetNO: "U01", InfraType: "physical", NetZone: "mgmt-net", Group: "etcd", Status: statusRunning,
@@ -430,7 +430,6 @@ func seedDevices(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD) ([
 		// Unrelated Device
 		{
 			BaseModel: portal.BaseModel{ID: 1007},
-			DeviceID:  1007,
 			CICode:    "storage-svr-1",
 			IP:        "10.5.1.100", // Does not match any node or etcd
 			ArchType:  "x86_64", IDC: "shanghai", Room: "C1", Cabinet: "R10", CabinetNO: "U20", InfraType: "physical", NetZone: "storage-net", Group: "storage", Status: statusRunning,
@@ -537,9 +536,10 @@ func seedK8sNodeTaints(db *gorm.DB, nodes []portal.K8sNode, features []portal.Ta
 
 // updateDeviceRelations updates device 'role' and 'cluster' based on matched k8s_node/k8s_etcd.
 func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD, clusters []portal.K8sCluster) error {
+	// Create a map for fast lookup of cluster by ID
 	clusterMap := make(map[int64]portal.K8sCluster)
 	for _, c := range clusters {
-		clusterMap[c.ID] = c
+		clusterMap[int64(c.ID)] = c
 	}
 
 	// Update based on k8s_node
@@ -550,10 +550,11 @@ func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K
 			log.Printf("Warning: Cluster ID %d not found for node %s", node.K8sClusterID, node.NodeName)
 			continue
 		}
+
 		updates := map[string]interface{}{
 			"role":       node.Role,
-			"cluster":    cluster.Name,
-			"cluster_id": int(cluster.ID), // Convert int64 to int for Device model
+			"cluster":    cluster.ClusterName,
+			"cluster_id": int(node.K8sClusterID), // Convert int64 to int for Device model
 		}
 		// Use case-insensitive matching for ci_code and nodename
 		result := db.Model(&portal.Device{}).Where("LOWER(ci_code) = LOWER(?) AND ci_code != ''", node.NodeName).Updates(updates)
@@ -572,9 +573,10 @@ func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K
 			log.Printf("Warning: Cluster ID %d not found for etcd %s", etcd.ClusterID, etcd.Instance)
 			continue
 		}
+
 		updates := map[string]interface{}{
 			"role":       etcd.Role, // Use Role from K8sETCD model
-			"cluster":    cluster.Name,
+			"cluster":    cluster.ClusterName,
 			"cluster_id": etcd.ClusterID,
 		}
 		// Update only if IP matches AND the device wasn't already updated by a k8s_node match
@@ -590,6 +592,17 @@ func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K
 		}
 	}
 
+	// Update any device directly referencing cluster
+	for _, cluster := range clusters {
+		devicesCriteria := "cluster = ? OR cluster_id = ?"
+		if err := db.Model(&portal.Device{}).
+			Where(devicesCriteria, cluster.ClusterName, int(cluster.ID)).
+			Update("cluster_id", int(cluster.ID)).
+			Error; err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -599,7 +612,7 @@ func seedF5Info(db *gorm.DB, clusters []portal.K8sCluster) error {
 	// Basic F5 mock data, link to existing cluster IDs if possible
 	clusterIDMap := make(map[string]int64)
 	for _, c := range clusters {
-		clusterIDMap[c.Region] = c.ID // Example mapping by region
+		clusterIDMap[c.Zone] = c.ID // Example mapping by region
 	}
 
 	prodClusterID := clusterIDMap["shanghai"] // Default to shanghai if needed
