@@ -97,6 +97,16 @@ export interface QueryTemplate {
   name: string;        // 模板名称
   description: string; // 模板描述
   groups: FilterGroup[]; // 筛选组列表
+  createdAt?: string;   // 创建时间
+  updatedAt?: string;   // 更新时间
+}
+
+// 查询模板列表响应
+export interface QueryTemplateListResponse {
+  list: QueryTemplate[];  // 模板列表
+  total: number;          // 总数
+  page: number;           // 当前页码
+  size: number;           // 每页数量
 }
 
 // 设备查询请求

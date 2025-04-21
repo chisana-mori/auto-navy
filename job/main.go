@@ -20,8 +20,16 @@ var (
 	}
 
 	// 全局标志
-	mysqlDSN  string
-	s3Bucket  string
+	// 数据库连接参数
+	mysqlDSN string
+
+	// S3相关参数
+	s3Bucket    string
+	s3AccessKey string
+	s3SecretKey string
+	s3Endpoint  string
+
+	// 其他控制标志
 	sendEmail bool // 是否发送邮件
 )
 
@@ -29,6 +37,9 @@ func init() {
 	// 全局标志
 	rootCmd.PersistentFlags().StringVar(&mysqlDSN, "mysql-dsn", "", "MySQL connection string (default: root:root@tcp(127.0.0.1:3306)/navy?charset=utf8mb4&parseTime=True&loc=Local)")
 	rootCmd.PersistentFlags().StringVar(&s3Bucket, "s3-bucket", "", "S3 bucket name")
+	rootCmd.PersistentFlags().StringVar(&s3AccessKey, "s3-access-key", "", "S3 access key")
+	rootCmd.PersistentFlags().StringVar(&s3SecretKey, "s3-secret-key", "", "S3 secret key")
+	rootCmd.PersistentFlags().StringVar(&s3Endpoint, "s3-endpoint", "", "S3 endpoint URL")
 	rootCmd.PersistentFlags().BoolVar(&sendEmail, "send-email", false, "Send email report after security check")
 
 	// 添加子命令
@@ -63,7 +74,7 @@ var securityCheckCmd = &cobra.Command{
 		}
 
 		// 初始化S3客户端
-		s3Client, err := initS3Client()
+		s3Client, err := initS3Client(s3AccessKey, s3SecretKey, s3Endpoint)
 		if err != nil {
 			return fmt.Errorf("failed to initialize S3 client: %w", err)
 		}

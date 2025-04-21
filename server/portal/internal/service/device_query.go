@@ -5,14 +5,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"navy-ng/models/portal"
 	"strings"
 	"time"
 
 	"github.com/jinzhu/now"
 	"gorm.io/gorm"
-
-	"navy-ng/models/portal"
 )
+
+// snakeToCamel 将下划线命名转换为驼峰命名 (小驼峰)
+func snakeToCamel(s string) string {
+	parts := strings.Split(s, "_")
+	for i := 1; i < len(parts); i++ {
+		// Handle potential empty strings after split (e.g., "__")
+		if len(parts[i]) > 0 {
+			parts[i] = strings.ToUpper(string(parts[i][0])) + parts[i][1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
 
 // SQL 常量定义
 const (
@@ -55,26 +66,35 @@ const (
 	DeviceFieldCabinetNO      = "cabinet_no"
 	DeviceFieldInfraType      = "infra_type"
 	DeviceFieldIsLocalization = "is_localization"
-	DeviceFieldNetZone        = "net_zone"
-	DeviceFieldGroup          = "`group`"
-	DeviceFieldAppID          = "appid"
-	DeviceFieldOsCreateTime   = "os_create_time"
-	DeviceFieldCPU            = "cpu"
-	DeviceFieldMemory         = "memory"
-	DeviceFieldModel          = "model"
-	DeviceFieldKvmIP          = "kvm_ip"
-	DeviceFieldOS             = "os"
-	DeviceFieldCompany        = "company"
-	DeviceFieldOSName         = "os_name"
-	DeviceFieldOSIssue        = "os_issue"
-	DeviceFieldOSKernel       = "os_kernel"
-	DeviceFieldStatus         = "status"
-	DeviceFieldRole           = "role"
-	DeviceFieldCluster        = "cluster"
-	DeviceFieldClusterID      = "cluster_id"
+
+	// 特殊设备判断条件
+	SpecialDeviceCondition = "device.`group` != '' OR " +
+		"lf.id IS NOT NULL OR " +
+		"tf.id IS NOT NULL OR " +
+		"((device.`group` = '' OR device.`group` IS NULL) AND " +
+		"(device.cluster = '' OR device.cluster IS NULL) AND " +
+		"da.name IS NOT NULL AND da.name != '')"
+	DeviceFieldNetZone      = "net_zone"
+	DeviceFieldGroup        = "`group`"
+	DeviceFieldAppID        = "appid"
+	DeviceFieldOsCreateTime = "os_create_time"
+	DeviceFieldCPU          = "cpu"
+	DeviceFieldMemory       = "memory"
+	DeviceFieldModel        = "model"
+	DeviceFieldKvmIP        = "kvm_ip"
+	DeviceFieldOS           = "os"
+	DeviceFieldCompany      = "company"
+	DeviceFieldOSName       = "os_name"
+	DeviceFieldOSIssue      = "os_issue"
+	DeviceFieldOSKernel     = "os_kernel"
+	DeviceFieldStatus       = "status"
+	DeviceFieldRole         = "role"
+	DeviceFieldCluster      = "cluster"
+	DeviceFieldClusterID    = "cluster_id"
 )
 
 // camelToSnake 将驼峰命名法转换为下划线命名法
+// (Ensure this function exists and is correct)
 func camelToSnake(s string) string {
 	// 在大写字母前添加下划线，然后将所有字母转换为小写
 	var result string
@@ -130,18 +150,59 @@ func isValidColumnName(name string) bool {
 
 // applyDeviceFilter 应用设备字段筛选
 func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
-	column, ok := deviceFieldColumnMap[block.Key]
+	// 尝试将 key 转换为 camelCase (如果它是 snake_case)
+	camelKey := block.Key
+	if strings.Contains(camelKey, "_") {
+		camelKey = snakeToCamel(camelKey)
+	}
+
+	// 使用新的 findDeviceFieldDefinition 函数查找字段定义
+	fieldDef, ok := findDeviceFieldDefinition(camelKey)
 	if !ok {
-		// Fallback for keys not in the map: convert camelCase to snake_case
-		// Apply basic validation to the generated column name
-		snakeCase := camelToSnake(block.Key)
-		if !isValidColumnName(snakeCase) {
-			fmt.Printf("Warning: Invalid or potentially unsafe column key detected: %s\n", block.Key)
-			return query // Return unchanged query if the key is suspicious
+		// 如果找不到定义，记录警告并返回
+		fmt.Printf("Warning: Field definition for key '%s' (camelCase '%s') not found. Skipping this filter.\n", block.Key, camelKey)
+		return query
+	}
+	column := fieldDef.DbColumn // 获取数据库列名
+
+	// 特殊处理 is_special 字段，使用与动态计算相同的条件
+	// 使用转换后的 camelKey 进行比较
+	if camelKey == "isSpecial" {
+		// 使用常量定义的特殊设备判断条件
+
+		switch block.ConditionType {
+		case ConditionTypeEqual:
+			// 将字符串值转换为布尔值
+			var boolValue bool
+			if strings.ToLower(block.Value) == "true" || block.Value == "1" {
+				boolValue = true
+			}
+
+			if boolValue {
+				// 查询特殊设备
+				return query.Where(SpecialDeviceCondition)
+			} else {
+				// 查询非特殊设备
+				return query.Where("NOT (" + SpecialDeviceCondition + ")")
+			}
+		case ConditionTypeNotEqual:
+			// 将字符串值转换为布尔值
+			var boolValue bool
+			if strings.ToLower(block.Value) == "true" || block.Value == "1" {
+				boolValue = true
+			}
+
+			if boolValue {
+				// 查询非特殊设备
+				return query.Where("NOT (" + SpecialDeviceCondition + ")")
+			} else {
+				// 查询特殊设备
+				return query.Where(SpecialDeviceCondition)
+			}
+		default:
+			// 对于其他条件类型，使用默认处理
+			return query
 		}
-		column = fmt.Sprintf("device.%s", snakeCase)
-		// Consider logging a warning here that a direct map entry is preferred
-		fmt.Printf("Warning: Column key '%s' not found in deviceFieldColumnMap, using generated '%s'. Consider adding it to the map.\n", block.Key, column)
 	}
 
 	// 直接构建条件，不使用Scopes
@@ -273,58 +334,73 @@ type DeviceFieldValues struct {
 	Values []FilterOption `json:"values"`
 }
 
-// deviceFieldColumnMap maps frontend keys to database column names for the device table
-var deviceFieldColumnMap = map[string]string{
-	"ciCode":          "device.ci_code",
-	"ci_code":         "device.ci_code",
-	"ip":              "device.ip",
-	"archType":        "device.arch_type",
-	"arch_type":       "device.arch_type",
-	"idc":             "device.idc",
-	"room":            "device.room",
-	"cabinet":         "device.cabinet",
-	"cabinetNo":       "device.cabinet_no",
-	"cabinet_no":      "device.cabinet_no",
-	"infraType":       "device.infra_type",
-	"infra_type":      "device.infra_type",
-	"isLocalization":  "device.is_localization",
-	"is_localization": "device.is_localization",
-	"netZone":         "device.net_zone",
-	"net_zone":        "device.net_zone",
-	"group":           "device.`group`",
-	"appId":           "device.appid",
-	"appid":           "device.appid",
-	"osCreateTime":    "device.os_create_time",
-	"os_create_time":  "device.os_create_time",
-	"cpu":             "device.cpu",
-	"memory":          "device.memory",
-	"model":           "device.model",
-	"kvmIp":           "device.kvm_ip",
-	"kvm_ip":          "device.kvm_ip",
-	"os":              "device.os",
-	"company":         "device.company",
-	"osName":          "device.os_name",
-	"os_name":         "device.os_name",
-	"osIssue":         "device.os_issue",
-	"os_issue":        "device.os_issue",
-	"osKernel":        "device.os_kernel",
-	"os_kernel":       "device.os_kernel",
-	"status":          "device.status",
-	"role":            "device.role",
-	"cluster":         "device.cluster",
-	"clusterId":       "device.cluster_id",
-	"cluster_id":      "device.cluster_id",
-	// Add other direct mappings if needed
+// DeviceFieldDefinition defines the properties of a device field for filtering and display.
+type DeviceFieldDefinition struct {
+	CamelKey string // Key used internally and potentially by frontend JS (e.g., "ciCode")
+	Label    string // User-friendly label (e.g., "设备编码")
+	DbColumn string // Full database column name with table alias (e.g., "device.ci_code")
+}
+
+// deviceFieldDefinitions is the single source of truth for device fields.
+var deviceFieldDefinitions = []DeviceFieldDefinition{
+	{CamelKey: "ciCode", Label: "设备编码", DbColumn: "device.ci_code"},
+	{CamelKey: "ip", Label: "IP地址", DbColumn: "device.ip"},
+	{CamelKey: "archType", Label: "CPU架构", DbColumn: "device.arch_type"},
+	{CamelKey: "idc", Label: "IDC", DbColumn: "device.idc"},
+	{CamelKey: "room", Label: "机房", DbColumn: "device.room"},
+	{CamelKey: "cabinet", Label: "机柜", DbColumn: "device.cabinet"},
+	{CamelKey: "cabinetNo", Label: "机柜编号", DbColumn: "device.cabinet_no"},
+	{CamelKey: "infraType", Label: "网络类型", DbColumn: "device.infra_type"},
+	{CamelKey: "isLocalization", Label: "是否国产化", DbColumn: "device.is_localization"},
+	{CamelKey: "netZone", Label: "网络区域", DbColumn: "device.net_zone"},
+	{CamelKey: "group", Label: "机器类别", DbColumn: "device.`group`"}, // Note backticks
+	{CamelKey: "appId", Label: "APPID", DbColumn: "device.appid"},
+	{CamelKey: "osCreateTime", Label: "操作系统创建时间", DbColumn: "device.os_create_time"},
+	{CamelKey: "cpu", Label: "CPU数量", DbColumn: "device.cpu"},
+	{CamelKey: "memory", Label: "内存大小", DbColumn: "device.memory"},
+	{CamelKey: "model", Label: "型号", DbColumn: "device.model"},
+	{CamelKey: "kvmIp", Label: "KVM IP", DbColumn: "device.kvm_ip"},
+	{CamelKey: "os", Label: "操作系统", DbColumn: "device.os"},
+	{CamelKey: "company", Label: "厂商", DbColumn: "device.company"},
+	{CamelKey: "osName", Label: "操作系统名称", DbColumn: "device.os_name"},
+	{CamelKey: "osIssue", Label: "操作系统版本", DbColumn: "device.os_issue"},
+	{CamelKey: "osKernel", Label: "操作系统内核", DbColumn: "device.os_kernel"},
+	{CamelKey: "status", Label: "状态", DbColumn: "device.status"},
+	{CamelKey: "role", Label: "角色", DbColumn: "device.role"},
+	{CamelKey: "cluster", Label: "集群", DbColumn: "device.cluster"},
+	{CamelKey: "clusterId", Label: "集群ID", DbColumn: "device.cluster_id"},
+	{CamelKey: "isSpecial", Label: "特殊设备", DbColumn: "device.is_special"}, // Mapped for consistency
+}
+
+// Helper function to find a field definition by camelCase key
+func findDeviceFieldDefinition(camelKey string) (*DeviceFieldDefinition, bool) {
+	for _, def := range deviceFieldDefinitions {
+		if def.CamelKey == camelKey {
+			return &def, true
+		}
+	}
+	return nil, false
+}
+
+// GetDbColumnForField 根据字段的驼峰键获取数据库列名
+// 返回数据库列名和是否找到的布尔值
+func (s *DeviceQueryService) GetDbColumnForField(camelKey string) (string, bool) {
+	def, found := findDeviceFieldDefinition(camelKey)
+	if !found {
+		return "", false
+	}
+	return def.DbColumn, true
 }
 
 // DeviceQueryService 设备查询服务
 type DeviceQueryService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache *DeviceCache
 }
 
 // NewDeviceQueryService 创建设备查询服务
-func NewDeviceQueryService(db *gorm.DB) *DeviceQueryService {
-	return &DeviceQueryService{db: db}
+func NewDeviceQueryService(db *gorm.DB, cache *DeviceCache) *DeviceQueryService {
+	return &DeviceQueryService{db: db, cache: cache}
 }
 
 // GetFilterOptions 获取筛选选项
@@ -385,38 +461,36 @@ func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]a
 	// 获取设备字段的可选值
 	var deviceFieldValuesList []DeviceFieldValues
 	for _, field := range deviceFields {
+		// Use field.DbColumn directly (e.g., "device.appid", "device.`group`")
+		// Ensure deviceFieldDefinitions has correct quoting (e.g., "device.`group`")
+		dbColumnIdentifier := field.DbColumn
+
 		var values []string
-		var query *gorm.DB
 
-		// 特殊处理 group 字段
-		if field.Value == "group" {
-			query = s.db.WithContext(ctx).Table("device").
-				Select("DISTINCT `group`").
-				Where("`group` IS NOT NULL").
-				Where("`group` != ''")
-		} else {
-			query = s.db.WithContext(ctx).Table("device").
-				Select(fmt.Sprintf("DISTINCT %s", field.Value)).
-				Where(fmt.Sprintf("%s IS NOT NULL", field.Value)).
-				Where(fmt.Sprintf("%s != ''", field.Value))
-		}
+		// Build the query using the full DbColumn identifier
+		query := s.db.WithContext(ctx).Table("device").
+			Select(fmt.Sprintf("DISTINCT %s", dbColumnIdentifier)).
+			Where(fmt.Sprintf("%s IS NOT NULL", dbColumnIdentifier)).
+			Where(fmt.Sprintf("%s != ''", dbColumnIdentifier))
 
-		if err := query.Pluck(field.Value, &values).Error; err != nil {
-			return nil, fmt.Errorf("failed to get device field values for %s: %w", field.Value, err)
+		// Pluck using the full DbColumn identifier
+		if err := query.Order(dbColumnIdentifier).Limit(100).Pluck(dbColumnIdentifier, &values).Error; err != nil {
+			fmt.Printf("Warning: failed to get device field values for %s (column: %s): %v\n", field.Label, dbColumnIdentifier, err)
+			continue
 		}
 
 		if len(values) > 0 {
 			fieldOptions := make([]FilterOption, 0, len(values))
 			for _, value := range values {
 				fieldOptions = append(fieldOptions, FilterOption{
-					ID:    fmt.Sprintf("%s-%s", field.Value, value),
+					ID:    fmt.Sprintf("%s-%s", field.Value, value), // Keep using field.Value (snake_case) for ID consistency if needed
 					Label: value,
 					Value: value,
 				})
 			}
 
 			deviceFieldValuesList = append(deviceFieldValuesList, DeviceFieldValues{
-				Field:  field.Value,
+				Field:  field.Value, // Keep using field.Value (snake_case) for Field consistency if needed
 				Values: fieldOptions,
 			})
 		}
@@ -487,18 +561,29 @@ func (s *DeviceQueryService) GetTaintValues(ctx context.Context, key string) ([]
 
 // GetDeviceFieldValues 获取设备字段值
 func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field string) ([]string, error) {
-	// 检查字段是否存在于映射中
-	column, ok := deviceFieldColumnMap[field]
-	if !ok {
-		// 如果不存在，尝试将驼峰命名转换为下划线命名
-		snakeCase := camelToSnake(field)
-		if !isValidColumnName(snakeCase) {
-			return nil, fmt.Errorf("invalid field name: %s", field)
+	// 尝试从缓存获取
+	if s.cache != nil {
+		if cachedValues, err := s.cache.GetDeviceFieldValues(field); err == nil {
+			return cachedValues, nil
 		}
-		column = fmt.Sprintf("device.%s", snakeCase)
 	}
 
-	// 从列名中提取字段名
+	// 缓存未命中，从数据库查询
+	// 尝试将 field 转换为 camelCase (如果它是 snake_case)
+	camelField := field
+	if strings.Contains(camelField, "_") {
+		camelField = snakeToCamel(camelField)
+	}
+
+	// 使用新的 findDeviceFieldDefinition 函数查找字段定义
+	fieldDef, ok := findDeviceFieldDefinition(camelField)
+	if !ok {
+		// 如果找不到定义，返回错误
+		return nil, fmt.Errorf("invalid or unknown field name: %s", field)
+	}
+	column := fieldDef.DbColumn // 获取数据库列名
+
+	// 从列名中提取字段名 (例如, 从 "device.ci_code" 提取 "ci_code")
 	parts := strings.Split(column, ".")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid column format: %s", column)
@@ -509,7 +594,17 @@ func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field str
 	var values []string
 	var query *gorm.DB
 
-	// 判断是否是 SQL 关键字
+	// 特殊处理布尔类型字段 (使用转换后的 camelField)
+	if camelField == "isSpecial" {
+		// 布尔类型字段只有 true 和 false 两个值
+		// 缓存结果 (即使是硬编码的值也缓存，保持一致性)
+		if s.cache != nil {
+			s.cache.SetDeviceFieldValues(field, []string{"true", "false"}, false) // isLabelField is false
+		}
+		return []string{"true", "false"}, nil
+	}
+
+	// 判断是否是 SQL 关键字 (使用从 column 提取的 dbField)
 	isReservedKeyword := dbField == "`group`" || dbField == "group"
 
 	// 构建查询
@@ -540,6 +635,13 @@ func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field str
 	}
 	if err := query.Limit(100).Pluck(pluckField, &values).Error; err != nil {
 		return nil, fmt.Errorf("failed to get device field values for %s: %w", field, err)
+	}
+
+	// 缓存结果
+	if s.cache != nil {
+		// 判断字段是否来自标签/污点表
+		isLabelField := strings.HasPrefix(field, "label_") || strings.HasPrefix(field, "taint_")
+		s.cache.SetDeviceFieldValues(field, values, isLabelField)
 	}
 
 	return values, nil
@@ -590,18 +692,18 @@ func (s *DeviceQueryService) GetDeviceFeatureDetails(ctx context.Context, ciCode
 			LIMIT 1
 		)
 
-		SELECT 'label' as type, knl.key as key, knl.value as value, '' as effect
+		SELECT 'label' as type, knl.` + "`key`" + ` as ` + "`key`" + `, knl.value as value, '' as effect
 		FROM node_id n
 		JOIN k8s_node_label knl ON n.id = knl.node_id
-		JOIN label_feature lf ON knl.key = lf.key
+		JOIN label_feature lf ON knl.` + "`key`" + ` = lf.` + "`key`" + `
 		WHERE knl.created_at BETWEEN ? AND ?
 
 		UNION ALL
 
-		SELECT 'taint' as type, knt.key as key, knt.value as value, knt.effect as effect
+		SELECT 'taint' as type, knt.` + "`key`" + ` as ` + "`key`" + `, knt.value as value, knt.effect as effect
 		FROM node_id n
 		JOIN k8s_node_taint knt ON n.id = knt.node_id
-		JOIN taint_feature tf ON knt.key = tf.key
+		JOIN taint_feature tf ON knt.` + "`key`" + ` = tf.` + "`key`" + `
 		WHERE knt.created_at BETWEEN ? AND ?
 	`
 
@@ -656,8 +758,7 @@ func (s *DeviceQueryService) buildDeviceQuery(ctx context.Context) *gorm.DB {
 			// 2. 可以关联到 label_feature
 			// 3. 可以关联到 taint_feature
 			// 4. 当 device.group 和 cluster 为空，但可以关联到 device_app 时
-			"CASE WHEN device.`group` != '' OR lf.id IS NOT NULL OR tf.id IS NOT NULL OR " +
-			"     ((device.`group` = '' OR device.`group` IS NULL) AND (device.cluster = '' OR device.cluster IS NULL) AND da.name IS NOT NULL AND da.name != '') " +
+			"CASE WHEN " + SpecialDeviceCondition + " " +
 			"THEN TRUE ELSE FALSE END AS is_special, " +
 			// 添加特性计数字段，用于前端显示
 			"(CASE WHEN device.`group` != '' THEN 1 ELSE 0 END + " +
@@ -830,11 +931,21 @@ func mapDevicesToResponse(devices []portal.Device) []DeviceResponse {
 
 // QueryDevices 查询设备 (Refactored)
 func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryRequest) (*DeviceListResponse, error) {
+	// 生成查询参数的哈希值
+	queryHash := GenerateQueryHash(req)
 
-	// 2. Build the base query with necessary JOINs
+	// 尝试从缓存获取
+	if s.cache != nil {
+		if cachedResponse, err := s.cache.GetDeviceList(queryHash); err == nil {
+			return cachedResponse, nil
+		}
+	}
+
+	// 缓存未命中，从数据库查询
+	// 1. Build the base query with necessary JOINs
 	baseQuery := s.buildDeviceQuery(ctx)
 
-	// 3. Apply filter groups to the query
+	// 2. Apply filter groups to the query
 	filteredQuery := s.applyFilterGroups(baseQuery, req.Groups)
 
 	// 4. Execute count query (using a session to avoid modifying filteredQuery)
@@ -852,13 +963,25 @@ func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryR
 	// 6. Map results to response DTO
 	responses := mapDevicesToResponse(devices)
 
-	// 7. Return the final response
-	return &DeviceListResponse{
+	// 7. 构建响应
+	response := &DeviceListResponse{
 		List:  responses,
 		Total: total,
 		Page:  req.Page, // Use request page/size or adjusted ones from executeListQuery
 		Size:  req.Size,
-	}, nil
+	}
+
+	// 8. 缓存查询结果
+	if s.cache != nil {
+		s.cache.SetDeviceList(queryHash, response)
+
+		// 同时缓存单个设备
+		for _, deviceResp := range responses {
+			s.cache.SetDevice(deviceResp.ID, &deviceResp)
+		}
+	}
+
+	return response, nil
 }
 
 // escapeValue 转义特殊字符
@@ -963,6 +1086,12 @@ func (s *DeviceQueryService) SaveQueryTemplate(ctx context.Context, template *Qu
 		if result.Error != nil {
 			return fmt.Errorf("failed to update template: %w", result.Error)
 		}
+
+		// 清除相关缓存，因为模板可能会影响设备查询结果
+		if s.cache != nil {
+			s.cache.InvalidateDeviceLists()
+		}
+
 		return nil
 	}
 
@@ -974,6 +1103,12 @@ func (s *DeviceQueryService) SaveQueryTemplate(ctx context.Context, template *Qu
 
 	// 更新返回的模板ID
 	template.ID = dbTemplate.ID
+
+	// 清除相关缓存，因为模板可能会影响设备查询结果
+	if s.cache != nil {
+		s.cache.InvalidateDeviceLists()
+	}
+
 	return nil
 }
 
@@ -1002,6 +1137,90 @@ func (s *DeviceQueryService) GetQueryTemplates(ctx context.Context) ([]QueryTemp
 	}
 
 	return templates, nil
+}
+
+// GetQueryTemplatesWithPagination 获取查询模板列表（支持分页）
+func (s *DeviceQueryService) GetQueryTemplatesWithPagination(ctx context.Context, page, size int) (*QueryTemplateListResponse, error) {
+	// 验证分页参数
+	if page <= 0 {
+		page = DefaultPage
+	}
+	if size <= 0 || size > MaxSize {
+		size = DefaultSize
+	}
+
+	// 计算数据库偏移量
+	offset := (page - 1) * size
+
+	// 查询总数
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&portal.QueryTemplate{}).Count(&total).Error; err != nil {
+		return nil, fmt.Errorf("failed to count templates: %w", err)
+	}
+
+	// 从数据库获取分页的模板
+	var dbTemplates []portal.QueryTemplate
+	if err := s.db.WithContext(ctx).
+		Offset(offset).
+		Limit(size).
+		Order("id desc"). // 默认按ID降序排列，可以根据需要修改
+		Find(&dbTemplates).Error; err != nil {
+		return nil, fmt.Errorf("failed to get templates: %w", err)
+	}
+
+	// 转换为服务层模板格式
+	templates := make([]QueryTemplateResponse, len(dbTemplates))
+	for i, dbTemplate := range dbTemplates {
+		var groups []FilterGroup
+		if err := json.Unmarshal([]byte(dbTemplate.Groups), &groups); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal groups for template %d: %w", dbTemplate.ID, err)
+		}
+
+		// 转换为 QueryTemplateResponse 类型
+		templates[i] = QueryTemplateResponse{
+			ID:          dbTemplate.ID,
+			Name:        dbTemplate.Name,
+			Description: dbTemplate.Description,
+			Groups:      convertGroupsToResponse(groups),
+			CreatedAt:   time.Time(dbTemplate.CreatedAt).Format("2006-01-02T15:04:05Z"),
+			UpdatedAt:   time.Time(dbTemplate.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+		}
+	}
+
+	// 构建响应
+	response := &QueryTemplateListResponse{
+		List:  templates,
+		Total: total,
+		Page:  page,
+		Size:  size,
+	}
+
+	return response, nil
+}
+
+// convertGroupsToResponse 将内部的FilterGroup转换为响应对象中的FilterGroupRequest
+func convertGroupsToResponse(groups []FilterGroup) []FilterGroupRequest {
+	result := make([]FilterGroupRequest, len(groups))
+	for i, group := range groups {
+		blocks := make([]FilterBlockRequest, len(group.Blocks))
+		for j, block := range group.Blocks {
+			blocks[j] = FilterBlockRequest{
+				ID:            block.ID,
+				Type:          block.Type,
+				ConditionType: block.ConditionType,
+				Key:           block.Key,
+				Value:         block.Value,
+				Operator:      block.Operator,
+			}
+		}
+
+		result[i] = FilterGroupRequest{
+			ID:       group.ID,
+			Blocks:   blocks,
+			Operator: group.Operator,
+		}
+	}
+	return result
 }
 
 // GetQueryTemplate 获取查询模板
@@ -1049,167 +1268,26 @@ func (s *DeviceQueryService) DeleteQueryTemplate(ctx context.Context, id int64) 
 		return fmt.Errorf("failed to delete template: %w", err)
 	}
 
+	// 清除相关缓存，因为模板可能会影响设备查询结果
+	if s.cache != nil {
+		s.cache.InvalidateDeviceLists()
+	}
+
 	return nil
 }
 
-// GetDeviceFields 获取设备字段列表
+// GetDeviceFields 获取设备字段列表 (动态生成)
 func (s *DeviceQueryService) GetDeviceFields(ctx context.Context) ([]FilterOption, error) {
-	return []FilterOption{
-		{
-			ID:       "ci_code",
-			Label:    "设备编码",
-			Value:    "ci_code",
-			DbColumn: "device.ci_code",
-		},
-		{
-			ID:       "ip",
-			Label:    "IP地址",
-			Value:    "ip",
-			DbColumn: "device.ip",
-		},
-		{
-			ID:       "arch_type",
-			Label:    "CPU架构",
-			Value:    "arch_type",
-			DbColumn: "device.arch_type",
-		},
-		{
-			ID:       "idc",
-			Label:    "IDC",
-			Value:    "idc",
-			DbColumn: "device.idc",
-		},
-		{
-			ID:       "room",
-			Label:    "机房",
-			Value:    "room",
-			DbColumn: "device.room",
-		},
-		{
-			ID:       "cabinet",
-			Label:    "机柜",
-			Value:    "cabinet",
-			DbColumn: "device.cabinet",
-		},
-		{
-			ID:       "cabinet_no",
-			Label:    "机柜编号",
-			Value:    "cabinet_no",
-			DbColumn: "device.cabinet_no",
-		},
-		{
-			ID:       "infra_type",
-			Label:    "网络类型",
-			Value:    "infra_type",
-			DbColumn: "device.infra_type",
-		},
-		{
-			ID:       "is_localization",
-			Label:    "是否国产化",
-			Value:    "is_localization",
-			DbColumn: "device.is_localization",
-		},
-		{
-			ID:       "net_zone",
-			Label:    "网络区域",
-			Value:    "net_zone",
-			DbColumn: "device.net_zone",
-		},
-		{
-			ID:       "group",
-			Label:    "机器类别",
-			Value:    "group",
-			DbColumn: "device.`group`",
-		},
-		{
-			ID:       "appid",
-			Label:    "APPID",
-			Value:    "appid",
-			DbColumn: "device.appid",
-		},
-		{
-			ID:       "os_create_time",
-			Label:    "操作系统创建时间",
-			Value:    "os_create_time",
-			DbColumn: "device.os_create_time",
-		},
-		{
-			ID:       "cpu",
-			Label:    "CPU数量",
-			Value:    "cpu",
-			DbColumn: "device.cpu",
-		},
-		{
-			ID:       "memory",
-			Label:    "内存大小",
-			Value:    "memory",
-			DbColumn: "device.memory",
-		},
-		{
-			ID:       "model",
-			Label:    "型号",
-			Value:    "model",
-			DbColumn: "device.model",
-		},
-		{
-			ID:       "kvm_ip",
-			Label:    "KVM IP",
-			Value:    "kvm_ip",
-			DbColumn: "device.kvm_ip",
-		},
-		{
-			ID:       "os",
-			Label:    "操作系统",
-			Value:    "os",
-			DbColumn: "device.os",
-		},
-		{
-			ID:       "company",
-			Label:    "厂商",
-			Value:    "company",
-			DbColumn: "device.company",
-		},
-		{
-			ID:       "os_name",
-			Label:    "操作系统名称",
-			Value:    "os_name",
-			DbColumn: "device.os_name",
-		},
-		{
-			ID:       "os_issue",
-			Label:    "操作系统版本",
-			Value:    "os_issue",
-			DbColumn: "device.os_issue",
-		},
-		{
-			ID:       "os_kernel",
-			Label:    "操作系统内核",
-			Value:    "os_kernel",
-			DbColumn: "device.os_kernel",
-		},
-		{
-			ID:       "status",
-			Label:    "状态",
-			Value:    "status",
-			DbColumn: "device.status",
-		},
-		{
-			ID:       "role",
-			Label:    "角色",
-			Value:    "role",
-			DbColumn: "device.role",
-		},
-		{
-			ID:       "cluster",
-			Label:    "集群",
-			Value:    "cluster",
-			DbColumn: "device.cluster",
-		},
-		{
-			ID:       "cluster_id",
-			Label:    "集群ID",
-			Value:    "cluster_id",
-			DbColumn: "device.cluster_id",
-		},
-	}, nil
+	options := make([]FilterOption, 0, len(deviceFieldDefinitions))
+	for _, def := range deviceFieldDefinitions {
+		// 使用 snake_case 作为 ID 和 Value，保持与旧代码和前端可能的期望一致
+		snakeCaseKey := camelToSnake(def.CamelKey)
+		options = append(options, FilterOption{
+			ID:       snakeCaseKey,
+			Label:    def.Label,
+			Value:    snakeCaseKey, // Value 也使用 snake_case
+			DbColumn: def.DbColumn,
+		})
+	}
+	return options, nil
 }

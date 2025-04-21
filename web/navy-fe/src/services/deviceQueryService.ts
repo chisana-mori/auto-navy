@@ -3,7 +3,8 @@ import { DeviceListResponse } from '../types/device';
 import {
   FilterOption,
   DeviceQueryRequest,
-  QueryTemplate
+  QueryTemplate,
+  QueryTemplateListResponse
 } from '../types/deviceQuery';
 
 const BASE_URL = '/device-query';
@@ -45,7 +46,8 @@ export async function getFilterOptions(): Promise<Record<string, FilterOption[]>
       { id: 'status', label: '状态', value: 'status' },
       { id: 'role', label: '角色', value: 'role' },
       { id: 'cluster', label: '所属集群', value: 'cluster' },
-      { id: 'cluster_id', label: '集群ID', value: 'cluster_id' }
+      { id: 'cluster_id', label: '集群ID', value: 'cluster_id' },
+      { id: 'is_special', label: '特殊设备', value: 'is_special' }
     ];
   }
 
@@ -164,68 +166,106 @@ export async function saveQueryTemplate(template: QueryTemplate): Promise<any> {
 }
 
 // 获取查询模板列表
-export async function getQueryTemplates(): Promise<QueryTemplate[]> {
+export async function getQueryTemplates(params?: { page?: number; size?: number }): Promise<QueryTemplateListResponse> {
   try {
-    console.log('获取模板列表');
+    console.log('获取模板列表', params);
+    
+    // 构建查询参数
+    const queryParams: Record<string, string | number> = {};
+    if (params?.page) {
+      queryParams.page = params.page;
+    }
+    if (params?.size) {
+      queryParams.size = params.size;
+    }
+    
     const response = await request(`${BASE_URL}/templates`, {
       method: 'GET',
+      params: queryParams,
     });
 
     console.log('模板列表原始响应:', response);
 
-    // 确保每个模板的 groups 属性正确解析
+    // 如果返回的是带分页结构的响应
+    if (response && typeof response === 'object' && 'list' in response) {
+      // 使用类型断言告诉TypeScript这个对象有QueryTemplateListResponse的结构
+      const responseData = response as unknown as Partial<QueryTemplateListResponse>;
+      
+      // 处理模板列表
+      const list = responseData.list || [];
+      const processedTemplates = Array.isArray(list) ? list.map(processTemplate) : [];
+      
+      return {
+        list: processedTemplates,
+        total: typeof responseData.total === 'number' ? responseData.total : 0,
+        page: typeof responseData.page === 'number' ? responseData.page : 1,
+        size: typeof responseData.size === 'number' ? responseData.size : 10
+      };
+    } 
+    
+    // 兼容旧版返回格式（直接返回数组）
     if (Array.isArray(response)) {
-      return response.map(template => {
-        // 如果 groups 是字符串，尝试解析为 JSON
-        if (typeof template.groups === 'string') {
-          try {
-            template.groups = JSON.parse(template.groups);
-          } catch (error) {
-            console.error(`Failed to parse template groups for template ${template.id}:`, error);
-            template.groups = [];
-          }
-        }
-
-        // 如果 groups 不是数组，初始化为空数组
-        if (!Array.isArray(template.groups)) {
-          console.warn(`Template ${template.id} groups is not an array, initializing as empty array`);
-          template.groups = [];
-        }
-
-        // 确保每个组和块都有有效的 ID
-        template.groups = template.groups.map((group: any) => {
-          // 如果组没有 ID，生成一个
-          if (!group.id) {
-            group.id = generateUUID();
-          }
-
-          // 确保 blocks 是数组
-          if (!Array.isArray(group.blocks)) {
-            group.blocks = [];
-          } else {
-            // 处理每个块
-            group.blocks = group.blocks.map((block: any) => {
-              // 如果块没有 ID，生成一个
-              if (!block.id) {
-                block.id = generateUUID();
-              }
-              return block;
-            });
-          }
-          return group;
-        });
-
-        console.log(`Processed template ${template.id}:`, template);
-        return template;
-      });
+      const processedTemplates = response.map(processTemplate);
+      
+      return {
+        list: processedTemplates,
+        total: processedTemplates.length,
+        page: params?.page || 1,
+        size: params?.size || 10
+      };
     }
 
-    console.warn('模板列表响应不是数组');
-    return [];
+    console.warn('模板列表响应格式不符合预期');
+    return { list: [], total: 0, page: 1, size: 10 };
   } catch (error) {
     console.error('获取模板列表失败:', error);
     throw error;
   }
+}
+
+// 处理模板数据，确保格式正确
+function processTemplate(template: any): QueryTemplate {
+  // 如果 groups 是字符串，尝试解析为 JSON
+  if (typeof template.groups === 'string') {
+    try {
+      template.groups = JSON.parse(template.groups);
+    } catch (error) {
+      console.error(`Failed to parse template groups for template ${template.id}:`, error);
+      template.groups = [];
+    }
+  }
+
+  // 如果 groups 不是数组，初始化为空数组
+  if (!Array.isArray(template.groups)) {
+    console.warn(`Template ${template.id} groups is not an array, initializing as empty array`);
+    template.groups = [];
+  }
+
+  // 确保每个组和块都有有效的 ID
+  template.groups = template.groups.map((group: any) => {
+    // 如果组没有 ID，生成一个
+    if (!group.id) {
+      group.id = generateUUID();
+    }
+
+    // 确保 blocks 是数组
+    if (!Array.isArray(group.blocks)) {
+      group.blocks = [];
+    } else {
+      // 处理每个块
+      group.blocks = group.blocks.map((block: any) => {
+        // 如果块没有 ID，生成一个
+        if (!block.id) {
+          block.id = generateUUID();
+        }
+        return block;
+      });
+    }
+    return group;
+  });
+
+  console.log(`Processed template ${template.id}:`, template);
+  return template;
 }
 
 // 获取查询模板

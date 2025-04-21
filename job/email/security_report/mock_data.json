@@ -1,0 +1,114 @@
+{
+  "AbnormalDetails": [
+    {
+      "ClusterName": "集群A",
+      "FailedItems": [
+        {
+          "FixSuggestion": "关闭不必要的端口，配置IP白名单",
+          "ItemName": "未授权访问风险",
+          "ItemValue": "发现8个敏感端口开放"
+        },
+        {
+          "FixSuggestion": "更新密码策略，要求至少12位且包含大小写字母、数字和特殊字符",
+          "ItemName": "密码强度不足",
+          "ItemValue": "管理员密码仅8位，未包含特殊字符"
+        }
+      ],
+      "NodeName": "app-server-01",
+      "NodeType": "应用服务器"
+    },
+    {
+      "ClusterName": "集群B",
+      "FailedItems": [
+        {
+          "FixSuggestion": "限制入站流量仅来自已知IP地址",
+          "ItemName": "防火墙配置不当",
+          "ItemValue": "过于宽松的入站规则"
+        }
+      ],
+      "NodeName": "lb-master-01",
+      "NodeType": "负载均衡器"
+    },
+    {
+      "ClusterName": "集群B",
+      "FailedItems": [
+        {
+          "FixSuggestion": "配置审计日志，并将日志发送到中央日志服务器",
+          "ItemName": "日志审计缺失",
+          "ItemValue": "未启用关键操作审计日志"
+        }
+      ],
+      "NodeName": "app-server-03",
+      "NodeType": "应用服务器"
+    }
+  ],
+  "AbnormalNodes": 3,
+  "AbnormalNodesPercent": "25",
+  "CheckItemFailureSummary": [
+    {
+      "HeatColor": "heat-level-high",
+      "ItemName": "未授权访问风险",
+      "TotalFailures": 3
+    },
+    {
+      "HeatColor": "heat-level-2",
+      "ItemName": "密码强度不足",
+      "TotalFailures": 2
+    },
+    {
+      "HeatColor": "heat-level-1",
+      "ItemName": "防火墙配置不当",
+      "TotalFailures": 1
+    },
+    {
+      "HeatColor": "heat-level-1",
+      "ItemName": "日志审计缺失",
+      "TotalFailures": 1
+    }
+  ],
+  "ClusterHealthSummary": [
+    {
+      "AbnormalNodes": 1,
+      "AnchorID": "集群A",
+      "ClusterName": "集群A",
+      "Exists": true,
+      "FailedChecks": 2,
+      "StatusColor": "red",
+      "TotalNodes": 4
+    },
+    {
+      "AbnormalNodes": 2,
+      "AnchorID": "集群B",
+      "ClusterName": "集群B",
+      "Exists": true,
+      "FailedChecks": 2,
+      "StatusColor": "red",
+      "TotalNodes": 5
+    },
+    {
+      "AbnormalNodes": 0,
+      "AnchorID": "集群C",
+      "ClusterName": "集群C",
+      "Exists": true,
+      "FailedChecks": 0,
+      "StatusColor": "green",
+      "TotalNodes": 3
+    }
+  ],
+  "FailedChecks": 4,
+  "MissingNodes": [
+    {
+      "ClusterName": "集群A",
+      "NodeName": "db-slave-02",
+      "NodeType": "数据库节点"
+    }
+  ],
+  "NormalClusters": 1,
+  "NormalNodes": 9,
+  "NormalNodesPercent": "75",
+  "PassedChecks": 16,
+  "TotalChecks": 20,
+  "TotalClusters": 3,
+  "TotalNodes": 12,
+  "UnscannedClusters": 0
+}

@@ -111,4 +111,6 @@ type QueryTemplateResponse struct {
 type QueryTemplateListResponse struct {
 	List  []QueryTemplateResponse `json:"list" swagger:"description=模板列表"`
 	Total int64                   `json:"total" example:"10" swagger:"description=总数"`
+	Page  int                     `json:"page" example:"1" swagger:"description=当前页码"`
+	Size  int                     `json:"size" example:"10" swagger:"description=每页数量"`
 }

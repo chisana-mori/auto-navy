@@ -147,12 +147,14 @@ const DeviceQuerySimple: React.FC = () => {
   // 获取模板列表
   const fetchTemplates = async () => {
     try {
-      const templates = await getQueryTemplates();
+      const templatesResponse = await getQueryTemplates({ page: 1, size: 100 });
+      
       // 确保每个模板都有有效的ID
-      const validTemplates = templates.map(template => ({
+      const validTemplates = templatesResponse.list.map(template => ({
         ...template,
         id: template.id || 0 // 如果id不存在，设置为0
       }));
+      
       setTemplates(validTemplates);
     } catch (error) {
       console.error('获取查询模板失败:', error);

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"navy-ng/models/portal"
 	"time"
 )
 
@@ -63,9 +62,10 @@ type DeviceListResponse struct {
 // DeviceQuery (Simplified version, if needed for basic keyword search, otherwise remove)
 // Consider removing if ListDevices in device.go is removed.
 type DeviceQuery struct {
-	Page    int    `form:"page" json:"page"`       // 页码
-	Size    int    `form:"size" json:"size"`       // 每页数量
-	Keyword string `form:"keyword" json:"keyword"` // 搜索关键字 (For simple search)
+	Page        int    `form:"page" json:"page"`               // 页码
+	Size        int    `form:"size" json:"size"`               // 每页数量
+	Keyword     string `form:"keyword" json:"keyword"`         // 搜索关键字 (For simple search)
+	OnlySpecial bool   `form:"onlySpecial" json:"onlySpecial"` // 仅显示特殊设备
 }
 
 // DeviceRoleUpdateRequest Request to update device role
@@ -121,18 +121,4 @@ type DeviceResponse struct {
 	DiskDetail   string `json:"diskDetail,omitempty"`   // 磁盘详情 (来自 device 表)
 	NetworkSpeed string `json:"networkSpeed,omitempty"` // 网络速度 (来自 device 表)
 	FeatureCount int    `json:"featureCount,omitempty"` // 特性数量 (用于前端显示)
-}
-
-// deviceQueryResult is an intermediate struct used for scanning results
-// from the complex device query, including the calculated IsSpecial flag
-// and potentially nullable fields from LEFT JOINs.
-type deviceQueryResult struct {
-	portal.Device          // Embed the base Device model
-	IsSpecial      bool    `gorm:"column:is_special"`
-	FeatureCount   int     `gorm:"column:feature_count"`
-	AppName        string  `gorm:"column:app_name"`
-	K8sRole        *string `gorm:"column:k8s_role"`
-	K8sClusterID   *int    `gorm:"column:k8s_cluster_id"`
-	K8sClusterName *string `gorm:"column:k8s_cluster_name"`
-	SourceTable    *string `gorm:"column:source_table"`
 }

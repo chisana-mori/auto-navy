@@ -3,6 +3,7 @@ package routers
 import (
 	"fmt"
 	"navy-ng/pkg/middleware/render"
+	"navy-ng/pkg/redis"
 	"navy-ng/server/portal/internal/service"
 	"net/http"
 	"strconv"
@@ -34,7 +35,22 @@ type DeviceHandler struct {
 
 // NewDeviceHandler creates a new DeviceHandler, instantiating the service internally.
 func NewDeviceHandler(db *gorm.DB) *DeviceHandler {
-	deviceService := service.NewDeviceService(db) // Instantiate service here
+	// 创建 Redis 客户端和键构建器
+	redisHandler := redis.NewRedisHandler("default")
+	keyBuilder := redis.NewKeyBuilder("", service.CacheVersion)
+
+	// 创建设备缓存
+	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)
+
+	// 创建设备查询服务（需要先创建，因为它现在是 DeviceService 的依赖）
+	deviceQueryService := service.NewDeviceQueryService(db, deviceCache)
+
+	// 创建设备服务, 注入 deviceQueryService 和 redisHandler
+	deviceService := service.NewDeviceService(db, deviceCache, deviceQueryService, redisHandler)
+
+	// 初始化缓存服务
+	service.InitCacheService(deviceService, deviceQueryService, deviceCache)
+
 	return &DeviceHandler{service: deviceService}
 }
 
@@ -106,50 +122,6 @@ func (h *DeviceHandler) listDevices(c *gin.Context) {
 	}
 
 	render.Success(c, response)
-}
-
-// @Summary 更新设备角色
-// @Description 根据设备ID更新设备的集群角色
-// @Tags 设备管理
-// @Accept json
-// @Produce json
-// @Param id path int true "设备ID" example:"1"
-// @Param data body service.DeviceRoleUpdateRequest true "角色更新信息"
-// @Success 200 {object} map[string]string "角色更新成功"
-// @Failure 400 {object} service.ErrorResponse "参数错误"
-// @Failure 404 {object} service.ErrorResponse "设备不存在"
-// @Failure 500 {object} service.ErrorResponse "更新角色失败"
-// @Router /device/{id}/role [patch]
-// updateDeviceRole handles PATCH /device/:id/role requests.
-func (h *DeviceHandler) updateDeviceRole(c *gin.Context) {
-	// 解析设备ID
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		render.BadRequest(c, msgInvalidDeviceIDFormat)
-		return
-	}
-
-	// 解析请求体
-	var request service.DeviceRoleUpdateRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		render.BadRequest(c, fmt.Sprintf(msgInvalidRoleUpdateRequest, err.Error()))
-		return
-	}
-
-	// 更新设备角色
-	err = h.service.UpdateDeviceRole(c.Request.Context(), id, &request)
-	if err != nil {
-		if strings.Contains(err.Error(), fmt.Sprintf(service.ErrDeviceNotFoundMsg, id)) {
-			render.NotFound(c, err.Error())
-		} else {
-			render.InternalServerError(c, fmt.Sprintf(msgFailedToUpdateDeviceRole, err.Error()))
-		}
-		return
-	}
-
-	// 返回成功响应
-	render.Success(c, gin.H{"message": msgDeviceRoleUpdated})
 }
 
 // @Summary 导出设备信息

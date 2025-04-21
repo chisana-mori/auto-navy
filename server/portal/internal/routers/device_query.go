@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm" // Added import for gorm
 
 	"navy-ng/pkg/middleware/render"
+	"navy-ng/pkg/redis"
 	"navy-ng/server/portal/internal/service"
 )
 
@@ -32,7 +33,16 @@ type DeviceQueryHandler struct {
 
 // NewDeviceQueryHandler creates a new DeviceQueryHandler, instantiating the service internally.
 func NewDeviceQueryHandler(db *gorm.DB) *DeviceQueryHandler {
-	deviceQueryService := service.NewDeviceQueryService(db) // Instantiate service here
+	// 创建 Redis 客户端和键构建器
+	redisHandler := redis.NewRedisHandler("default")
+	keyBuilder := redis.NewKeyBuilder("", service.CacheVersion)
+
+	// 创建设备缓存
+	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)
+
+	// 创建设备查询服务
+	deviceQueryService := service.NewDeviceQueryService(db, deviceCache)
+
 	return &DeviceQueryHandler{service: deviceQueryService}
 }
 
@@ -235,16 +245,33 @@ func (h *DeviceQueryHandler) saveTemplate(c *gin.Context) {
 }
 
 // @Summary 获取查询模板列表
-// @Description 获取所有设备查询模板列表
+// @Description 获取所有设备查询模板列表，支持分页
 // @Tags 设备查询
 // @Accept json
 // @Produce json
-// @Success 200 {array} service.QueryTemplate "成功获取模板列表"
+// @Param page query int false "页码，默认为1" example:"1"
+// @Param size query int false "每页数量，默认为10，最大为100" example:"10"
+// @Success 200 {object} service.QueryTemplateListResponse "成功获取模板列表"
 // @Failure 500 {object} service.ErrorResponse "获取模板列表失败"
 // @Router /device-query/templates [get]
 // getTemplates handles GET /device-query/templates requests.
 func (h *DeviceQueryHandler) getTemplates(c *gin.Context) {
-	templates, err := h.service.GetQueryTemplates(c.Request.Context())
+	// 获取分页参数
+	pageStr := c.DefaultQuery("page", "1")
+	sizeStr := c.DefaultQuery("size", "10")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		page = service.DefaultPage
+	}
+
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil {
+		size = service.DefaultSize
+	}
+
+	// 使用带分页的方法查询模板
+	templates, err := h.service.GetQueryTemplatesWithPagination(c.Request.Context(), page, size)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetTemplates, err.Error()))
 		return

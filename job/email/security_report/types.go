@@ -24,13 +24,19 @@ type SecurityCheckResult struct {
 // EmailTemplateData 邮件模板数据
 type EmailTemplateData struct {
 	// 汇总信息
-	TotalClusters int
-	TotalNodes    int
-	NormalNodes   int
-	AbnormalNodes int
-	TotalChecks   int
-	PassedChecks  int
-	FailedChecks  int
+	TotalClusters        int
+	NormalClusters       int // 正常集群数
+	UnscannedClusters    int // 未巡检集群数
+	TotalNodes           int
+	NormalNodes          int
+	AbnormalNodes        int
+	MissingNodesCount    int    // 未巡检节点总数
+	NormalNodesPercent   string // 正常节点百分比
+	AbnormalNodesPercent string // 异常节点百分比
+	MissingNodesPercent  string // 未巡检节点百分比
+	TotalChecks          int
+	PassedChecks         int
+	FailedChecks         int
 
 	// 巡检失败节点
 	MissingNodes []MissingNode
@@ -71,6 +77,9 @@ type ClusterHealthInfo struct {
 	ClusterName   string
 	StatusColor   string // e.g., "green", "yellow", "red"
 	AbnormalNodes int
+	NormalNodes   int // 集群中的正常节点数
+	TotalNodes    int // 集群中的节点总数
+	MissingNodes  int // 未巡检节点数量
 	FailedChecks  int
 	Exists        bool   // 集群在S3中是否存在
 	AnchorID      string // 错误详情页面的锚点ID

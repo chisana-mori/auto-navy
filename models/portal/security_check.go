@@ -28,3 +28,11 @@ type SecurityCheckItem struct {
 	UpdatedAt       time.Time `gorm:"not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 	Deleted         string    `gorm:"type:varchar(255);default:''"`
 }
+
+func (SecurityCheck) TableName() string {
+	return "security_check"
+}
+
+func (SecurityCheckItem) TableName() string {
+	return "security_check_item"
+}

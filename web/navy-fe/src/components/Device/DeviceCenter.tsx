@@ -109,11 +109,21 @@ const DeviceCenter: React.FC = () => {
   // 加载模板列表
   const loadTemplates = async () => {
     try {
-      const templatesData = await getQueryTemplates();
-      setTemplates(templatesData);
+      const { current, pageSize } = templatePagination;
+      
+      const templatesResponse = await getQueryTemplates({
+        page: current,
+        size: pageSize
+      });
+      
+      // 更新模板列表和分页信息
+      setTemplates(templatesResponse.list);
       setTemplatePagination(prev => ({
         ...prev,
-        total: templatesData.length
+        total: templatesResponse.total,
+        // 如果返回的页码和每页数量与当前不同，更新它们
+        current: templatesResponse.page || prev.current,
+        pageSize: templatesResponse.size || prev.pageSize
       }));
     } catch (error) {
       console.error('加载模板列表失败:', error);
@@ -137,19 +147,32 @@ const DeviceCenter: React.FC = () => {
   // 处理模板搜索
   const handleTemplateSearch = (value: string) => {
     setTemplateSearchKeyword(value);
+    // 重置到第一页
     setTemplatePagination(prev => ({
       ...prev,
-      current: 1, // 重置到第一页
+      current: 1,
     }));
+    
+    // 延迟加载以确保状态更新
+    setTimeout(() => {
+      loadTemplates();
+    }, 0);
   };
 
   // 处理模板分页变化
   const handleTemplatePageChange = (page: number, pageSize?: number) => {
+    // 更新分页状态
     setTemplatePagination(prev => ({
       ...prev,
       current: page,
       pageSize: pageSize || prev.pageSize,
     }));
+    
+    // 当分页参数变化时，重新加载数据
+    // 使用setTimeout避免状态更新顺序问题
+    setTimeout(() => {
+      loadTemplates();
+    }, 0);
   };
 
   // 加载模板列表和初始设备数据
@@ -877,108 +900,12 @@ const DeviceCenter: React.FC = () => {
       await updateDeviceGroup(editingDevice.id, groupValue);
       message.success('用途更新成功');
 
-      // 更新本地数据 - 根据当前标签页更新设备列表
-      switch (queryState.mode) {
-        case 'simple':
-          setQueryState(prev => ({
-            ...prev,
-            simpleParams: {
-              ...prev.simpleParams,
-              results: {
-                ...prev.simpleParams.results,
-                devices: prev.simpleParams.results.devices.map(device => {
-                  if (device.id === editingDevice.id) {
-                    // 更新用途
-                    const updatedDevice = { ...device, group: groupValue };
-
-                    // 如果用途为空，判断是否还有其他特性
-                    if (!groupValue && (device.featureCount === undefined || device.featureCount <= 1)) {
-                      // 如果用途为空且特性计数小于等于1（只有用途或没有特性）
-                      // 则设置为非特殊设备
-                      updatedDevice.isSpecial = false;
-                      updatedDevice.featureCount = 0;
-                    } else if (groupValue && device.isSpecial !== true) {
-                      // 如果设置了用途但之前不是特殊设备，则标记为特殊设备
-                      updatedDevice.isSpecial = true;
-                      updatedDevice.featureCount = 1;
-                    }
-
-                    return updatedDevice;
-                  }
-                  return device;
-                }),
-              }
-            }
-          }));
-          break;
-        case 'advanced':
-          setQueryState(prev => ({
-            ...prev,
-            advancedParams: {
-              ...prev.advancedParams,
-              results: {
-                ...prev.advancedParams.results,
-                devices: prev.advancedParams.results.devices.map(device => {
-                  if (device.id === editingDevice.id) {
-                    // 更新用途
-                    const updatedDevice = { ...device, group: groupValue };
-
-                    // 如果用途为空，判断是否还有其他特性
-                    if (!groupValue && (device.featureCount === undefined || device.featureCount <= 1)) {
-                      // 如果用途为空且特性计数小于等于1（只有用途或没有特性）
-                      // 则设置为非特殊设备
-                      updatedDevice.isSpecial = false;
-                      updatedDevice.featureCount = 0;
-                    } else if (groupValue && device.isSpecial !== true) {
-                      // 如果设置了用途但之前不是特殊设备，则标记为特殊设备
-                      updatedDevice.isSpecial = true;
-                      updatedDevice.featureCount = 1;
-                    }
-
-                    return updatedDevice;
-                  }
-                  return device;
-                }),
-              }
-            }
-          }));
-          break;
-        case 'template':
-          setQueryState(prev => ({
-            ...prev,
-            templateParams: {
-              ...prev.templateParams,
-              results: {
-                ...prev.templateParams.results,
-                devices: prev.templateParams.results.devices.map(device => {
-                  if (device.id === editingDevice.id) {
-                    // 更新用途
-                    const updatedDevice = { ...device, group: groupValue };
-
-                    // 如果用途为空，判断是否还有其他特性
-                    if (!groupValue && (device.featureCount === undefined || device.featureCount <= 1)) {
-                      // 如果用途为空且特性计数小于等于1（只有用途或没有特性）
-                      // 则设置为非特殊设备
-                      updatedDevice.isSpecial = false;
-                      updatedDevice.featureCount = 0;
-                    } else if (groupValue && device.isSpecial !== true) {
-                      // 如果设置了用途但之前不是特殊设备，则标记为特殊设备
-                      updatedDevice.isSpecial = true;
-                      updatedDevice.featureCount = 1;
-                    }
-
-                    return updatedDevice;
-                  }
-                  return device;
-                }),
-              }
-            }
-          }));
-          break;
-      }
+      // 重新从后端获取数据，确保显示最新的数据
+      console.log('重新从后端获取数据...');
+      executeQuery();
 
       // 如果是新的用途值，添加到选项中
-      if (!groupOptions.includes(groupValue)) {
+      if (groupValue && !groupOptions.includes(groupValue)) {
         setGroupOptions(prev => [...prev, groupValue]);
       }
 
@@ -1139,13 +1066,13 @@ const DeviceCenter: React.FC = () => {
           allowClear
           style={{ width: 300 }}
           value={templateSearchKeyword}
-          onChange={(e) => handleTemplateSearch(e.target.value)}
+          onChange={(e) => setTemplateSearchKeyword(e.target.value)}
           onSearch={handleTemplateSearch}
         />
       </div>
     );
 
-    if (templates.length === 0) {
+    if (templates.length === 0 && templatePagination.total === 0) {
       return (
         <>
           {renderSearchHeader()}
@@ -1179,32 +1106,14 @@ const DeviceCenter: React.FC = () => {
       );
     }
 
-    // 过滤模板
-    const filteredTemplates = filterTemplates(templateSearchKeyword);
-
-    // 计算分页
+    // 直接使用模板列表和分页信息
     const { current, pageSize, total } = templatePagination;
-    const paginatedTemplates = filteredTemplates.slice(
-      (current - 1) * pageSize,
-      current * pageSize
-    );
-
-    // 更新总数
-    if (filteredTemplates.length !== total) {
-      // 使用setTimeout避免在渲染过程中更新状态
-      setTimeout(() => {
-        setTemplatePagination(prev => ({
-          ...prev,
-          total: filteredTemplates.length
-        }));
-      }, 0);
-    }
 
     return (
       <>
         {renderSearchHeader()}
 
-        {filteredTemplates.length === 0 ? (
+        {templates.length === 0 && templateSearchKeyword ? (
           <div className="empty-template-container" style={{ minHeight: '200px' }}>
             <div className="empty-template-icon">
               <FileSearchOutlined />
@@ -1226,7 +1135,7 @@ const DeviceCenter: React.FC = () => {
         ) : (
           <>
             <div className="template-list">
-              {paginatedTemplates.map(template => {
+              {templates.map(template => {
                 // 生成条件组的缩略信息
                 const querySummary = generateQuerySummary(template.groups || [], 200);
 
@@ -1317,7 +1226,7 @@ const DeviceCenter: React.FC = () => {
               <Pagination
                 current={current}
                 pageSize={pageSize}
-                total={filteredTemplates.length}
+                total={total}
                 onChange={handleTemplatePageChange}
                 showSizeChanger
                 pageSizeOptions={['4', '8', '12', '16']}
@@ -1448,7 +1357,7 @@ const DeviceCenter: React.FC = () => {
                 return {
                   style: { backgroundColor: bgColor },
                   onMouseEnter: async (e) => {
-                    // 检查当前鼠标是否在“详情”按钮上或附近
+                    // 检查当前鼠标是否在"详情"按钮上或附近
                     const target = e.target as HTMLElement;
                     const isOnDetailButton = target.tagName === 'BUTTON' ||
                                             target.tagName === 'SPAN' ||
@@ -1459,7 +1368,7 @@ const DeviceCenter: React.FC = () => {
                                          window.location.pathname.includes('/detail') ||
                                          (window.location.pathname.includes('/device/') && window.location.pathname.endsWith('/detail'));
 
-                    // 如果是特殊设备或有应用名称，且不在详情页且不在“详情”按钮上，显示提示框
+                    // 如果是特殊设备或有应用名称，且不在详情页且不在"详情"按钮上，显示提示框
                     if ((record.isSpecial || (record.appName && record.appName.trim() !== '')) && !isDetailPage && !isOnDetailButton) {
                       try {
                         // 创建提示框
@@ -1516,13 +1425,13 @@ const DeviceCenter: React.FC = () => {
                             return;
                           }
 
-                          // 检查当前鼠标是否在“详情”按钮上或附近
+                          // 检查当前鼠标是否在"详情"按钮上或附近
                           const target = moveEvent.target as HTMLElement;
                           const isOnDetailButton = target.tagName === 'BUTTON' ||
                                                   target.tagName === 'SPAN' ||
                                                   target.closest('button') !== null;
 
-                          // 如果鼠标在“详情”按钮上，隐藏提示框
+                          // 如果鼠标在"详情"按钮上，隐藏提示框
                           if (isOnDetailButton && tooltipElement && document.body.contains(tooltipElement)) {
                             tooltipElement.style.display = 'none';
                             return;
