@@ -3,35 +3,35 @@ package portal
 type ResourceType string
 
 const (
-	Total ResourceType = "total"
-	HG    ResourceType = "total_hg"
-	Intel ResourceType = "total_intel"
-	ARM   ResourceType = "total_arm"
+	Total ResourceType = "total" // 总资源
+	HG    ResourceType = "total_hg" // 总海光
+	Intel ResourceType = "total_intel" // 总intel机器
+	ARM   ResourceType = "total_arm" // 总arm
 
-	WithTaint      ResourceType = "total_taint"
-	IntelWithTaint ResourceType = "intel_taint"
-	ArmWithTaint   ResourceType = "arm_taint"
-	HgWithTaint    ResourceType = "hg_taint"
+	WithTaint      ResourceType = "total_taint" //带污点机器
+	IntelWithTaint ResourceType = "intel_taint" // intel污点机器
+	ArmWithTaint   ResourceType = "arm_taint" // arm污点机器
+	HgWithTaint    ResourceType = "hg_taint" // 海光污点机器
 
-	Common      ResourceType = "total_common"
-	IntelCommon ResourceType = "intel_common"
-	ArmCommon   ResourceType = "arm_common"
-	HgCommon    ResourceType = "hg_common"
+	Common      ResourceType = "total_common" // 总通用
+	IntelCommon ResourceType = "intel_common" // intel通用
+	ArmCommon   ResourceType = "arm_common" // arm通用
+	HgCommon    ResourceType = "hg_common" // 海光通用
 
-	GPU         ResourceType = "total_gpu"
-	IntelGPU    ResourceType = "intel_gpu"
-	ArmGPU      ResourceType = "arm_gpu"
-	IntelNonGPU ResourceType = "intel_non_gpu"
+	GPU         ResourceType = "total_gpu" // 总gpu节点
+	IntelGPU    ResourceType = "intel_gpu" // intelGPU节点
+	ArmGPU      ResourceType = "arm_gpu" // armGPU节点
+	IntelNonGPU ResourceType = "intel_non_gpu" // intel且无gpu
 
-	Aplus      ResourceType = "aplus_total"
-	AplusHg    ResourceType = "aplus_hg"
-	AplusIntel ResourceType = "aplus_intel"
-	AplusArm   ResourceType = "aplus_arm"
+	Aplus      ResourceType = "aplus_total" // A+总资源
+	AplusHg    ResourceType = "aplus_hg"  // A+海光
+	AplusIntel ResourceType = "aplus_intel" // A+Intel
+	AplusArm   ResourceType = "aplus_arm" // A+arm
 
-	Dplus      ResourceType = "dplus_total"
-	DplusHg    ResourceType = "dplus_hg"
-	DplusIntel ResourceType = "dplus_intel"
-	DplusArm   ResourceType = "dplus_arm"
+	Dplus      ResourceType = "dplus_total" // D+总资源
+	DplusHg    ResourceType = "dplus_hg" //D+海光
+	DplusIntel ResourceType = "dplus_intel" //D+Intel
+	DplusArm   ResourceType = "dplus_arm" // D+arm
 )
 
 type ResourceSnapshot struct {

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes 集群资源报告 - {{ .ReportDate }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 960px;
+            margin: 20px auto;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+            color: white;
+            padding: 24px 30px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .header-title {
+            font-size: 1.7em;
+            font-weight: 600;
+            margin: 0;
+        }
+        .header-date {
+            font-size: 0.95em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .cluster-section {
+            margin-bottom: 35px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .cluster-header {
+            background-color: #f1f5f9;
+            padding: 15px 20px;
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #1e293b;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cluster-header-info {
+            font-size: 0.8em;
+            font-weight: normal;
+            color: #64748b;
+        }
+        .cluster-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        .summary-item {
+            background-color: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .summary-label {
+            font-size: 0.9em;
+            color: #64748b;
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .summary-value {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .usage-bar-container {
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            height: 10px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .usage-bar {
+            background-color: #4ade80;
+            height: 100%;
+            border-radius: 4px;
+        }
+        .high-usage {
+            background-color: #facc15;
+        }
+        .critical-usage {
+            background-color: #f87171;
+        }
+        .summary-item.warning {
+            background-color: #fef9c3;
+            border: 1px solid #facc15;
+        }
+        .summary-item.critical {
+            background-color: #fee2e2;
+            border: 1px solid #f87171;
+        }
+        .summary-value.warning {
+            color: #854d0e;
+        }
+        .summary-value.critical {
+            color: #991b1b;
+        }
+        .resource-pools {
+            padding: 0 20px 20px;
+        }
+        .resource-pool {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        .resource-pool-header {
+            padding: 12px 15px;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        /* 根据资源类型设置不同的颜色 */
+        .resource-header-total {
+            background-color: #3b82f6; /* 蓝色 - 总资源 */
+        }
+        .resource-header-intel {
+            background-color: #6366f1; /* 靛蓝色 - Intel节点 */
+        }
+        .resource-header-arm {
+            background-color: #10b981; /* 绿色 - ARM节点 */
+        }
+        .resource-header-hg {
+            background-color: #8b5cf6; /* 紫色 - 海光节点 */
+        }
+        .resource-header-taint {
+            background-color: #a855f7; /* 淡紫色 - 污点节点 */
+        }
+        .resource-header-common {
+            background-color: #0ea5e9; /* 天蓝色 - 通用节点 */
+        }
+        .resource-header-gpu {
+            background-color: #f59e0b; /* 橙色 - GPU节点 */
+        }
+        .resource-header-aplus {
+            background-color: #ec4899; /* 粉色 - A+节点 */
+        }
+        .resource-header-dplus {
+            background-color: #f43f5e; /* 红色 - D+节点 */
+        }
+
+        .resource-pool-type {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .node-count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 0 8px;
+            font-size: 0.8em;
+            color: white;
+            height: 24px;
+            margin-left: 8px;
+        }
+        .resource-pool-info {
+            font-size: 0.8em;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: normal;
+        }
+        .resource-usage-stats {
+            margin-top: 8px;
+            display: flex;
+            gap: 12px;
+        }
+        .usage-stat {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 4px 10px;
+            display: flex;
+            align-items: center;
+            font-size: 0.85em;
+        }
+        .usage-stat-icon {
+            margin-right: 6px;
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .usage-stat-label {
+            font-weight: 600;
+            margin-right: 4px;
+        }
+        .usage-stat-value {
+            opacity: 0.9;
+        }
+        .usage-warning {
+            background-color: rgba(245, 158, 11, 0.3);
+        }
+        .usage-critical {
+            background-color: rgba(239, 68, 68, 0.3);
+        }
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            padding: 15px;
+            background-color: white;
+        }
+        .node-type-indicator {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+            padding: 0 15px 15px;
+        }
+        .node-type-badge {
+            background-color: #f1f5f9;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            color: #475569;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .badge-label {
+            font-weight: 600;
+            color: #334155;
+        }
+        .threshold-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8fafc;
+            border-radius: 6px;
+            font-size: 0.85em;
+        }
+        .threshold-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .threshold-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        .threshold-color.normal {
+            background-color: #4ade80;
+        }
+        .threshold-color.warning {
+            background-color: #facc15;
+        }
+        .threshold-color.critical {
+            background-color: #f87171;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            font-size: 0.85em;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+        }
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 0;
+            }
+            .content {
+                padding: 15px;
+            }
+            .header {
+                padding: 15px 20px;
+            }
+            .header-title {
+                font-size: 1.4em;
+            }
+            .cluster-header {
+                font-size: 1.1em;
+                padding: 12px 15px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .cluster-header-info {
+                margin-top: 5px;
+            }
+            .cluster-summary {
+                grid-template-columns: 1fr 1fr;
+                padding: 15px;
+                gap: 10px;
+            }
+            .summary-item {
+                padding: 12px;
+            }
+            .summary-value {
+                font-size: 1.2em;
+            }
+            .resource-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .resource-pool-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .resource-pool-info {
+                margin-top: 5px;
+            }
+        }
+        @media (max-width: 480px) {
+            .cluster-summary {
+                grid-template-columns: 1fr;
+            }
+            .resource-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="header-title">Kubernetes 集群资源报告</h1>
+            <p class="header-date">报告日期: {{ .ReportDate }}</p>
+        </div>
+        <div class="content">
+            {{ if not .Clusters }}
+                <p>今日无可用资源数据。</p>
+            {{ else }}
+                {{ range .Clusters }}
+                <div class="cluster-section">
+                    <div class="cluster-header">
+                        <span>集群: {{ .ClusterName }}</span>
+                        {{ $totalCPURequest := 0.0 }}
+                        {{ $totalMemRequest := 0.0 }}
+                        {{ range .ResourcePools }}
+                            {{ if eq .ResourceType "total" }}
+                                {{ $totalCPURequest = .CPURequest }}
+                                {{ $totalMemRequest = .MemoryRequest }}
+                            {{ end }}
+                        {{ end }}
+                        
+                        {{ $cpuUsagePerc := 0.0 }}
+                        {{ if gt .TotalCPUCapacity 0.0 }}
+                            {{ $cpuUsagePerc = div $totalCPURequest .TotalCPUCapacity | mul 100.0 }}
+                        {{ end }}
+                        
+                        {{ $memUsagePerc := 0.0 }}
+                        {{ if gt .TotalMemoryCapacity 0.0 }}
+                            {{ $memUsagePerc = div $totalMemRequest .TotalMemoryCapacity | mul 100.0 }}
+                        {{ end }}
+                        
+                        <span class="cluster-header-info">{{ .TotalNodes }} 节点 | {{ printf "%.1f" $cpuUsagePerc }}% CPU | {{ printf "%.1f" $memUsagePerc }}% 内存</span>
+                    </div>
+                    <div class="cluster-summary">
+                        <div class="summary-item">
+                            <span class="summary-label">总节点数</span>
+                            <span class="summary-value">{{ .TotalNodes }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">CPU 容量总量 (核)</span>
+                            <span class="summary-value">{{ printf "%.1f" .TotalCPUCapacity }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">内存容量总量 (GiB)</span>
+                            <span class="summary-value">{{ printf "%.1f" .TotalMemoryCapacity }}</span>
+                        </div>
+                        
+                        {{ if gt .TotalCPUCapacity 0.0 }}
+                            <div class="summary-item {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
+                                <span class="summary-label">CPU 使用率</span>
+                                <span class="summary-value {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
+                                    {{ printf "%.1f%%" $cpuUsagePerc }}
+                                </span>
+                                <div class="usage-bar-container">
+                                    <div class="usage-bar {{ if ge $cpuUsagePerc 90.0 }}critical-usage{{ else if ge $cpuUsagePerc 75.0 }}high-usage{{ end }}"
+                                         style="width: {{ if gt $cpuUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $cpuUsagePerc }}{{ end }}">
+                                    </div>
+                                </div>
+                            </div>
+                        {{ end }}
+                        
+                        {{ if gt .TotalMemoryCapacity 0.0 }}
+                            <div class="summary-item {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
+                                <span class="summary-label">内存使用率</span>
+                                <span class="summary-value {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
+                                    {{ printf "%.1f%%" $memUsagePerc }}
+                                </span>
+                                <div class="usage-bar-container">
+                                    <div class="usage-bar {{ if ge $memUsagePerc 90.0 }}critical-usage{{ else if ge $memUsagePerc 75.0 }}high-usage{{ end }}"
+                                         style="width: {{ if gt $memUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $memUsagePerc }}{{ end }}">
+                                    </div>
+                                </div>
+                            </div>
+                        {{ end }}
+                    </div>
+                    
+                    <div class="resource-pools">
+                        {{ range .ResourcePools }}
+                            {{ $headerClass := "resource-header-total" }}
+                            {{ if or (eq .ResourceType "total") }}
+                                {{ $headerClass = "resource-header-total" }}
+                            {{ else if or (eq .ResourceType "total_intel") (eq .ResourceType "intel_common") (eq .ResourceType "intel_gpu") (eq .ResourceType "intel_taint") (eq .ResourceType "intel_non_gpu") (eq .ResourceType "aplus_intel") (eq .ResourceType "dplus_intel") }}
+                                {{ $headerClass = "resource-header-intel" }}
+                            {{ else if or (eq .ResourceType "total_arm") (eq .ResourceType "arm_common") (eq .ResourceType "arm_gpu") (eq .ResourceType "arm_taint") (eq .ResourceType "aplus_arm") (eq .ResourceType "dplus_arm") }}
+                                {{ $headerClass = "resource-header-arm" }}
+                            {{ else if or (eq .ResourceType "total_hg") (eq .ResourceType "hg_common") (eq .ResourceType "hg_taint") (eq .ResourceType "aplus_hg") (eq .ResourceType "dplus_hg") }}
+                                {{ $headerClass = "resource-header-hg" }}
+                            {{ else if or (eq .ResourceType "total_taint") (eq .ResourceType "intel_taint") (eq .ResourceType "arm_taint") (eq .ResourceType "hg_taint") }}
+                                {{ $headerClass = "resource-header-taint" }}
+                            {{ else if or (eq .ResourceType "total_common") (eq .ResourceType "intel_common") (eq .ResourceType "arm_common") (eq .ResourceType "hg_common") }}
+                                {{ $headerClass = "resource-header-common" }}
+                            {{ else if or (eq .ResourceType "total_gpu") (eq .ResourceType "intel_gpu") (eq .ResourceType "arm_gpu") }}
+                                {{ $headerClass = "resource-header-gpu" }}
+                            {{ else if or (eq .ResourceType "aplus_total") (eq .ResourceType "aplus_intel") (eq .ResourceType "aplus_arm") (eq .ResourceType "aplus_hg") }}
+                                {{ $headerClass = "resource-header-aplus" }}
+                            {{ else if or (eq .ResourceType "dplus_total") (eq .ResourceType "dplus_intel") (eq .ResourceType "dplus_arm") (eq .ResourceType "dplus_hg") }}
+                                {{ $headerClass = "resource-header-dplus" }}
+                            {{ end }}
+                            
+                            <div class="resource-pool">
+                                <div class="resource-pool-header {{ $headerClass }}">
+                                    <div class="resource-pool-type">
+                                        <span>{{ .NodeType }}</span>
+                                        <span class="node-count-badge">{{ .Nodes }} 节点</span>
+                                    </div>
+                                    
+                                    {{ $cpuUsagePerc := 0.0 }}
+                                    {{ if gt .CPUCapacity 0.0 }}
+                                        {{ $cpuUsagePerc = div .CPURequest .CPUCapacity | mul 100.0 }}
+                                    {{ end }}
+                                    
+                                    {{ $memUsagePerc := 0.0 }}
+                                    {{ if gt .MemoryCapacity 0.0 }}
+                                        {{ $memUsagePerc = div .MemoryRequest .MemoryCapacity | mul 100.0 }}
+                                    {{ end }}
+                                    
+                                    <div class="resource-usage-stats">
+                                        <div class="usage-stat {{ if ge $cpuUsagePerc 90.0 }}usage-critical{{ else if ge $cpuUsagePerc 75.0 }}usage-warning{{ end }}">
+                                            <span class="usage-stat-icon">📊</span>
+                                            <span class="usage-stat-label">CPU:</span>
+                                            <span class="usage-stat-value">{{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核 ({{ printf "%.1f" $cpuUsagePerc }}%)</span>
+                                        </div>
+                                        <div class="usage-stat {{ if ge $memUsagePerc 90.0 }}usage-critical{{ else if ge $memUsagePerc 75.0 }}usage-warning{{ end }}">
+                                            <span class="usage-stat-icon">💾</span>
+                                            <span class="usage-stat-label">内存:</span>
+                                            <span class="usage-stat-value">{{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB ({{ printf "%.1f" $memUsagePerc }}%)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="resource-grid">
+                                    <div class="summary-item">
+                                        <span class="summary-label">节点数</span>
+                                        <span class="summary-value">{{ .Nodes }}</span>
+                                    </div>
+                                    {{ if gt .CPUCapacity 0.0 }}
+                                        <div class="summary-item {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
+                                            <span class="summary-label">CPU 使用率</span>
+                                            <span class="summary-value {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
+                                                {{ printf "%.1f%%" $cpuUsagePerc }}
+                                            </span>
+                                            <div class="usage-bar-container">
+                                                <div class="usage-bar {{ if ge $cpuUsagePerc 90.0 }}critical-usage{{ else if ge $cpuUsagePerc 75.0 }}high-usage{{ end }}"
+                                                     style="width: {{ if gt $cpuUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $cpuUsagePerc }}{{ end }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {{ end }}
+                                    
+                                    {{ if gt .MemoryCapacity 0.0 }}
+                                        <div class="summary-item {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
+                                            <span class="summary-label">内存使用率</span>
+                                            <span class="summary-value {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
+                                                {{ printf "%.1f%%" $memUsagePerc }}
+                                            </span>
+                                            <div class="usage-bar-container">
+                                                <div class="usage-bar {{ if ge $memUsagePerc 90.0 }}critical-usage{{ else if ge $memUsagePerc 75.0 }}high-usage{{ end }}"
+                                                     style="width: {{ if gt $memUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $memUsagePerc }}{{ end }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {{ end }}
+                                </div>
+                                
+                                <div class="node-type-indicator">
+                                    <div class="node-type-badge">
+                                        <span>物理机:</span>
+                                        <span class="badge-label">{{ .BMCount }}</span>
+                                    </div>
+                                    <div class="node-type-badge">
+                                        <span>虚拟机:</span>
+                                        <span class="badge-label">{{ .VMCount }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        {{ end }}
+                    </div>
+                </div>
+                {{ end }}
+            {{ end }}
+        </div>
+        <div class="threshold-legend">
+            <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 75%)</span></div>
+            <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (75% - 90%)</span></div>
+            <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (> 90%)</span></div>
+        </div>
+        <div class="footer">
+            此邮件为系统自动生成，请勿直接回复。
+        </div>
+    </div>
+</body>
+</html>

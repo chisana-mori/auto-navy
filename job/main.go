@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"navy-ng/job/chore/security_check"
+	"navy-ng/job/email/resource_report" // 新增：导入资源报告包
 	"navy-ng/job/email/security_report"
 )
 
@@ -164,6 +165,44 @@ var (
 	}
 )
 
+// -------- 新增 K8s 资源报告命令 ---------
+var resourceReportCmd = &cobra.Command{
+	Use:   "resource-report",
+	Short: "Send Kubernetes resource report email",
+	Long:  `Generates and sends a daily Kubernetes cluster resource usage report via email.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// 初始化数据库连接
+		db, err := initDB(mysqlDSN)
+		if err != nil {
+			return fmt.Errorf("failed to initialize database: %w", err)
+		}
+
+		// 解析收件人列表
+		recipients := strings.Split(toEmails, ",")
+		if len(recipients) == 0 {
+			return fmt.Errorf("at least one recipient email is required")
+		}
+
+		// 创建并运行资源报告发送器
+		sender := resource_report.NewResourceReportSender(
+			db,
+			smtpHost,
+			smtpPort,
+			smtpUser,
+			smtpPassword,
+			fromEmail,
+			recipients,
+		)
+		if err := sender.Run(cmd.Context()); err != nil {
+			return fmt.Errorf("failed to send resource report: %w", err)
+		}
+
+		return nil
+	},
+}
+
+// ----------------------------------------
+
 func init() {
 	// 将security-check命令添加到chore命令下
 	choreCmd.AddCommand(securityCheckCmd)
@@ -199,6 +238,24 @@ func init() {
 	securityReportCmd.MarkFlagRequired("smtp-password")
 	securityReportCmd.MarkFlagRequired("from")
 	securityReportCmd.MarkFlagRequired("to")
+
+	// --------- 新增 K8s 资源报告相关标志 ---------
+	resourceReportCmd.Flags().StringVar(&smtpHost, "smtp-host", "", "SMTP server host")
+	resourceReportCmd.Flags().IntVar(&smtpPort, "smtp-port", 587, "SMTP server port")
+	resourceReportCmd.Flags().StringVar(&smtpUser, "smtp-user", "", "SMTP username")
+	resourceReportCmd.Flags().StringVar(&smtpPassword, "smtp-password", "", "SMTP password")
+	resourceReportCmd.Flags().StringVar(&fromEmail, "from", "", "Sender email address")
+	resourceReportCmd.Flags().StringVar(&toEmails, "to", "", "Comma-separated list of recipient email addresses")
+
+	// 标记资源报告命令必需的标志
+	resourceReportCmd.MarkFlagRequired("smtp-host")
+	resourceReportCmd.MarkFlagRequired("smtp-user")
+	resourceReportCmd.MarkFlagRequired("smtp-password")
+	resourceReportCmd.MarkFlagRequired("from")
+	resourceReportCmd.MarkFlagRequired("to")
+
+	// 将 resource-report 命令添加到 email 命令下
+	emailCmd.AddCommand(resourceReportCmd)
 }
 
 func main() {
