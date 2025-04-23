@@ -424,7 +424,17 @@ func generatePreview() error {
 
 	// 获取当前目录的绝对路径
 	absPath, _ := filepath.Abs(outputPath)
-	fmt.Printf("预览文件已生成: %s\n", absPath)
+	fmt.Printf("预览HTML文件已生成: %s\n", absPath)
+
+	// 生成Excel预览文件
+	excelPath, err := generateExcelReport(data, reportDate)
+	if err != nil {
+		return fmt.Errorf("生成Excel预览文件失败: %v", err)
+	}
+
+	// 获取Excel文件的绝对路径
+	excelAbsPath, _ := filepath.Abs(excelPath)
+	fmt.Printf("预览Excel文件已生成: %s\n", excelAbsPath)
 
 	return nil
 }
