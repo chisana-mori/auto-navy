@@ -103,8 +103,11 @@
         .high-usage {
             background-color: #facc15;
         }
-        .critical-usage {
+        .danger-usage {
             background-color: #f87171;
+        }
+        .emergency-usage {
+            background-color: #ef4444;
         }
         .summary-item.warning {
             background-color: #fef9c3;
@@ -114,11 +117,18 @@
             background-color: #fee2e2;
             border: 1px solid #f87171;
         }
+        .summary-item.emergency {
+            background-color: #fecaca;
+            border: 1px solid #ef4444;
+        }
         .summary-value.warning {
             color: #854d0e;
         }
         .summary-value.critical {
             color: #991b1b;
+        }
+        .summary-value.emergency {
+            color: #7f1d1d;
         }
         .resource-pools {
             padding: 0 20px 20px;
@@ -224,6 +234,9 @@
         .usage-critical {
             background-color: rgba(239, 68, 68, 0.3);
         }
+        .usage-emergency {
+            background-color: rgba(220, 38, 38, 0.3);
+        }
         .resource-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -281,6 +294,9 @@
         .threshold-color.critical {
             background-color: #f87171;
         }
+        .threshold-color.emergency {
+            background-color: #ef4444;
+        }
         .footer {
             text-align: center;
             margin-top: 30px;
@@ -288,6 +304,31 @@
             font-size: 0.85em;
             color: #94a3b8;
             border-top: 1px solid #e2e8f0;
+        }
+        .note-box {
+            background-color: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px 0;
+            color: #0369a1;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+        .note-box-title {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .warning-alert {
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px 0;
+            color: #991b1b;
+            font-size: 0.95em;
+            line-height: 1.5;
         }
         @media (max-width: 768px) {
             .container {
@@ -354,186 +395,161 @@
             {{ if not .Clusters }}
                 <p>今日无可用资源数据。</p>
             {{ else }}
-                {{ range .Clusters }}
-                <div class="cluster-section">
-                    <div class="cluster-header">
-                        <span>集群: {{ .ClusterName }}</span>
-                        {{ $totalCPURequest := 0.0 }}
-                        {{ $totalMemRequest := 0.0 }}
-                        {{ range .ResourcePools }}
-                            {{ if eq .ResourceType "total" }}
-                                {{ $totalCPURequest = .CPURequest }}
-                                {{ $totalMemRequest = .MemoryRequest }}
-                            {{ end }}
-                        {{ end }}
-                        
-                        {{ $cpuUsagePerc := 0.0 }}
-                        {{ if gt .TotalCPUCapacity 0.0 }}
-                            {{ $cpuUsagePerc = div $totalCPURequest .TotalCPUCapacity | mul 100.0 }}
-                        {{ end }}
-                        
-                        {{ $memUsagePerc := 0.0 }}
-                        {{ if gt .TotalMemoryCapacity 0.0 }}
-                            {{ $memUsagePerc = div $totalMemRequest .TotalMemoryCapacity | mul 100.0 }}
-                        {{ end }}
-                        
-                        <span class="cluster-header-info">{{ .TotalNodes }} 节点 | {{ printf "%.1f" $cpuUsagePerc }}% CPU | {{ printf "%.1f" $memUsagePerc }}% 内存</span>
-                    </div>
-                    <div class="cluster-summary">
-                        <div class="summary-item">
-                            <span class="summary-label">总节点数</span>
-                            <span class="summary-value">{{ .TotalNodes }}</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">CPU 容量总量 (核)</span>
-                            <span class="summary-value">{{ printf "%.1f" .TotalCPUCapacity }}</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">内存容量总量 (GiB)</span>
-                            <span class="summary-value">{{ printf "%.1f" .TotalMemoryCapacity }}</span>
-                        </div>
-                        
-                        {{ if gt .TotalCPUCapacity 0.0 }}
-                            <div class="summary-item {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
-                                <span class="summary-label">CPU 使用率</span>
-                                <span class="summary-value {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
-                                    {{ printf "%.1f%%" $cpuUsagePerc }}
-                                </span>
-                                <div class="usage-bar-container">
-                                    <div class="usage-bar {{ if ge $cpuUsagePerc 90.0 }}critical-usage{{ else if ge $cpuUsagePerc 75.0 }}high-usage{{ end }}"
-                                         style="width: {{ if gt $cpuUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $cpuUsagePerc }}{{ end }}">
-                                    </div>
-                                </div>
-                            </div>
-                        {{ end }}
-                        
-                        {{ if gt .TotalMemoryCapacity 0.0 }}
-                            <div class="summary-item {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
-                                <span class="summary-label">内存使用率</span>
-                                <span class="summary-value {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
-                                    {{ printf "%.1f%%" $memUsagePerc }}
-                                </span>
-                                <div class="usage-bar-container">
-                                    <div class="usage-bar {{ if ge $memUsagePerc 90.0 }}critical-usage{{ else if ge $memUsagePerc 75.0 }}high-usage{{ end }}"
-                                         style="width: {{ if gt $memUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $memUsagePerc }}{{ end }}">
-                                    </div>
-                                </div>
-                            </div>
-                        {{ end }}
-                    </div>
-                    
-                    <div class="resource-pools">
-                        {{ range .ResourcePools }}
-                            {{ $headerClass := "resource-header-total" }}
-                            {{ if or (eq .ResourceType "total") }}
-                                {{ $headerClass = "resource-header-total" }}
-                            {{ else if or (eq .ResourceType "total_intel") (eq .ResourceType "intel_common") (eq .ResourceType "intel_gpu") (eq .ResourceType "intel_taint") (eq .ResourceType "intel_non_gpu") (eq .ResourceType "aplus_intel") (eq .ResourceType "dplus_intel") }}
-                                {{ $headerClass = "resource-header-intel" }}
-                            {{ else if or (eq .ResourceType "total_arm") (eq .ResourceType "arm_common") (eq .ResourceType "arm_gpu") (eq .ResourceType "arm_taint") (eq .ResourceType "aplus_arm") (eq .ResourceType "dplus_arm") }}
-                                {{ $headerClass = "resource-header-arm" }}
-                            {{ else if or (eq .ResourceType "total_hg") (eq .ResourceType "hg_common") (eq .ResourceType "hg_taint") (eq .ResourceType "aplus_hg") (eq .ResourceType "dplus_hg") }}
-                                {{ $headerClass = "resource-header-hg" }}
-                            {{ else if or (eq .ResourceType "total_taint") (eq .ResourceType "intel_taint") (eq .ResourceType "arm_taint") (eq .ResourceType "hg_taint") }}
-                                {{ $headerClass = "resource-header-taint" }}
-                            {{ else if or (eq .ResourceType "total_common") (eq .ResourceType "intel_common") (eq .ResourceType "arm_common") (eq .ResourceType "hg_common") }}
-                                {{ $headerClass = "resource-header-common" }}
-                            {{ else if or (eq .ResourceType "total_gpu") (eq .ResourceType "intel_gpu") (eq .ResourceType "arm_gpu") }}
-                                {{ $headerClass = "resource-header-gpu" }}
-                            {{ else if or (eq .ResourceType "aplus_total") (eq .ResourceType "aplus_intel") (eq .ResourceType "aplus_arm") (eq .ResourceType "aplus_hg") }}
-                                {{ $headerClass = "resource-header-aplus" }}
-                            {{ else if or (eq .ResourceType "dplus_total") (eq .ResourceType "dplus_intel") (eq .ResourceType "dplus_arm") (eq .ResourceType "dplus_hg") }}
-                                {{ $headerClass = "resource-header-dplus" }}
-                            {{ end }}
-                            
-                            <div class="resource-pool">
-                                <div class="resource-pool-header {{ $headerClass }}">
-                                    <div class="resource-pool-type">
-                                        <span>{{ .NodeType }}</span>
-                                        <span class="node-count-badge">{{ .Nodes }} 节点</span>
-                                    </div>
-                                    
-                                    {{ $cpuUsagePerc := 0.0 }}
-                                    {{ if gt .CPUCapacity 0.0 }}
-                                        {{ $cpuUsagePerc = div .CPURequest .CPUCapacity | mul 100.0 }}
-                                    {{ end }}
-                                    
-                                    {{ $memUsagePerc := 0.0 }}
-                                    {{ if gt .MemoryCapacity 0.0 }}
-                                        {{ $memUsagePerc = div .MemoryRequest .MemoryCapacity | mul 100.0 }}
-                                    {{ end }}
-                                    
-                                    <div class="resource-usage-stats">
-                                        <div class="usage-stat {{ if ge $cpuUsagePerc 90.0 }}usage-critical{{ else if ge $cpuUsagePerc 75.0 }}usage-warning{{ end }}">
-                                            <span class="usage-stat-icon">📊</span>
-                                            <span class="usage-stat-label">CPU:</span>
-                                            <span class="usage-stat-value">{{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核 ({{ printf "%.1f" $cpuUsagePerc }}%)</span>
-                                        </div>
-                                        <div class="usage-stat {{ if ge $memUsagePerc 90.0 }}usage-critical{{ else if ge $memUsagePerc 75.0 }}usage-warning{{ end }}">
-                                            <span class="usage-stat-icon">💾</span>
-                                            <span class="usage-stat-label">内存:</span>
-                                            <span class="usage-stat-value">{{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB ({{ printf "%.1f" $memUsagePerc }}%)</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="resource-grid">
-                                    <div class="summary-item">
-                                        <span class="summary-label">节点数</span>
-                                        <span class="summary-value">{{ .Nodes }}</span>
-                                    </div>
-                                    {{ if gt .CPUCapacity 0.0 }}
-                                        <div class="summary-item {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
-                                            <span class="summary-label">CPU 使用率</span>
-                                            <span class="summary-value {{ if ge $cpuUsagePerc 90.0 }}critical{{ else if ge $cpuUsagePerc 75.0 }}warning{{ end }}">
-                                                {{ printf "%.1f%%" $cpuUsagePerc }}
-                                            </span>
-                                            <div class="usage-bar-container">
-                                                <div class="usage-bar {{ if ge $cpuUsagePerc 90.0 }}critical-usage{{ else if ge $cpuUsagePerc 75.0 }}high-usage{{ end }}"
-                                                     style="width: {{ if gt $cpuUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $cpuUsagePerc }}{{ end }}">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {{ end }}
-                                    
-                                    {{ if gt .MemoryCapacity 0.0 }}
-                                        <div class="summary-item {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
-                                            <span class="summary-label">内存使用率</span>
-                                            <span class="summary-value {{ if ge $memUsagePerc 90.0 }}critical{{ else if ge $memUsagePerc 75.0 }}warning{{ end }}">
-                                                {{ printf "%.1f%%" $memUsagePerc }}
-                                            </span>
-                                            <div class="usage-bar-container">
-                                                <div class="usage-bar {{ if ge $memUsagePerc 90.0 }}critical-usage{{ else if ge $memUsagePerc 75.0 }}high-usage{{ end }}"
-                                                     style="width: {{ if gt $memUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $memUsagePerc }}{{ end }}">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {{ end }}
-                                </div>
-                                
-                                <div class="node-type-indicator">
-                                    <div class="node-type-badge">
-                                        <span>物理机:</span>
-                                        <span class="badge-label">{{ .BMCount }}</span>
-                                    </div>
-                                    <div class="node-type-badge">
-                                        <span>虚拟机:</span>
-                                        <span class="badge-label">{{ .VMCount }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        {{ end }}
-                    </div>
+                <div class="note-box">
+                    <span class="note-box-title">📊 报告说明</span>
+                    <p>此报告仅显示资源分配率超过70%的集群与资源池，以便重点关注潜在风险区域。完整数据已附加在邮件中的Excel文件。</p>
+                    <p>资源数据仅计算物理机节点，虚拟机节点仅计算节点数量。</p>
                 </div>
+
+                <div class="threshold-legend">
+                    <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 70%)</span></div>
+                    <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (70% - 75%)</span></div>
+                    <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (75% - 90%)</span></div>
+                    <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 90%)</span></div>
+                </div>
+
+                {{ $hasHighUsage := false }}
+                {{ range .Clusters }}
+                    {{ $clusterHasHighUsage := false }}
+                    {{ $totalCPURequest := 0.0 }}
+                    {{ $totalMemRequest := 0.0 }}
+
+                    {{ range .ResourcePools }}
+                        {{ if eq .ResourceType "total" }}
+                            {{ $totalCPURequest = .CPURequest }}
+                            {{ $totalMemRequest = .MemoryRequest }}
+                        {{ end }}
+                    {{ end }}
+
+                    {{ $cpuUsagePerc := 0.0 }}
+                    {{ if gt .TotalCPUCapacity 0.0 }}
+                        {{ $cpuUsagePerc = div $totalCPURequest .TotalCPUCapacity | mul 100.0 }}
+                    {{ end }}
+
+                    {{ $memUsagePerc := 0.0 }}
+                    {{ if gt .TotalMemoryCapacity 0.0 }}
+                        {{ $memUsagePerc = div $totalMemRequest .TotalMemoryCapacity | mul 100.0 }}
+                    {{ end }}
+
+                    {{ if or (ge $cpuUsagePerc 70.0) (ge $memUsagePerc 70.0) }}
+                        {{ $clusterHasHighUsage = true }}
+                        {{ $hasHighUsage = true }}
+                    {{ end }}
+
+                    {{ if $clusterHasHighUsage }}
+                    <div class="cluster-section">
+                        <div class="cluster-header">
+                            <span>集群: {{ .ClusterName }}</span>
+                        </div>
+
+                        <div class="resource-pools">
+                            {{ range .ResourcePools }}
+                                {{ $headerClass := "resource-header-total" }}
+                                {{ if or (eq .ResourceType "total") }}
+                                    {{ $headerClass = "resource-header-total" }}
+                                {{ else if or (eq .ResourceType "total_intel") (eq .ResourceType "intel_common") (eq .ResourceType "intel_gpu") (eq .ResourceType "intel_taint") (eq .ResourceType "intel_non_gpu") (eq .ResourceType "aplus_intel") (eq .ResourceType "dplus_intel") }}
+                                    {{ $headerClass = "resource-header-intel" }}
+                                {{ else if or (eq .ResourceType "total_arm") (eq .ResourceType "arm_common") (eq .ResourceType "arm_gpu") (eq .ResourceType "arm_taint") (eq .ResourceType "aplus_arm") (eq .ResourceType "dplus_arm") }}
+                                    {{ $headerClass = "resource-header-arm" }}
+                                {{ else if or (eq .ResourceType "total_hg") (eq .ResourceType "hg_common") (eq .ResourceType "hg_taint") (eq .ResourceType "aplus_hg") (eq .ResourceType "dplus_hg") }}
+                                    {{ $headerClass = "resource-header-hg" }}
+                                {{ else if or (eq .ResourceType "total_taint") (eq .ResourceType "intel_taint") (eq .ResourceType "arm_taint") (eq .ResourceType "hg_taint") }}
+                                    {{ $headerClass = "resource-header-taint" }}
+                                {{ else if or (eq .ResourceType "total_common") (eq .ResourceType "intel_common") (eq .ResourceType "arm_common") (eq .ResourceType "hg_common") }}
+                                    {{ $headerClass = "resource-header-common" }}
+                                {{ else if or (eq .ResourceType "total_gpu") (eq .ResourceType "intel_gpu") (eq .ResourceType "arm_gpu") }}
+                                    {{ $headerClass = "resource-header-gpu" }}
+                                {{ else if or (eq .ResourceType "aplus_total") (eq .ResourceType "aplus_intel") (eq .ResourceType "aplus_arm") (eq .ResourceType "aplus_hg") }}
+                                    {{ $headerClass = "resource-header-aplus" }}
+                                {{ else if or (eq .ResourceType "dplus_total") (eq .ResourceType "dplus_intel") (eq .ResourceType "dplus_arm") (eq .ResourceType "dplus_hg") }}
+                                    {{ $headerClass = "resource-header-dplus" }}
+                                {{ end }}
+
+                                {{ $cpuUsagePerc := 0.0 }}
+                                {{ if gt .CPUCapacity 0.0 }}
+                                    {{ $cpuUsagePerc = div .CPURequest .CPUCapacity | mul 100.0 }}
+                                {{ end }}
+
+                                {{ $memUsagePerc := 0.0 }}
+                                {{ if gt .MemoryCapacity 0.0 }}
+                                    {{ $memUsagePerc = div .MemoryRequest .MemoryCapacity | mul 100.0 }}
+                                {{ end }}
+
+                                {{ if or (ge $cpuUsagePerc 70.0) (ge $memUsagePerc 70.0) }}
+                                <div class="resource-pool">
+                                    <div class="resource-pool-header {{ $headerClass }}">
+                                        <div class="resource-pool-type">
+                                            <span>{{ .NodeType }}</span>
+                                            <span class="node-count-badge">{{ .Nodes }} 节点</span>
+                                        </div>
+
+                                    </div>
+                                    <div class="resource-grid">
+                                        <div class="summary-item">
+                                            <span class="summary-label">节点数</span>
+                                            <span class="summary-value">{{ .Nodes }}</span>
+                                        </div>
+                                        {{ if gt .CPUCapacity 0.0 }}
+                                            <div class="summary-item {{ if ge $cpuUsagePerc 90.0 }}emergency{{ else if ge $cpuUsagePerc 75.0 }}critical{{ else if ge $cpuUsagePerc 70.0 }}warning{{ end }}">
+                                                <span class="summary-label">CPU 使用率 ({{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核)</span>
+                                                <span class="summary-value {{ if ge $cpuUsagePerc 90.0 }}emergency{{ else if ge $cpuUsagePerc 75.0 }}critical{{ else if ge $cpuUsagePerc 70.0 }}warning{{ end }}">
+                                                    {{ printf "%.1f%%" $cpuUsagePerc }}
+                                                </span>
+                                                <div class="usage-bar-container">
+                                                    <div class="usage-bar {{ if ge $cpuUsagePerc 90.0 }}emergency-usage{{ else if ge $cpuUsagePerc 75.0 }}danger-usage{{ else if ge $cpuUsagePerc 70.0 }}high-usage{{ end }}"
+                                                         style="width: {{ if gt $cpuUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $cpuUsagePerc }}{{ end }}">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {{ end }}
+
+                                        {{ if gt .MemoryCapacity 0.0 }}
+                                            <div class="summary-item {{ if ge $memUsagePerc 90.0 }}emergency{{ else if ge $memUsagePerc 75.0 }}critical{{ else if ge $memUsagePerc 70.0 }}warning{{ end }}">
+                                                <span class="summary-label">内存使用率 ({{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB)</span>
+                                                <span class="summary-value {{ if ge $memUsagePerc 90.0 }}emergency{{ else if ge $memUsagePerc 75.0 }}critical{{ else if ge $memUsagePerc 70.0 }}warning{{ end }}">
+                                                    {{ printf "%.1f%%" $memUsagePerc }}
+                                                </span>
+                                                <div class="usage-bar-container">
+                                                    <div class="usage-bar {{ if ge $memUsagePerc 90.0 }}emergency-usage{{ else if ge $memUsagePerc 75.0 }}danger-usage{{ else if ge $memUsagePerc 70.0 }}high-usage{{ end }}"
+                                                         style="width: {{ if gt $memUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $memUsagePerc }}{{ end }}">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {{ end }}
+                                    </div>
+
+                                    <div class="node-type-indicator">
+                                        <div class="node-type-badge">
+                                            <span>物理机:</span>
+                                            <span class="badge-label">{{ .BMCount }}</span>
+                                        </div>
+                                        <div class="node-type-badge">
+                                            <span>虚拟机:</span>
+                                            <span class="badge-label">{{ .VMCount }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {{ end }}
+                            {{ end }}
+                        </div>
+                    </div>
+                    {{ end }}
+                {{ end }}
+
+                {{ if not $hasHighUsage }}
+                    <div class="note-box" style="background-color: #f0fff4; border-color: #c6f6d5; color: #2f855a;">
+                        <span class="note-box-title">✅ 资源状态良好</span>
+                        <p>当前所有集群的资源分配率均在正常范围内（低于70%），未发现需要特别关注的情况。完整数据请查看附件中的Excel表格。</p>
+                    </div>
                 {{ end }}
             {{ end }}
         </div>
-        <div class="threshold-legend">
-            <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 75%)</span></div>
-            <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (75% - 90%)</span></div>
-            <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (> 90%)</span></div>
-        </div>
         <div class="footer">
-            此邮件为系统自动生成，请勿直接回复。
+            此邮件为系统自动生成，完整数据请查看附件Excel文件。如有问题请联系运维团队。
         </div>
     </div>
 </body>
 </html>
+
+
+
