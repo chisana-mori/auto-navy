@@ -6,548 +6,1140 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
-	"navy-ng/models/portal"
 	"net/smtp"
-	"path/filepath"
 	"sort"
+	"strconv" // Add strconv import for custom funcs
 	"time"
+
+	"navy-ng/models/portal"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/jinzhu/now"
-	"github.com/xuri/excelize/v2"
-	"go.uber.org/zap"
+	"go.uber.org/zap" // Add zap import
 	"gorm.io/gorm"
 )
 
 //go:embed template.html
 var templateFS embed.FS
 
-// DateFormat defines the standard date format used in the report.
-const DateFormat = "2006-01-02"
-
-// snapshotQueryResult is a struct to hold the necessary fields from the join query
-type snapshotQueryResult struct {
-	portal.ResourceSnapshot        // Embed ResourceSnapshot fields
-	ClusterName             string `gorm:"column:cluster_name"` // Explicitly map the joined cluster name
+// List of general purpose clusters
+var defaultGeneralClusters = []string{
+	"cluster1",
+	"cluster2",
+	"cluster3",
 }
 
-// ClusterResourceSummary holds aggregated resource data for a single cluster.
-type ClusterResourceSummary struct {
-	ClusterName         string
-	TotalNodes          int
-	TotalCPURequest     float64        // in cores
-	TotalMemoryRequest  float64        // in GiB
-	TotalCPUCapacity    float64        // Total CPU capacity in cores
-	TotalMemoryCapacity float64        // Total Memory capacity in GiB
-	ResourcePools       []ResourcePool // 添加ResourcePools字段
-	// Optional fields that may be used by the template but not directly set
-	NodesData []NodeResourceDetail
-}
-
-// ResourcePool 资源池详情
-type ResourcePool struct {
-	ResourceType   string
-	NodeType       string
-	Nodes          int
-	CPUCapacity    float64
-	MemoryCapacity float64
-	CPURequest     float64
-	MemoryRequest  float64
-	BMCount        int
-	VMCount        int
-}
-
-// NodeResourceDetail holds resource data for a single node.
-type NodeResourceDetail struct {
-	NodeName          string
-	CPURequest        float64
-	MemoryRequest     float64
-	CPULimit          float64
-	MemoryLimit       float64
-	CPUUsage          float64
-	MemoryUsage       float64
-	CPUAllocatable    float64
-	MemoryAllocatable float64
-}
-
-// ReportTemplateData structures the fetched data for the HTML template.
-type ReportTemplateData struct {
-	ReportDate string
-	Clusters   []ClusterResourceSummary
-	// Add any other global data needed for the template
-}
-
-// ResourceReportSender handles the generation and sending of Kubernetes resource reports.
-type ResourceReportSender struct {
-	db           *gorm.DB
-	smtpHost     string
-	smtpPort     int
-	smtpUser     string
-	smtpPassword string
-	fromEmail    string
-	toEmails     []string
-	logger       *zap.Logger
-}
-
-// NewResourceReportSender creates a new instance of ResourceReportSender.
-func NewResourceReportSender(db *gorm.DB, smtpHost string, smtpPort int, smtpUser, smtpPassword, fromEmail string, toEmails []string) *ResourceReportSender {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		logger, _ = zap.NewDevelopment() // Fallback to development logger
+// NewResourceReportSender creates a new ResourceReportSender with the given parameters
+func NewResourceReportSender(db *gorm.DB, smtpHost string, smtpPort int, smtpUser, smtpPassword, fromEmail string, toEmails []string, generalClusterList []string, environment string, logger *zap.Logger) *ResourceReportSender { // Add environment and logger parameters
+	// Ensure logger is not nil
+	if logger == nil {
+		// Fallback to a no-op logger if none provided, or handle error
+		logger = zap.NewNop()
+	}
+	// Validate environment parameter
+	if environment != "prd" && environment != "test" {
+		logger.Warn("Invalid environment specified, defaulting to 'prd'", zap.String("environment", environment))
+		environment = "prd" // Default to production if invalid
 	}
 	return &ResourceReportSender{
-		db:           db,
-		smtpHost:     smtpHost,
-		smtpPort:     smtpPort,
-		smtpUser:     smtpUser,
-		smtpPassword: smtpPassword,
-		fromEmail:    fromEmail,
-		toEmails:     toEmails,
-		logger:       logger,
+		DB:              db,
+		SMTPHost:        smtpHost,
+		SMTPPort:        smtpPort,
+		SMTPUsername:    smtpUser,
+		SMTPPassword:    smtpPassword,
+		FromEmail:       fromEmail,
+		ToEmails:        toEmails,
+		generalClusters: generalClusterList,
+		Environment:     environment,
+		Logger:          logger, // Assign logger
 	}
 }
 
-// Run executes the report generation and sending process.
-func (s *ResourceReportSender) Run(ctx context.Context) error {
-	s.logger.Info("Starting Kubernetes resource report generation...")
+// ResourceReportSender handles the generation and delivery of resource usage reports.
+type ResourceReportSender struct {
+	DB              *gorm.DB
+	SMTPHost        string
+	SMTPPort        int
+	SMTPUsername    string
+	SMTPPassword    string
+	FromEmail       string
+	ToEmails        []string
+	CCEmails        []string
+	DryRun          bool
+	TemplatePath    string // Optional custom template path
+	ReportDate      time.Time
+	ClusterFilter   string      // Optional cluster name filter
+	generalClusters []string    // List of general purpose clusters
+	Logger          *zap.Logger // Add Logger field
+	Environment     string      // Environment: "prd" or "test"
+}
 
-	// 1. Fetch data from the database
-	clustersData, err := s.fetchClusterResourceData(ctx)
+// Run executes the resource report email generation and sending process.
+func (s *ResourceReportSender) Run(ctx context.Context) error {
+	s.Logger.Info("Starting resource report generation")
+
+	// Initialize parameters
+	s.initializeParameters()
+
+	// Fetch resource data
+	clusters, stats, err := s.fetchClusterResourceData(ctx)
 	if err != nil {
-		s.logger.Error("Failed to fetch resource data", zap.Error(err))
+		s.Logger.Error("Failed to fetch resource data", zap.Error(err))
 		return fmt.Errorf("failed to fetch resource data: %w", err)
 	}
 
-	if len(clustersData) == 0 {
-		s.logger.Info("No resource data found for today's report.")
-		// Decide if an empty report should be sent or just log and exit
-		// return nil // Example: exit if no data
-	}
+	// Process data for the template
+	templateData := s.prepareTemplateData(clusters, stats)
 
-	// 2. Prepare data for the template
-	reportData := s.prepareTemplateData(clustersData)
-
-	// 3. Generate email content from the template
-	emailBody, err := s.generateEmailContent(reportData)
+	// Generate email content
+	emailContent, err := s.generateEmailContent(templateData)
 	if err != nil {
-		s.logger.Error("Failed to generate email content", zap.Error(err))
+		s.Logger.Error("Failed to generate email content", zap.Error(err))
 		return fmt.Errorf("failed to generate email content: %w", err)
 	}
 
-	// 4. 生成Excel附件
-	location, _ := time.LoadLocation("Asia/Shanghai") // 确保使用正确的时区
-	currentDate := time.Now().In(location).Format(DateFormat)
-	excelFilePath, err := s.generateExcelReport(reportData, currentDate)
-	if err != nil {
-		s.logger.Error("Failed to generate Excel report", zap.Error(err))
-		return fmt.Errorf("failed to generate Excel report: %w", err)
+	// Send email or handle dry run
+	return s.sendEmailOrHandleDryRun(emailContent)
+}
+
+// initializeParameters sets default values for report parameters if not specified.
+func (s *ResourceReportSender) initializeParameters() {
+	// Set default report date to yesterday if not specified
+	if s.ReportDate.IsZero() {
+		s.ReportDate = time.Now().AddDate(0, 0, -1)
 	}
 
-	// 5. Send the email with Excel attachment
-	subject := fmt.Sprintf("每日 Kubernetes 集群资源报告 - %s", currentDate)
+	// Initialize general clusters if not set
+	if len(s.generalClusters) == 0 {
+		s.generalClusters = defaultGeneralClusters
+	}
+}
 
-	attachments := []string{excelFilePath}
-	err = s.sendEmailWithAttachments(subject, emailBody, attachments)
-	if err != nil {
-		s.logger.Error("Failed to send resource report email", zap.Error(err))
-		return fmt.Errorf("failed to send email: %w", err)
+// prepareTemplateData creates a ReportTemplateData structure from cluster data.
+func (s *ResourceReportSender) prepareTemplateData(clusters []ClusterResourceSummary, stats ClusterStats) ReportTemplateData {
+	templateData := ReportTemplateData{
+		ReportDate:  s.ReportDate.Format(DateFormat),
+		Clusters:    clusters,
+		Stats:       stats,
+		Environment: s.Environment, // 设置环境类型
 	}
 
-	s.logger.Info("Kubernetes resource report sent successfully.")
+	// Determine if any clusters have abnormal usage
+	templateData.HasHighUsageClusters = s.detectAbnormalUsageClusters(clusters)
+
+	return templateData
+}
+
+// detectAbnormalUsageClusters checks if any clusters have abnormal resource usage.
+func (s *ResourceReportSender) detectAbnormalUsageClusters(clusters []ClusterResourceSummary) bool {
+	for _, cluster := range clusters {
+		for _, pool := range cluster.ResourcePools {
+			if s.isResourcePoolAbnormal(pool) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// sendEmailOrHandleDryRun sends the email or handles dry run mode.
+func (s *ResourceReportSender) sendEmailOrHandleDryRun(emailContent string) error {
+	if s.DryRun {
+		s.Logger.Info("Dry run mode - email content generated but not sent")
+		return nil
+	}
+
+	// Create the subject line
+	subject := fmt.Sprintf("Kubernetes集群资源使用报告 - %s", s.ReportDate.Format(DateFormat))
+
+	return s.sendEmail(subject, emailContent)
+}
+
+// fetchClusterResourceData retrieves and processes resource usage data from the database.
+func (s *ResourceReportSender) fetchClusterResourceData(ctx context.Context) ([]ClusterResourceSummary, ClusterStats, error) {
+	s.Logger.Info("Fetching resource data",
+		zap.String("reportDate", s.ReportDate.Format(DateFormat)),
+		zap.String("clusterFilter", s.ClusterFilter))
+
+	// Get clusters from database
+	clusters, err := s.fetchClusters(ctx)
+	if err != nil {
+		return nil, ClusterStats{}, err
+	}
+
+	if len(clusters) == 0 {
+		s.Logger.Warn("No matching clusters found", zap.String("filter", s.ClusterFilter))
+		return []ClusterResourceSummary{}, ClusterStats{}, nil
+	}
+
+	// Fetch snapshots for the period
+	allSnapshots, err := s.fetchSnapshots(ctx)
+	if err != nil {
+		return nil, ClusterStats{}, err
+	}
+
+	// Process data into summaries
+	return s.processData(allSnapshots)
+}
+
+// fetchClusters retrieves clusters from the database.
+func (s *ResourceReportSender) fetchClusters(ctx context.Context) ([]portal.K8sCluster, error) {
+	var clusters []portal.K8sCluster
+
+	query := s.DB.WithContext(ctx).Model(&portal.K8sCluster{})
+	if s.ClusterFilter != "" {
+		query = query.Where("name LIKE ?", "%"+s.ClusterFilter+"%")
+	}
+
+	// Only include online clusters with production labels
+	query = query.Where("status <> 'Offline'").
+		Where("created_at <= ?", s.ReportDate)
+
+	if err := query.Find(&clusters).Error; err != nil {
+		s.Logger.Error("Failed to query clusters", zap.Error(err))
+		return nil, fmt.Errorf("failed to query clusters: %w", err)
+	}
+
+	s.Logger.Info("Processing clusters", zap.Int("count", len(clusters)))
+
+	return clusters, nil
+}
+
+// fetchSnapshots retrieves snapshot data for the reporting period.
+func (s *ResourceReportSender) fetchSnapshots(ctx context.Context) ([]snapshotQueryResult, error) {
+	endDate := now.EndOfDay()
+	startDate := s.ReportDate.AddDate(0, 0, -7) // 获取7天前的数据
+
+	s.Logger.Info("Fetching snapshots",
+		zap.Time("startDate", startDate),
+		zap.Time("endDate", endDate))
+
+	var allSnapshots []snapshotQueryResult
+
+	// Join query to get snapshots with their cluster names for the 7-day period
+	query := s.DB.WithContext(ctx).Table("k8s_cluster_resource_snapshot").
+		Select("k8s_cluster_resource_snapshot.*, k8s_clusters.clustername AS cluster_name").
+		Joins("JOIN k8s_clusters ON k8s_cluster_resource_snapshot.cluster_id = k8s_clusters.id").
+		Where("k8s_cluster_resource_snapshot.created_at BETWEEN ? AND ?", startDate, endDate).
+		Where("k8s_clusters.status <> 'Offline'")
+
+	if s.ClusterFilter != "" {
+		query = query.Where("k8s_clusters.name LIKE ?", "%"+s.ClusterFilter+"%")
+	}
+
+	if err := query.Order("k8s_cluster_resource_snapshot.created_at ASC").Find(&allSnapshots).Error; err != nil {
+		s.Logger.Error("Failed to query snapshots", zap.Error(err))
+		return nil, fmt.Errorf("failed to query snapshots: %w", err)
+	}
+
+	s.Logger.Info("Fetched snapshots for period", zap.Int("count", len(allSnapshots)))
+
+	return allSnapshots, nil
+}
+
+// processData processes raw database data into structured summaries.
+func (s *ResourceReportSender) processData(
+	allSnapshots []snapshotQueryResult,
+) ([]ClusterResourceSummary, ClusterStats, error) {
+	// Filter snapshots for the specific report date
+	latestSnapshots := filterSnapshotsForDate(allSnapshots, s.ReportDate)
+
+	s.Logger.Info("Processing snapshots for report date",
+		zap.Int("count", len(latestSnapshots)),
+		zap.String("reportDate", s.ReportDate.Format(DateFormat)))
+
+	// Group snapshots for the report date by cluster
+	clusterSummaries, stats := s.processSnapshotsToSummaries(latestSnapshots)
+
+	// Fetch and process historical data using all snapshots from the 7-day period
+	if err := s.fetchHistoricalData(clusterSummaries, allSnapshots); err != nil {
+		s.Logger.Error("Failed to process historical data", zap.Error(err))
+		// Continue without historical data, but the report might be incomplete
+	}
+
+	return clusterSummaries, stats, nil
+}
+
+// filterSnapshotsForDate filters a list of snapshots to include only those from a specific date.
+func filterSnapshotsForDate(snapshots []snapshotQueryResult, targetDate time.Time) []snapshotQueryResult {
+	var filtered []snapshotQueryResult
+	startOfDay := targetDate.Truncate(24 * time.Hour)
+	endOfDay := startOfDay.Add(24*time.Hour - time.Nanosecond)
+
+	for _, snap := range snapshots {
+		snapTime := time.Time(snap.CreatedAt)
+		if !snapTime.Before(startOfDay) && !snapTime.After(endOfDay) {
+			filtered = append(filtered, snap)
+		}
+	}
+	return filtered
+}
+
+// fetchHistoricalData processes 7-day historical snapshot data for each cluster summary.
+// It now accepts the full list of snapshots fetched for the period.
+func (s *ResourceReportSender) fetchHistoricalData(summaries []ClusterResourceSummary, historicalSnapshots []snapshotQueryResult) error {
+	s.Logger.Info("Processing historical data", zap.Int("snapshotCount", len(historicalSnapshots)))
+
+	// Group snapshots by ClusterName and then by Date
+	snapshotsByClusterDate := s.groupSnapshotsByClusterAndDate(historicalSnapshots)
+
+	// Iterate through summaries and populate history
+	s.populateHistoricalData(summaries, snapshotsByClusterDate)
+
 	return nil
 }
 
-// fetchClusterResourceData retrieves resource snapshot data for all clusters, joining with k8s_cluster to get names.
-func (s *ResourceReportSender) fetchClusterResourceData(ctx context.Context) ([]ClusterResourceSummary, error) {
-	s.logger.Info("Fetching resource data from k8s_cluster_resource_snapshot joined with k8s_clusters...")
-	var queryResults []snapshotQueryResult
-	todayStart := now.BeginningOfDay()
+// groupSnapshotsByClusterAndDate groups snapshots by cluster name and date.
+func (s *ResourceReportSender) groupSnapshotsByClusterAndDate(snapshots []snapshotQueryResult) map[string]map[string]snapshotQueryResult {
+	result := make(map[string]map[string]snapshotQueryResult)
 
-	dbQuery := s.db.WithContext(ctx).Model(&portal.ResourceSnapshot{}).
-		Select("k8s_cluster_resource_snapshots.*, k8s_clusters.name as cluster_name").
-		Joins("JOIN k8s_clusters ON k8s_clusters.id = k8s_cluster_resource_snapshots.cluster_id").
-		Where("k8s_cluster_resource_snapshots.created_at >= ?", todayStart).
-		Order("k8s_clusters.name asc, k8s_cluster_resource_snapshots.created_at desc")
+	for _, snap := range snapshots {
+		snapTime := time.Time(snap.CreatedAt)
+		dateStr := snapTime.Format(DateFormat) // Use YYYY-MM-DD format as the key
 
-	if err := dbQuery.Find(&queryResults).Error; err != nil {
-		return nil, fmt.Errorf("failed to query resource snapshots with cluster names: %w", err)
+		if _, ok := result[snap.ClusterName]; !ok {
+			result[snap.ClusterName] = make(map[string]snapshotQueryResult)
+		}
+
+		// If we already have a snapshot for this cluster on this date, keep the later one
+		if existingSnap, ok := result[snap.ClusterName][dateStr]; ok {
+			if snapTime.After(time.Time(existingSnap.CreatedAt)) {
+				result[snap.ClusterName][dateStr] = snap
+			}
+		} else {
+			result[snap.ClusterName][dateStr] = snap
+		}
 	}
 
-	// Process snapshots into summaries
-	processedData := s.processSnapshotsToSummaries(queryResults)
-	return processedData, nil
+	return result
 }
 
-// processSnapshotsToSummaries aggregates raw snapshot data (including joined cluster name) into summaries for the template.
-func (s *ResourceReportSender) processSnapshotsToSummaries(queryResults []snapshotQueryResult) []ClusterResourceSummary {
+// populateHistoricalData fills in historical data for each cluster and resource pool.
+func (s *ResourceReportSender) populateHistoricalData(summaries []ClusterResourceSummary, snapshotsByClusterDate map[string]map[string]snapshotQueryResult) {
+	reportDate := s.ReportDate.Truncate(24 * time.Hour) // Ensure we compare dates correctly
+
+	for i := range summaries {
+		clusterName := summaries[i].ClusterName
+		dailySnapshots, clusterFound := snapshotsByClusterDate[clusterName]
+
+		for j := range summaries[i].ResourcePools {
+			// Initialize history arrays (size 7 for 7 days)
+			summaries[i].ResourcePools[j].CPUHistory = make([]float64, 7)
+			summaries[i].ResourcePools[j].MemoryHistory = make([]float64, 7)
+
+			// Calculate usage for each day in the 7-day period
+			s.calculateDailyUsageForPool(
+				&summaries[i].ResourcePools[j],
+				dailySnapshots,
+				clusterFound,
+				reportDate,
+			)
+		}
+	}
+}
+
+// calculateDailyUsageForPool computes daily CPU and memory usage for a resource pool.
+func (s *ResourceReportSender) calculateDailyUsageForPool(
+	pool *ResourcePool,
+	dailySnapshots map[string]snapshotQueryResult,
+	clusterFound bool,
+	reportDate time.Time,
+) {
+	for dayIndex := 0; dayIndex < 7; dayIndex++ {
+		// Calculate the date for the current history index
+		currentDate := reportDate.AddDate(0, 0, -(6 - dayIndex)) // dayIndex 0 -> -6 days, dayIndex 6 -> 0 days
+		currentDateStr := currentDate.Format(DateFormat)
+
+		cpuUsage := 0.0
+		memUsage := 0.0
+
+		if clusterFound {
+			if snap, dateFound := dailySnapshots[currentDateStr]; dateFound {
+				// Calculate usage based on the snapshot for this day
+				cpuUsage = s.calculateCpuUsageFromSnapshot(snap)
+				memUsage = s.calculateMemoryUsageFromSnapshot(snap)
+			}
+		}
+
+		pool.CPUHistory[dayIndex] = cpuUsage
+		pool.MemoryHistory[dayIndex] = memUsage
+	}
+}
+
+// calculateCpuUsageFromSnapshot calculates CPU usage percentage from a snapshot.
+func (s *ResourceReportSender) calculateCpuUsageFromSnapshot(snap snapshotQueryResult) float64 {
+	if snap.CpuCapacity > 0 {
+		return (snap.CpuRequest / snap.CpuCapacity) * 100
+	}
+	return 0.0
+}
+
+// calculateMemoryUsageFromSnapshot calculates memory usage percentage from a snapshot.
+func (s *ResourceReportSender) calculateMemoryUsageFromSnapshot(snap snapshotQueryResult) float64 {
+	if snap.MemoryCapacity > 0 {
+		// Convert MemoryCapacity and MemRequest to the same unit (GiB) before calculating
+		memCapacityGiB := float64(snap.MemoryCapacity) / (1024 * 1024 * 1024)
+		memRequestGiB := float64(snap.MemRequest) / (1024 * 1024 * 1024)
+		if memCapacityGiB > 0 {
+			return (memRequestGiB / memCapacityGiB) * 100
+		}
+	}
+	return 0.0
+}
+
+// processSnapshotsToSummaries converts raw snapshot data into structured summaries for each cluster.
+func (s *ResourceReportSender) processSnapshotsToSummaries(
+	snapshots []snapshotQueryResult,
+) ([]ClusterResourceSummary, ClusterStats) {
+	// Get the latest snapshot for each cluster
+	latestSnapshotsMap := s.findLatestSnapshotsPerCluster(snapshots)
+
+	// Process snapshots into cluster summaries
+	clusterMap := s.buildClusterSummariesFromSnapshots(latestSnapshotsMap)
+
+	// Calculate usage percentages for all summaries
+	s.calculateUsagePercentages(clusterMap)
+
+	// Convert the map to a sorted slice
+	clusterSummaries := s.convertToSortedSummaries(clusterMap)
+
+	// Calculate global statistics
+	stats := s.calculateClusterStats(clusterSummaries)
+
+	return clusterSummaries, stats
+}
+
+// findLatestSnapshotsPerCluster identifies the most recent snapshot for each cluster.
+func (s *ResourceReportSender) findLatestSnapshotsPerCluster(snapshots []snapshotQueryResult) map[string][]snapshotQueryResult {
+	latestSnapshotsMap := make(map[string][]snapshotQueryResult)
+
+	beginOfToday := now.BeginningOfDay()
+	for _, snap := range snapshots {
+		snapTime := time.Time(snap.CreatedAt)
+		if _, ok := latestSnapshotsMap[snap.ClusterName]; ok {
+			if snapTime.After(beginOfToday) {
+				latestSnapshotsMap[snap.ClusterName] = append(latestSnapshotsMap[snap.ClusterName], snap)
+			}
+		} else {
+			latestSnapshotsMap[snap.ClusterName] = []snapshotQueryResult{snap}
+		}
+	}
+
+	return latestSnapshotsMap
+}
+
+// buildClusterSummariesFromSnapshots creates cluster summaries from latest snapshots.
+func (s *ResourceReportSender) buildClusterSummariesFromSnapshots(latestSnapshotsMap map[string][]snapshotQueryResult) map[string]*ClusterResourceSummary {
 	clusterMap := make(map[string]*ClusterResourceSummary)
 
-	// Use a map to track the latest snapshot timestamp for each cluster to avoid double counting
-	latestSnapshots := make(map[string]time.Time)
-
-	// 修改这部分代码，模拟添加资源池数据
-	for _, snap := range queryResults {
-		// Convert NavyTime to time.Time for comparison
-		snapTime := time.Time(snap.CreatedAt)
-
-		// Keep track of the latest snapshot per cluster if multiple exist for the day
-		if latestTime, ok := latestSnapshots[snap.ClusterName]; ok {
-			if snapTime.Before(latestTime) {
-				continue // Skip older snapshots for the same cluster if we already processed a newer one
+	for _, records := range latestSnapshotsMap {
+		for _, snap := range records {
+			if _, ok := clusterMap[snap.ClusterName]; !ok {
+				// Initialize a new cluster summary
+				clusterMap[snap.ClusterName] = &ClusterResourceSummary{
+					ClusterName:   snap.ClusterName,
+					ResourcePools: []ResourcePool{},
+				}
 			}
-		}
-		latestSnapshots[snap.ClusterName] = snapTime
 
-		if _, ok := clusterMap[snap.ClusterName]; !ok {
-			clusterMap[snap.ClusterName] = &ClusterResourceSummary{
-				ClusterName:   snap.ClusterName, // Use the name from the JOIN
-				ResourcePools: []ResourcePool{}, // 初始化资源池数组
-			}
+			summary := clusterMap[snap.ClusterName]
+			// Create or update the resource pool for this snapshot
+			s.addResourcePoolToSummary(summary, snap)
 		}
 
-		// Aggregate data into clusterMap[snap.ClusterName]
-		summary := clusterMap[snap.ClusterName]
-		summary.TotalNodes = int(snap.NodeCount)                                  // Use correct field NodeCount, convert int64 to int
-		summary.TotalCPURequest += snap.CpuRequest                                // Use correct field CpuRequest
-		summary.TotalMemoryRequest += snap.MemRequest / (1024 * 1024 * 1024)      // Use correct field MemRequest, Convert bytes to GiB
-		summary.TotalCPUCapacity += snap.CpuCapacity                              // Use correct field CpuCapacity
-		summary.TotalMemoryCapacity += snap.MemoryCapacity / (1024 * 1024 * 1024) // Use correct field MemoryCapacity, Convert bytes to GiB
-
-		// 模拟资源池数据 - 在实际实现中会从数据库获取或计算
-		// 这里仅作为演示，将资源快照数据转换为总资源池
-		totalPool := ResourcePool{
-			ResourceType:   "total",
-			NodeType:       "总资源",
-			Nodes:          int(snap.NodeCount),
-			CPUCapacity:    snap.CpuCapacity,
-			MemoryCapacity: snap.MemoryCapacity / (1024 * 1024 * 1024),
-			CPURequest:     snap.CpuRequest,
-			MemoryRequest:  snap.MemRequest / (1024 * 1024 * 1024),
-			BMCount:        int(snap.NodeCount) * 2 / 3, // 简单模拟计算，假设2/3是物理机
-			VMCount:        int(snap.NodeCount) * 1 / 3, // 假设1/3是虚拟机
-		}
-
-		// 添加总资源池
-		summary.ResourcePools = append(summary.ResourcePools, totalPool)
 	}
 
-	var summaries []ClusterResourceSummary
-	for _, summary := range clusterMap {
-		summaries = append(summaries, *summary)
-	}
-
-	// Sort clusters by name for consistent reporting
-	sort.Slice(summaries, func(i, j int) bool {
-		return summaries[i].ClusterName < summaries[j].ClusterName
-	})
-
-	return summaries
+	return clusterMap
 }
 
-// prepareTemplateData structures the fetched data for the HTML template.
-func (s *ResourceReportSender) prepareTemplateData(clustersData []ClusterResourceSummary) ReportTemplateData {
-	location, _ := time.LoadLocation("Asia/Shanghai")
-	currentDate := time.Now().In(location).Format(DateFormat)
-	return ReportTemplateData{
-		ReportDate: currentDate,
-		Clusters:   clustersData,
+// addResourcePoolToSummary adds or updates a resource pool in a cluster summary.
+func (s *ResourceReportSender) addResourcePoolToSummary(summary *ClusterResourceSummary, snap snapshotQueryResult) {
+	poolKey := snap.ResourceType
+	var pool *ResourcePool
+
+	// Find existing pool if any
+	for i := range summary.ResourcePools {
+		if summary.ResourcePools[i].ResourceType == poolKey {
+			pool = &summary.ResourcePools[i]
+			break
+		}
+	}
+
+	if pool == nil {
+		// Create a new resource pool
+		newPool := ResourcePool{
+			ResourceType:        snap.ResourceType,
+			NodeType:            s.getSimplifiedNodeType(snap.ResourceType), // 使用简化的NodeType
+			Nodes:               int(snap.NodeCount),
+			CPUCapacity:         snap.CpuCapacity,
+			MemoryCapacity:      snap.MemoryCapacity, // 数据库中已经是GB单位，不需要转换
+			CPURequest:          snap.CpuRequest,
+			MemoryRequest:       snap.MemRequest, // 数据库中已经是GB单位，不需要转换
+			BMCount:             int(snap.BMCount),
+			VMCount:             int(snap.VMCount),
+			PodCount:            int(snap.PodCount),
+			PerNodeCpuRequest:   snap.PerNodeCpuRequest,
+			PerNodeMemRequest:   snap.PerNodeMemRequest, // 数据库中已经是GB单位，不需要转换
+			CPUHistory:          make([]float64, 0),
+			MemoryHistory:       make([]float64, 0),
+			TooltipText:         s.getResourcePoolTooltip(snap.ResourceType),
+			MaxCpuUsageRatio:    snap.MaxCpuUsageRatio,
+			MaxMemoryUsageRatio: snap.MaxMemoryUsageRatio,
+		}
+		summary.ResourcePools = append(summary.ResourcePools, newPool)
+	}
+}
+
+// getSimplifiedNodeType returns a simplified Chinese display name for the resource type
+func (s *ResourceReportSender) getSimplifiedNodeType(resourceType string) string {
+	switch resourceType {
+	case "total":
+		return "总资源"
+	case "total_intel":
+		return "Intel总资源"
+	case "intel_common":
+		return "Intel通用"
+	case "intel_gpu":
+		return "Intel GPU"
+	case "intel_taint":
+		return "Intel污点"
+	case "intel_non_gpu":
+		return "Intel非GPU"
+	case "total_arm":
+		return "ARM总资源"
+	case "arm_common":
+		return "ARM通用"
+	case "arm_gpu":
+		return "ARM GPU"
+	case "arm_taint":
+		return "ARM污点"
+	case "total_hg":
+		return "海光总资源"
+	case "hg_common":
+		return "海光通用"
+	case "hg_taint":
+		return "海光污点"
+	case "total_taint":
+		return "总污点资源"
+	case "total_common":
+		return "总通用资源"
+	case "total_gpu":
+		return "总GPU资源"
+	case "aplus_total":
+		return "A+总资源"
+	case "aplus_intel":
+		return "A+Intel"
+	case "aplus_arm":
+		return "A+ARM"
+	case "aplus_hg":
+		return "A+海光"
+	case "dplus_total":
+		return "D+总资源"
+	case "dplus_intel":
+		return "D+Intel"
+	case "dplus_arm":
+		return "D+ARM"
+	case "dplus_hg":
+		return "D+海光"
+	default:
+		return resourceType
+	}
+}
+
+// getResourcePoolTooltip returns a descriptive tooltip text for each resource pool type
+func (s *ResourceReportSender) getResourcePoolTooltip(resourceType string) string {
+	switch resourceType {
+	case "total":
+		return "集群所有物理机资源总和，包含集群中所有类型的节点。"
+	case "total_intel":
+		return "Intel架构物理机节点资源，使用Intel CPU的所有节点。"
+	case "intel_common":
+		return "Intel物理机通用应用节点资源，没有特殊标记或污点的Intel节点。"
+	case "intel_gpu":
+		return "Intel架构GPU物理机节点，配备了GPU的Intel节点。"
+	case "intel_taint":
+		return "Intel架构带污点物理机节点，带有特殊污点标记的Intel节点。"
+	case "intel_non_gpu":
+		return "Intel架构无GPU物理机节点，不包含GPU的Intel节点。"
+	case "total_arm":
+		return "ARM架构物理机节点资源，使用ARM CPU的所有节点。"
+	case "arm_common":
+		return "ARM物理机节点通用应用资源，没有特殊标记或污点的ARM节点。"
+	case "arm_gpu":
+		return "ARM架构GPU物理机节点，配备了GPU的ARM节点。"
+	case "arm_taint":
+		return "ARM架构带污点物理机节点，带有特殊污点标记的ARM节点。"
+	case "total_hg":
+		return "海光架构物理机节点资源，使用海光CPU的所有节点。"
+	case "hg_common":
+		return "海光物理机通用应用节点资源，没有特殊标记或污点的海光节点。"
+	case "hg_taint":
+		return "海光架构带污点物理机节点，带有特殊污点标记的海光节点。"
+	case "total_taint":
+		return "带污点的物理机节点资源，所有带有特殊污点标记的节点。"
+	case "total_common":
+		return "物理机节点通用应用资源总和，所有没有特殊标记或污点的普通节点。"
+	case "total_gpu":
+		return "包含GPU的物理机节点资源，所有配备了GPU的节点。"
+	case "aplus_total":
+		return "A+物理机资源总和，所有高性能计算节点。"
+	case "aplus_intel":
+		return "A+Intel架构物理机节点，高性能计算的Intel节点。"
+	case "aplus_arm":
+		return "A+ARM架构物理机节点，高性能计算的ARM节点。"
+	case "aplus_hg":
+		return "A+海光架构物理机节点，高性能计算的海光节点。"
+	case "dplus_total":
+		return "D+物理机资源总和，所有高存储容量节点。"
+	case "dplus_intel":
+		return "D+Intel架构物理机节点，高存储容量的Intel节点。"
+	case "dplus_arm":
+		return "D+ARM架构物理机节点，高存储容量的ARM节点。"
+	case "dplus_hg":
+		return "D+海光架构物理机节点，高存储容量的海光节点。"
+	default:
+		return resourceType + "资源池"
+	}
+}
+
+// populateResourcePoolsMap 填充资源池映射，便于根据类型快速查找资源池
+func (s *ResourceReportSender) populateResourcePoolsMap(summary *ClusterResourceSummary) {
+	// 初始化映射
+	summary.ResourcePoolsByType = make(map[string]*ResourcePool)
+
+	// 填充映射
+	for i := range summary.ResourcePools {
+		pool := &summary.ResourcePools[i]
+		summary.ResourcePoolsByType[pool.ResourceType] = pool
+	}
+}
+
+// calculateUsagePercentages calculates CPU and memory usage percentages for all clusters and pools.
+func (s *ResourceReportSender) calculateUsagePercentages(clusterMap map[string]*ClusterResourceSummary) {
+	for _, summary := range clusterMap {
+
+		// Calculate resource pool level percentages
+		for i := range summary.ResourcePools {
+			if summary.ResourcePools[i].CPUCapacity > 0 {
+				summary.ResourcePools[i].CPUUsagePercent = (summary.ResourcePools[i].CPURequest / summary.ResourcePools[i].CPUCapacity) * 100
+			}
+			if summary.ResourcePools[i].MemoryCapacity > 0 {
+				summary.ResourcePools[i].MemoryUsagePercent = (summary.ResourcePools[i].MemoryRequest / summary.ResourcePools[i].MemoryCapacity) * 100
+			}
+		}
+	}
+}
+
+// convertToSortedSummaries converts a map of summaries to a sorted slice.
+func (s *ResourceReportSender) convertToSortedSummaries(clusterMap map[string]*ClusterResourceSummary) []ClusterResourceSummary {
+	var clusterSummaries []ClusterResourceSummary
+	for _, summary := range clusterMap {
+		// 填充ResourcePoolsByType映射
+		s.populateResourcePoolsMap(summary)
+		clusterSummaries = append(clusterSummaries, *summary)
+	}
+
+	// Sort the clusters by name for consistency
+	sort.Slice(clusterSummaries, func(i, j int) bool {
+		return clusterSummaries[i].ClusterName < clusterSummaries[j].ClusterName
+	})
+
+	return clusterSummaries
+}
+
+// calculateClusterStats computes aggregate statistics across all clusters.
+func (s *ResourceReportSender) calculateClusterStats(clusters []ClusterResourceSummary) ClusterStats {
+	totalClusters := len(clusters)
+	normalClusters := 0
+	abnormalClusters := 0
+
+	// Compute normal/abnormal based on resource usage
+	for _, cluster := range clusters {
+		if s.isClusterAbnormal(cluster) {
+			abnormalClusters++
+		} else {
+			normalClusters++
+		}
+	}
+
+	// Calculate pod density
+	generalPodDensity := s.calculateGeneralClusterPodDensity(clusters)
+
+	return ClusterStats{
+		TotalClusters:     totalClusters,
+		NormalClusters:    normalClusters,
+		AbnormalClusters:  abnormalClusters,
+		GeneralPodDensity: generalPodDensity,
+	}
+}
+
+// isClusterAbnormal determines if a cluster's resource usage is abnormal.
+func (s *ResourceReportSender) isClusterAbnormal(cluster ClusterResourceSummary) bool {
+	// First check resource pools for abnormal usage
+	if s.hasAbnormalResourcePool(cluster) {
+		return true
+	}
+	return false
+}
+
+// hasAbnormalResourcePool checks if any of the cluster's resource pools have abnormal usage.
+func (s *ResourceReportSender) hasAbnormalResourcePool(cluster ClusterResourceSummary) bool {
+	for _, pool := range cluster.ResourcePools {
+		// 检查所有资源池，不再限制只检查total和total_common
+		if s.isResourcePoolAbnormal(pool) {
+			return true
+		}
+	}
+	return false
+}
+
+// isResourcePoolAbnormal determines if a resource pool's usage is outside acceptable thresholds.
+func (s *ResourceReportSender) isResourcePoolAbnormal(pool ResourcePool) bool {
+	// 根据环境类型应用不同的规则
+	if s.Environment == "test" {
+		// 测试环境：低利用率不计算为异常，高利用率阈值上调5%
+		if pool.BMCount > 150 {
+			// 大型集群 (>150 物理节点)
+			// 测试环境大型集群阈值：85% (80% + 5%)
+			return pool.CPUUsagePercent >= 85.0 || pool.MemoryUsagePercent >= 85.0
+		} else {
+			// 小型/中型集群 (≤150 物理节点)
+			// 测试环境小型/中型集群阈值：75% (70% + 5%)
+			return pool.CPUUsagePercent >= 75.0 || pool.MemoryUsagePercent >= 75.0
+		}
+	} else {
+		// 生产环境：使用当前规则
+		if pool.BMCount > 150 {
+			// 大型集群 (>150 物理节点)
+			return pool.CPUUsagePercent >= 80.0 || pool.MemoryUsagePercent >= 80.0 ||
+				pool.CPUUsagePercent < 55.0 || pool.MemoryUsagePercent < 55.0
+		} else {
+			// 小型/中型集群 (≤150 物理节点)
+			return pool.CPUUsagePercent >= 70.0 || pool.MemoryUsagePercent >= 70.0 ||
+				pool.CPUUsagePercent < 55.0 || pool.MemoryUsagePercent < 55.0
+		}
+	}
+}
+
+// hasAbnormalClusterMetrics checks if the cluster's overall metrics are abnormal.
+func (s *ResourceReportSender) hasAbnormalClusterMetrics(cluster ClusterResourceSummary) bool {
+	isLargeCluster := s.isLargeCluster(cluster)
+
+	cpuUsage := cluster.CPUUsagePercent
+	memUsage := cluster.MemoryUsagePercent
+
+	// 根据环境类型应用不同的规则
+	if s.Environment == "test" {
+		// 测试环境：低利用率不计算为异常，高利用率阈值上调5%
+		if isLargeCluster {
+			// 大型集群标准：85% (80% + 5%)
+			return cpuUsage >= 85.0 || memUsage >= 85.0
+		} else {
+			// 小型/中型集群标准：75% (70% + 5%)
+			return cpuUsage >= 75.0 || memUsage >= 75.0
+		}
+	} else {
+		// 生产环境：使用当前规则
+		if isLargeCluster {
+			// 大型集群标准
+			return cpuUsage >= 80.0 || memUsage >= 80.0 ||
+				cpuUsage < 55.0 || memUsage < 55.0
+		} else {
+			// 小型/中型集群标准
+			return cpuUsage >= 70.0 || memUsage >= 70.0 ||
+				cpuUsage < 55.0 || memUsage < 55.0
+		}
+	}
+}
+
+// isLargeCluster determines if a cluster is considered large (>150 physical nodes).
+func (s *ResourceReportSender) isLargeCluster(cluster ClusterResourceSummary) bool {
+	for _, pool := range cluster.ResourcePools {
+		if pool.ResourceType == "total" && pool.BMCount > 150 {
+			return true
+		}
+	}
+	return false
+}
+
+// calculateGeneralClusterPodDensity calculates the Pod density for general clusters.
+func (s *ResourceReportSender) calculateGeneralClusterPodDensity(clusters []ClusterResourceSummary) float64 {
+	// If no general clusters are specified, return 0
+	if len(s.generalClusters) == 0 {
+		return 0
+	}
+
+	// Create a map of general cluster names for quick lookup
+	generalClusterMap := s.createGeneralClusterMap()
+
+	// Count total pods and physical nodes across all general clusters
+	totalPods, totalBMs := s.countPodsAndNodesInGeneralClusters(clusters, generalClusterMap)
+
+	// Calculate pod density (pods per physical node)
+	if totalBMs > 0 {
+		return float64(totalPods) / float64(totalBMs)
+	}
+
+	return 0
+}
+
+// createGeneralClusterMap creates a lookup map of general clusters.
+func (s *ResourceReportSender) createGeneralClusterMap() map[string]bool {
+	generalClusterMap := make(map[string]bool)
+	for _, name := range s.generalClusters {
+		generalClusterMap[name] = true
+	}
+	return generalClusterMap
+}
+
+// countPodsAndNodesInGeneralClusters counts pods and physical nodes in general clusters.
+func (s *ResourceReportSender) countPodsAndNodesInGeneralClusters(
+	clusters []ClusterResourceSummary,
+	generalClusterMap map[string]bool,
+) (int, int) {
+	totalPods := 0
+	totalBMs := 0
+
+	for _, cluster := range clusters {
+		// Skip clusters that aren't in the general clusters list
+		if _, ok := generalClusterMap[cluster.ClusterName]; !ok {
+			continue
+		}
+
+		// Count pods and physical nodes from all resource pools in this cluster
+		for _, pool := range cluster.ResourcePools {
+			totalPods += pool.PodCount
+			totalBMs += pool.BMCount
+		}
+	}
+
+	return totalPods, totalBMs
+}
+
+// --- Add custom template functions (copied from preview_generator.go) ---
+
+// 辅助函数，用于将接口转换为浮点数
+func toFloat(val interface{}) float64 {
+	switch v := val.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case string:
+		f, _ := strconv.ParseFloat(v, 64)
+		return f
+	default:
+		return 0
+	}
+}
+
+// 添加自定义模板函数
+func customTemplateFuncs() template.FuncMap {
+	return template.FuncMap{
+		"toFloat": func(val interface{}) float64 {
+			return toFloat(val)
+		},
+		"mul": func(a, b interface{}) float64 {
+			af := toFloat(a)
+			bf := toFloat(b)
+			return af * bf
+		},
+		"div": func(a, b interface{}) float64 {
+			af := toFloat(a)
+			bf := toFloat(b)
+			if bf == 0 {
+				return 0
+			}
+			return af / bf
+		},
+		"ge": func(a, b interface{}) bool {
+			af := toFloat(a)
+			bf := toFloat(b)
+			return af >= bf
+		},
+		"gt": func(a, b interface{}) bool {
+			af := toFloat(a)
+			bf := toFloat(b)
+			return af > bf
+		},
+		"lt": func(a, b interface{}) bool {
+			af := toFloat(a)
+			bf := toFloat(b)
+			return af < bf
+		},
+		"eq": func(a, b interface{}) bool {
+			af := toFloat(a)
+			bf := toFloat(b)
+			return af == bf
+		},
+		"add": func(a, b interface{}) int {
+			af := int(toFloat(a))
+			bf := int(toFloat(b))
+			return af + bf
+		},
+		"sub": func(a, b interface{}) int {
+			af := int(toFloat(a))
+			bf := int(toFloat(b))
+			return af - bf
+		},
+		"len": func(a interface{}) int {
+			switch v := a.(type) {
+			// case []interface{}: // Avoid interface{} if possible
+			// 	return len(v)
+			case []string:
+				return len(v)
+			case []float64:
+				return len(v)
+			case []int:
+				return len(v)
+			case string:
+				return len(v)
+			default:
+				// Add specific types used in the template if needed
+				return 0
+			}
+		},
+		"formatFloat": func(f float64, precision int) string {
+			format := "%." + strconv.Itoa(precision) + "f"
+			return fmt.Sprintf(format, f)
+		},
+		"formatBytes": func(bytes float64) string {
+			// 输入已经是GB单位，直接格式化输出
+			if bytes >= 1024 {
+				return fmt.Sprintf("%.2f TB", bytes/1024)
+			} else {
+				return fmt.Sprintf("%.2f GB", bytes)
+			}
+		},
+		// 获取CPU颜色类的函数
+		"getCpuColorClass": func(pool *ResourcePool, environment string) string {
+			if pool == nil {
+				return ""
+			}
+
+			isLargePool := pool.BMCount > 150
+			cpuUsage := pool.CPUUsagePercent
+
+			if environment == "test" {
+				// 测试环境规则
+				if isLargePool {
+					if cpuUsage >= 95.0 {
+						return "emergency"
+					} else if cpuUsage >= 90.0 {
+						return "critical"
+					} else if cpuUsage >= 85.0 {
+						return "warning"
+					}
+					return "normal"
+				} else {
+					if cpuUsage >= 90.0 {
+						return "emergency"
+					} else if cpuUsage >= 80.0 {
+						return "critical"
+					} else if cpuUsage >= 75.0 {
+						return "warning"
+					}
+					return "normal"
+				}
+			} else {
+				// 生产环境规则
+				if isLargePool {
+					if cpuUsage >= 95.0 {
+						return "emergency"
+					} else if cpuUsage >= 85.0 {
+						return "critical"
+					} else if cpuUsage >= 80.0 {
+						return "warning"
+					} else if cpuUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				} else {
+					if cpuUsage >= 90.0 {
+						return "emergency"
+					} else if cpuUsage >= 75.0 {
+						return "critical"
+					} else if cpuUsage >= 70.0 {
+						return "warning"
+					} else if cpuUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				}
+			}
+		},
+		// 获取内存颜色类的函数
+		"getMemColorClass": func(pool *ResourcePool, environment string) string {
+			if pool == nil {
+				return ""
+			}
+
+			isLargePool := pool.BMCount > 150
+			memUsage := pool.MemoryUsagePercent
+
+			if environment == "test" {
+				// 测试环境规则
+				if isLargePool {
+					if memUsage >= 95.0 {
+						return "emergency"
+					} else if memUsage >= 90.0 {
+						return "critical"
+					} else if memUsage >= 85.0 {
+						return "warning"
+					}
+					return "normal"
+				} else {
+					if memUsage >= 90.0 {
+						return "emergency"
+					} else if memUsage >= 80.0 {
+						return "critical"
+					} else if memUsage >= 75.0 {
+						return "warning"
+					}
+					return "normal"
+				}
+			} else {
+				// 生产环境规则
+				if isLargePool {
+					if memUsage >= 95.0 {
+						return "emergency"
+					} else if memUsage >= 85.0 {
+						return "critical"
+					} else if memUsage >= 80.0 {
+						return "warning"
+					} else if memUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				} else {
+					if memUsage >= 90.0 {
+						return "emergency"
+					} else if memUsage >= 75.0 {
+						return "critical"
+					} else if memUsage >= 70.0 {
+						return "warning"
+					} else if memUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				}
+			}
+		},
+		// 新增函数，用于判断资源池是否需要显示
+		"shouldShowPool": func(cpuUsage, memoryUsage float64, bmCount int, environment string) bool {
+			// 根据环境类型应用不同的规则
+			if environment == "test" {
+				// 测试环境：低利用率不计算为异常，高利用率阈值上调5%
+				if bmCount > 150 {
+					// 大型集群（物理机节点数 > 150）
+					return cpuUsage >= 85.0 || memoryUsage >= 85.0
+				} else {
+					// 小型集群（物理机节点数 <= 150）
+					return cpuUsage >= 75.0 || memoryUsage >= 75.0
+				}
+			} else {
+				// 生产环境：使用当前规则
+				if bmCount > 150 {
+					// 大型集群（物理机节点数 > 150）
+					return cpuUsage >= 80.0 || memoryUsage >= 80.0 || cpuUsage < 55.0 || memoryUsage < 55.0
+				} else {
+					// 小型集群（物理机节点数 <= 150）
+					return cpuUsage >= 70.0 || memoryUsage >= 70.0 || cpuUsage < 55.0 || memoryUsage < 55.0
+				}
+			}
+		},
+		// 新增函数，用于获取资源池类型的颜色
+		"getPoolTypeColor": func(poolType string) string {
+			switch poolType {
+			case "total":
+				return "#00188F" // 深蓝色
+			case "intel_common":
+				return "#0078D7" // 蓝色
+			case "intel_gpu":
+				return "#2B579A" // 深蓝色
+			case "amd_common": // Added based on preview funcs
+				return "#D83B01" // 红色
+			case "arm_common":
+				return "#107C10" // 绿色
+			case "hg_common":
+				return "#5C2D91" // 紫色
+			default:
+				return "#000000" // 黑色
+			}
+		},
 	}
 }
 
 // generateEmailContent renders the HTML email body using the template and data.
 func (s *ResourceReportSender) generateEmailContent(data ReportTemplateData) (string, error) {
-	tmpl, err := template.New("resourceReport").Funcs(sprig.HtmlFuncMap()).ParseFS(templateFS, "template.html")
+	// Prepare template functions
+	htmlFuncMap := s.prepareTemplateFunctions()
+
+	// Parse the template
+	tmpl, err := s.parseEmailTemplate(htmlFuncMap)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse email template: %w", err)
+		return "", err
 	}
 
+	// Execute the template
 	var buf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&buf, "template.html", data); err != nil {
+		s.Logger.Error("Failed to execute email template", zap.Error(err))
 		return "", fmt.Errorf("failed to execute email template: %w", err)
 	}
 
 	return buf.String(), nil
 }
 
-// generateExcelReport 生成Excel报表作为附件
-func (s *ResourceReportSender) generateExcelReport(data ReportTemplateData, date string) (string, error) {
-	f := excelize.NewFile()
+// prepareTemplateFunctions creates a FuncMap with both sprig and custom functions.
+func (s *ResourceReportSender) prepareTemplateFunctions() template.FuncMap {
+	// Use HtmlFuncMap for HTML safety with Sprig funcs
+	htmlFuncMap := sprig.HtmlFuncMap()
 
-	// 创建两个sheet：概览(宽表)和详情(每资源池一行)
-	f.SetSheetName("Sheet1", "集群概览")
-	f.NewSheet("资源池详情")
-
-	// -----------------------
-	// 第一个sheet：集群概览(宽表格式)
-	// -----------------------
-
-	// 设置标题行样式
-	headerStyle, err := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{
-			Bold:  true,
-			Size:  12,
-			Color: "#FFFFFF",
-		},
-		Fill: excelize.Fill{
-			Type:    "pattern",
-			Color:   []string{"#4472C4"},
-			Pattern: 1,
-		},
-		Alignment: &excelize.Alignment{
-			Horizontal: "center",
-			Vertical:   "center",
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "#000000", Style: 1},
-			{Type: "top", Color: "#000000", Style: 1},
-			{Type: "right", Color: "#000000", Style: 1},
-			{Type: "bottom", Color: "#000000", Style: 1},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to create header style: %w", err)
+	// Add custom functions
+	for k, v := range customTemplateFuncs() {
+		htmlFuncMap[k] = v
 	}
 
-	// 设置数据行样式
-	dataStyle, err := f.NewStyle(&excelize.Style{
-		Border: []excelize.Border{
-			{Type: "left", Color: "#000000", Style: 1},
-			{Type: "top", Color: "#000000", Style: 1},
-			{Type: "right", Color: "#000000", Style: 1},
-			{Type: "bottom", Color: "#000000", Style: 1},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to create data style: %w", err)
-	}
-
-	// 设置高亮警告样式 (>75%)
-	warningStyle, err := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{
-			Bold:  true,
-			Color: "#D97500",
-		},
-		Fill: excelize.Fill{
-			Type:    "pattern",
-			Color:   []string{"#FFEB9C"},
-			Pattern: 1,
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "#000000", Style: 1},
-			{Type: "top", Color: "#000000", Style: 1},
-			{Type: "right", Color: "#000000", Style: 1},
-			{Type: "bottom", Color: "#000000", Style: 1},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to create warning style: %w", err)
-	}
-
-	// 设置危险样式 (>90%)
-	criticalStyle, err := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{
-			Bold:  true,
-			Color: "#9C0006",
-		},
-		Fill: excelize.Fill{
-			Type:    "pattern",
-			Color:   []string{"#FFC7CE"},
-			Pattern: 1,
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "#000000", Style: 1},
-			{Type: "top", Color: "#000000", Style: 1},
-			{Type: "right", Color: "#000000", Style: 1},
-			{Type: "bottom", Color: "#000000", Style: 1},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to create critical style: %w", err)
-	}
-
-	// ---- 集群概览sheet (宽表) ----
-
-	// 设置集群概览标题行
-	overviewHeaders := []string{
-		"集群", "总节点数",
-		"总CPU容量(核)", "总CPU请求(核)", "总CPU使用率(%)",
-		"总内存容量(GiB)", "总内存请求(GiB)", "总内存使用率(%)",
-	}
-
-	for i, header := range overviewHeaders {
-		cell := fmt.Sprintf("%c1", 'A'+i)
-		f.SetCellValue("集群概览", cell, header)
-		f.SetCellStyle("集群概览", cell, cell, headerStyle)
-	}
-
-	// 写入集群概览数据
-	row := 2
-	for _, cluster := range data.Clusters {
-		// 计算总体使用率
-		totalCPUUsage := 0.0
-		if cluster.TotalCPUCapacity > 0 {
-			totalCPUUsage = cluster.TotalCPURequest / cluster.TotalCPUCapacity * 100
-		}
-
-		totalMemUsage := 0.0
-		if cluster.TotalMemoryCapacity > 0 {
-			totalMemUsage = cluster.TotalMemoryRequest / cluster.TotalMemoryCapacity * 100
-		}
-
-		// 写入一行数据
-		f.SetCellValue("集群概览", fmt.Sprintf("A%d", row), cluster.ClusterName)
-		f.SetCellValue("集群概览", fmt.Sprintf("B%d", row), cluster.TotalNodes)
-		f.SetCellValue("集群概览", fmt.Sprintf("C%d", row), cluster.TotalCPUCapacity)
-		f.SetCellValue("集群概览", fmt.Sprintf("D%d", row), cluster.TotalCPURequest)
-		f.SetCellValue("集群概览", fmt.Sprintf("E%d", row), fmt.Sprintf("%.1f%%", totalCPUUsage))
-		f.SetCellValue("集群概览", fmt.Sprintf("F%d", row), cluster.TotalMemoryCapacity)
-		f.SetCellValue("集群概览", fmt.Sprintf("G%d", row), cluster.TotalMemoryRequest)
-		f.SetCellValue("集群概览", fmt.Sprintf("H%d", row), fmt.Sprintf("%.1f%%", totalMemUsage))
-
-		// 为整行应用基本样式
-		f.SetCellStyle("集群概览", fmt.Sprintf("A%d", row), fmt.Sprintf("H%d", row), dataStyle)
-
-		// 根据使用率应用警告或危险样式
-		if totalCPUUsage >= 90 {
-			f.SetCellStyle("集群概览", fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), criticalStyle)
-		} else if totalCPUUsage >= 75 {
-			f.SetCellStyle("集群概览", fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), warningStyle)
-		}
-
-		if totalMemUsage >= 90 {
-			f.SetCellStyle("集群概览", fmt.Sprintf("H%d", row), fmt.Sprintf("H%d", row), criticalStyle)
-		} else if totalMemUsage >= 75 {
-			f.SetCellStyle("集群概览", fmt.Sprintf("H%d", row), fmt.Sprintf("H%d", row), warningStyle)
-		}
-
-		row++
-	}
-
-	// 调整集群概览列宽
-	f.SetColWidth("集群概览", "A", "A", 20)
-	f.SetColWidth("集群概览", "B", "B", 10)
-	f.SetColWidth("集群概览", "C", "H", 15)
-
-	// -----------------------
-	// 第二个sheet：资源池详情
-	// -----------------------
-
-	// 设置资源池详情标题行
-	detailHeaders := []string{
-		"集群", "资源池类型", "节点数", "物理机数", "虚拟机数",
-		"CPU容量(核)", "CPU请求(核)", "CPU使用率(%)",
-		"内存容量(GiB)", "内存请求(GiB)", "内存使用率(%)",
-	}
-
-	for i, header := range detailHeaders {
-		cell := fmt.Sprintf("%c1", 'A'+i)
-		f.SetCellValue("资源池详情", cell, header)
-		f.SetCellStyle("资源池详情", cell, cell, headerStyle)
-	}
-
-	// 写入资源池详情数据
-	detailRow := 2
-	for _, cluster := range data.Clusters {
-		for _, pool := range cluster.ResourcePools {
-			// 计算使用率
-			cpuUsage := 0.0
-			if pool.CPUCapacity > 0 {
-				cpuUsage = pool.CPURequest / pool.CPUCapacity * 100
-			}
-
-			memUsage := 0.0
-			if pool.MemoryCapacity > 0 {
-				memUsage = pool.MemoryRequest / pool.MemoryCapacity * 100
-			}
-
-			// 写入一行数据
-			f.SetCellValue("资源池详情", fmt.Sprintf("A%d", detailRow), cluster.ClusterName)
-			f.SetCellValue("资源池详情", fmt.Sprintf("B%d", detailRow), pool.NodeType)
-			f.SetCellValue("资源池详情", fmt.Sprintf("C%d", detailRow), pool.Nodes)
-			f.SetCellValue("资源池详情", fmt.Sprintf("D%d", detailRow), pool.BMCount)
-			f.SetCellValue("资源池详情", fmt.Sprintf("E%d", detailRow), pool.VMCount)
-			f.SetCellValue("资源池详情", fmt.Sprintf("F%d", detailRow), pool.CPUCapacity)
-			f.SetCellValue("资源池详情", fmt.Sprintf("G%d", detailRow), pool.CPURequest)
-			f.SetCellValue("资源池详情", fmt.Sprintf("H%d", detailRow), fmt.Sprintf("%.1f%%", cpuUsage))
-			f.SetCellValue("资源池详情", fmt.Sprintf("I%d", detailRow), pool.MemoryCapacity)
-			f.SetCellValue("资源池详情", fmt.Sprintf("J%d", detailRow), pool.MemoryRequest)
-			f.SetCellValue("资源池详情", fmt.Sprintf("K%d", detailRow), fmt.Sprintf("%.1f%%", memUsage))
-
-			// 为整行应用基本样式
-			f.SetCellStyle("资源池详情", fmt.Sprintf("A%d", detailRow), fmt.Sprintf("K%d", detailRow), dataStyle)
-
-			// 根据使用率应用警告或危险样式
-			if cpuUsage >= 90 {
-				f.SetCellStyle("资源池详情", fmt.Sprintf("H%d", detailRow), fmt.Sprintf("H%d", detailRow), criticalStyle)
-			} else if cpuUsage >= 75 {
-				f.SetCellStyle("资源池详情", fmt.Sprintf("H%d", detailRow), fmt.Sprintf("H%d", detailRow), warningStyle)
-			}
-
-			if memUsage >= 90 {
-				f.SetCellStyle("资源池详情", fmt.Sprintf("K%d", detailRow), fmt.Sprintf("K%d", detailRow), criticalStyle)
-			} else if memUsage >= 75 {
-				f.SetCellStyle("资源池详情", fmt.Sprintf("K%d", detailRow), fmt.Sprintf("K%d", detailRow), warningStyle)
-			}
-
-			detailRow++
-		}
-	}
-
-	// 调整资源池详情列宽
-	f.SetColWidth("资源池详情", "A", "A", 20)
-	f.SetColWidth("资源池详情", "B", "B", 15)
-	f.SetColWidth("资源池详情", "C", "E", 10)
-	f.SetColWidth("资源池详情", "F", "K", 15)
-
-	// 默认激活集群概览sheet
-	sheetIndex, _ := f.GetSheetIndex("集群概览")
-	f.SetActiveSheet(sheetIndex)
-
-	// 创建文件路径
-	fileName := fmt.Sprintf("k8s_resource_report_%s.xlsx", date)
-	filePath := filepath.Join("/tmp", fileName)
-
-	// 保存文件
-	if err := f.SaveAs(filePath); err != nil {
-		return "", fmt.Errorf("failed to save Excel file: %w", err)
-	}
-
-	return filePath, nil
+	return htmlFuncMap
 }
 
-// sendEmailWithAttachments sends the email with attachments.
-func (s *ResourceReportSender) sendEmailWithAttachments(subject, body string, attachments []string) error {
-	// 由于Go标准库不直接支持附件，这里提供一个简化版实现
-	// 在实际项目中，可能需要使用第三方库如github.com/jordan-wright/email或自行实现MIME编码
-
-	s.logger.Info("Sending email with attachments is not fully implemented in this simplified version.")
-	s.logger.Info("In a production environment, use a proper MIME email library to handle attachments.")
-
-	// 返回一个模拟成功的结果
-	// 实际项目中应该实现完整的MIME邮件发送
-	return s.sendEmail(subject, body)
+// parseEmailTemplate loads and parses the HTML template.
+func (s *ResourceReportSender) parseEmailTemplate(funcMap template.FuncMap) (*template.Template, error) {
+	tmpl, err := template.New("resourceReport").Funcs(funcMap).ParseFS(templateFS, "template.html")
+	if err != nil {
+		s.Logger.Error("Failed to parse email template", zap.Error(err))
+		return nil, fmt.Errorf("failed to parse email template: %w", err)
+	}
+	return tmpl, nil
 }
 
 // sendEmail sends the generated report via SMTP.
 func (s *ResourceReportSender) sendEmail(subject, body string) error {
-	auth := smtp.PlainAuth("", s.smtpUser, s.smtpPassword, s.smtpHost)
-	addr := fmt.Sprintf("%s:%d", s.smtpHost, s.smtpPort)
+	auth := smtp.PlainAuth("", s.SMTPUsername, s.SMTPPassword, s.SMTPHost)
+	addr := fmt.Sprintf("%s:%d", s.SMTPHost, s.SMTPPort)
 
 	// Construct the email message
-	msg := "From: " + s.fromEmail + "\r\n" +
-		"To: " + s.toEmails[0] // Simplistic; handle multiple recipients better if needed
-	for i := 1; i < len(s.toEmails); i++ {
-		msg += "," + s.toEmails[i]
+	msg := "From: " + s.FromEmail + "\r\n" +
+		"To: " + s.ToEmails[0] // Simplistic; handle multiple recipients better if needed
+	for i := 1; i < len(s.ToEmails); i++ {
+		msg += "," + s.ToEmails[i]
 	}
 	msg += "\r\n" +
 		"Subject: " + subject + "\r\n" +
 		"MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	msg += body
 
-	s.logger.Info("Sending email", zap.String("to", fmt.Sprintf("%v", s.toEmails)), zap.String("subject", subject))
-	err := smtp.SendMail(addr, auth, s.fromEmail, s.toEmails, []byte(msg))
+	s.Logger.Info("Sending email", zap.Strings("to", s.ToEmails), zap.String("subject", subject))
+	err := smtp.SendMail(addr, auth, s.FromEmail, s.ToEmails, []byte(msg))
 	if err != nil {
+		s.Logger.Error("Failed to send email via SMTP", zap.Error(err))
 		return fmt.Errorf("smtp.SendMail failed: %w", err)
 	}
+	s.Logger.Info("Email sent successfully")
 	return nil
 }

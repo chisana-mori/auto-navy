@@ -9,10 +9,12 @@ import (
 	"strconv"
 	"time"
 
+	"navy-ng/job/email/resource_report"
+
 	"github.com/Masterminds/sprig/v3"
 )
 
-// ResourcePool 资源池详情
+// ResourcePool 资源池详情 - Preview generator's local version with additional fields
 type ResourcePool struct {
 	ResourceType       string
 	NodeType           string
@@ -25,18 +27,28 @@ type ResourcePool struct {
 	MemoryRequest      float64
 	CPUUsagePercent    float64
 	MemoryUsagePercent float64
-	PhysicalNodes      int // 物理节点数量
-	VirtualNodes       int // 虚拟节点数量
-	BMCount            int // 兼容旧字段
-	VMCount            int // 兼容旧字段
+	PhysicalNodes      int     // 物理节点数量
+	VirtualNodes       int     // 虚拟节点数量
+	BMCount            int     // 兼容旧字段
+	VMCount            int     // 兼容旧字段
+	PodCount           int     // 新增Pod数量字段
+	PerNodeCpuRequest  float64 // 新增节点平均CPU分配
+	PerNodeMemRequest  float64 // 新增节点平均内存分配
+	// 7天资源波动历史数据
+	CPUHistory    []float64 // CPU使用率历史数据
+	MemoryHistory []float64 // 内存使用率历史数据
 	// 模板需要的字段
 	TotalCPU        float64 // 与CPUCapacity相同
 	TotalMemory     float64 // 与MemoryCapacity相同
 	RequestedCPU    float64 // 与CPURequest相同
 	RequestedMemory float64 // 与MemoryRequest相同
+	TooltipText     string  // 资源池类型的tooltip文本
+	// 过去24小时平均CPU和内存最大使用率
+	MaxCpuUsageRatio    float64 // 平均CPU最大使用率，存储为小数，如0.36代表百分之36
+	MaxMemoryUsageRatio float64 // 平均内存最大使用率，存储为小数，如0.36代表百分之36
 }
 
-// ClusterResourceSummary 集群资源摘要
+// ClusterResourceSummary 集群资源摘要 - Preview generator's local version with additional fields
 type ClusterResourceSummary struct {
 	ClusterName         string
 	Name                string // 添加Name字段以兼容模板
@@ -52,13 +64,187 @@ type ClusterResourceSummary struct {
 	CPUUsagePercent     float64
 	MemoryUsagePercent  float64
 	ResourcePools       []ResourcePool
+	ResourcePoolsByType map[string]*ResourcePool // 根据资源池类型快速查找资源池
 }
 
-// ReportTemplateData 报告模板数据
+// ClusterStats 集群统计信息 - Preview generator's local version
+type ClusterStats struct {
+	TotalClusters     int     // 总已巡检集群数
+	NormalClusters    int     // 正常集群数
+	AbnormalClusters  int     // 异常集群数
+	GeneralPodDensity float64 // 通用集群Pod密度
+}
+
+// ReportTemplateData 报告模板数据 - Preview generator's local version
 type ReportTemplateData struct {
 	ReportDate           string
 	Clusters             []ClusterResourceSummary
-	HasHighUsageClusters bool
+	Stats                ClusterStats // 添加集群统计信息
+	HasHighUsageClusters bool         // 是否存在高使用率集群（CPU或内存使用率>=70%）
+	Environment          string       // 环境类型："prd" 或 "test"
+}
+
+// 将资源报告的标准ResourcePool转换为预览本地的ResourcePool
+func convertResourcePool(pool resource_report.ResourcePool) ResourcePool {
+	// 计算CPU和内存使用率
+	cpuUsage := 0.0
+	if pool.CPUCapacity > 0 {
+		cpuUsage = pool.CPURequest / pool.CPUCapacity * 100
+	}
+	memUsage := 0.0
+	if pool.MemoryCapacity > 0 {
+		memUsage = pool.MemoryRequest / pool.MemoryCapacity * 100
+	}
+
+	// 根据资源池类型设置tooltip文本
+	var tooltipText string
+	switch pool.ResourceType {
+	case "total":
+		tooltipText = "集群所有物理机资源总和，包含集群中所有类型的节点。"
+	case "total_intel":
+		tooltipText = "Intel架构物理机节点资源，使用Intel CPU的所有节点。"
+	case "intel_common":
+		tooltipText = "Intel物理机通用应用节点资源，没有特殊标记或污点的Intel节点。"
+	case "intel_gpu":
+		tooltipText = "Intel架构GPU物理机节点，配备了GPU的Intel节点。"
+	case "intel_taint":
+		tooltipText = "Intel架构带污点物理机节点，带有特殊污点标记的Intel节点。"
+	case "intel_non_gpu":
+		tooltipText = "Intel架构无GPU物理机节点，不包含GPU的Intel节点。"
+	case "total_arm":
+		tooltipText = "ARM架构物理机节点资源，使用ARM CPU的所有节点。"
+	case "arm_common":
+		tooltipText = "ARM物理机节点通用应用资源，没有特殊标记或污点的ARM节点。"
+	case "arm_gpu":
+		tooltipText = "ARM架构GPU物理机节点，配备了GPU的ARM节点。"
+	case "arm_taint":
+		tooltipText = "ARM架构带污点物理机节点，带有特殊污点标记的ARM节点。"
+	case "total_hg":
+		tooltipText = "海光架构物理机节点资源，使用海光CPU的所有节点。"
+	case "hg_common":
+		tooltipText = "海光物理机通用应用节点资源，没有特殊标记或污点的海光节点。"
+	case "hg_taint":
+		tooltipText = "海光架构带污点物理机节点，带有特殊污点标记的海光节点。"
+	case "total_taint":
+		tooltipText = "带污点的物理机节点资源，所有带有特殊污点标记的节点。"
+	case "total_common":
+		tooltipText = "物理机节点通用应用资源总和，所有没有特殊标记或污点的普通节点。"
+	case "total_gpu":
+		tooltipText = "包含GPU的物理机节点资源，所有配备了GPU的节点。"
+	case "aplus_total":
+		tooltipText = "A+物理机资源总和，所有高性能计算节点。"
+	case "aplus_intel":
+		tooltipText = "A+Intel架构物理机节点，高性能计算的Intel节点。"
+	case "aplus_arm":
+		tooltipText = "A+ARM架构物理机节点，高性能计算的ARM节点。"
+	case "aplus_hg":
+		tooltipText = "A+海光架构物理机节点，高性能计算的海光节点。"
+	case "dplus_total":
+		tooltipText = "D+物理机资源总和，所有高存储容量节点。"
+	case "dplus_intel":
+		tooltipText = "D+Intel架构物理机节点，高存储容量的Intel节点。"
+	case "dplus_arm":
+		tooltipText = "D+ARM架构物理机节点，高存储容量的ARM节点。"
+	case "dplus_hg":
+		tooltipText = "D+海光架构物理机节点，高存储容量的海光节点。"
+	default:
+		tooltipText = pool.NodeType + "资源池，类型: " + pool.ResourceType
+	}
+
+	return ResourcePool{
+		ResourceType:        pool.ResourceType,
+		NodeType:            pool.NodeType,
+		Nodes:               pool.Nodes,
+		NodeCount:           pool.Nodes,
+		Type:                pool.ResourceType,
+		CPUCapacity:         pool.CPUCapacity,
+		MemoryCapacity:      pool.MemoryCapacity,
+		CPURequest:          pool.CPURequest,
+		MemoryRequest:       pool.MemoryRequest,
+		CPUUsagePercent:     cpuUsage,
+		MemoryUsagePercent:  memUsage,
+		BMCount:             pool.BMCount,
+		VMCount:             pool.VMCount,
+		PodCount:            pool.PodCount,
+		PerNodeCpuRequest:   pool.PerNodeCpuRequest,
+		PerNodeMemRequest:   pool.PerNodeMemRequest,
+		CPUHistory:          pool.CPUHistory,
+		MemoryHistory:       pool.MemoryHistory,
+		TotalCPU:            pool.CPUCapacity,
+		TotalMemory:         pool.MemoryCapacity,
+		RequestedCPU:        pool.CPURequest,
+		RequestedMemory:     pool.MemoryRequest,
+		TooltipText:         tooltipText,
+		MaxCpuUsageRatio:    pool.MaxCpuUsageRatio,
+		MaxMemoryUsageRatio: pool.MaxMemoryUsageRatio,
+	}
+}
+
+// 将资源报告的标准ClusterResourceSummary转换为预览本地的ClusterResourceSummary
+func convertClusterSummary(cluster resource_report.ClusterResourceSummary) ClusterResourceSummary {
+	// 计算物理和虚拟节点数量
+	physicalNodes := 0
+	virtualNodes := 0
+	for _, pool := range cluster.ResourcePools {
+		if pool.ResourceType == "total" {
+			physicalNodes = pool.BMCount
+			virtualNodes = pool.VMCount
+			break
+		}
+	}
+
+	// 计算CPU和内存使用率
+	cpuUsage := 0.0
+	if cluster.TotalCPUCapacity > 0 {
+		cpuUsage = cluster.TotalCPURequest / cluster.TotalCPUCapacity * 100
+	}
+	memUsage := 0.0
+	if cluster.TotalMemoryCapacity > 0 {
+		memUsage = cluster.TotalMemoryRequest / cluster.TotalMemoryCapacity * 100
+	}
+
+	// 转换资源池
+	localPools := make([]ResourcePool, len(cluster.ResourcePools))
+	poolsByType := make(map[string]*ResourcePool)
+	for i, pool := range cluster.ResourcePools {
+		localPools[i] = convertResourcePool(pool)
+		poolsByType[pool.ResourceType] = &localPools[i]
+	}
+
+	return ClusterResourceSummary{
+		ClusterName:         cluster.ClusterName,
+		Name:                cluster.ClusterName,
+		TotalNodes:          cluster.TotalNodes,
+		PhysicalNodes:       physicalNodes,
+		VirtualNodes:        virtualNodes,
+		TotalCPUCapacity:    cluster.TotalCPUCapacity,
+		TotalMemoryCapacity: cluster.TotalMemoryCapacity,
+		TotalCPU:            cluster.TotalCPUCapacity,
+		TotalMemory:         cluster.TotalMemoryCapacity,
+		RequestedCPU:        cluster.TotalCPURequest,
+		RequestedMemory:     cluster.TotalMemoryRequest,
+		CPUUsagePercent:     cpuUsage,
+		MemoryUsagePercent:  memUsage,
+		ResourcePools:       localPools,
+		ResourcePoolsByType: poolsByType,
+	}
+}
+
+// 将资源报告的标准ReportTemplateData转换为预览本地的ReportTemplateData
+func convertTemplateData(data resource_report.ReportTemplateData) ReportTemplateData {
+	// 转换集群列表
+	localClusters := make([]ClusterResourceSummary, len(data.Clusters))
+	for i, cluster := range data.Clusters {
+		localClusters[i] = convertClusterSummary(cluster)
+	}
+
+	return ReportTemplateData{
+		ReportDate:           data.ReportDate,
+		Clusters:             localClusters,
+		Stats:                ClusterStats(data.Stats), // 结构一致，可以直接转换
+		HasHighUsageClusters: data.HasHighUsageClusters,
+		Environment:          data.Environment,
+	}
 }
 
 // 辅助函数，用于将接口转换为浮点数
@@ -109,274 +295,427 @@ func customTemplateFuncs() template.FuncMap {
 			bf := toFloat(b)
 			return af > bf
 		},
+		"lt": func(a, b interface{}) bool {
+			af := toFloat(a)
+			bf := toFloat(b)
+			return af < bf
+		},
+		"eq": func(a, b interface{}) bool {
+			af := toFloat(a)
+			bf := toFloat(b)
+			return af == bf
+		},
+		"add": func(a, b interface{}) int {
+			af := int(toFloat(a))
+			bf := int(toFloat(b))
+			return af + bf
+		},
+		"sub": func(a, b interface{}) int {
+			af := int(toFloat(a))
+			bf := int(toFloat(b))
+			return af - bf
+		},
+		"len": func(a interface{}) int {
+			switch v := a.(type) {
+			case []interface{}:
+				return len(v)
+			case []string:
+				return len(v)
+			case []float64:
+				return len(v)
+			case []int:
+				return len(v)
+			case string:
+				return len(v)
+			default:
+				return 0
+			}
+		},
 		"formatFloat": func(f float64, precision int) string {
 			format := "%." + strconv.Itoa(precision) + "f"
 			return fmt.Sprintf(format, f)
 		},
 		"formatBytes": func(bytes float64) string {
-			const (
-				KB = 1024
-				MB = 1024 * KB
-				GB = 1024 * MB
-				TB = 1024 * GB
-			)
-
-			switch {
-			case bytes >= TB:
-				return fmt.Sprintf("%.2f TB", bytes/TB)
-			case bytes >= GB:
-				return fmt.Sprintf("%.2f GB", bytes/GB)
-			case bytes >= MB:
-				return fmt.Sprintf("%.2f MB", bytes/MB)
-			case bytes >= KB:
-				return fmt.Sprintf("%.2f KB", bytes/KB)
-			default:
-				return fmt.Sprintf("%.0f B", bytes)
+			// 输入已经是GB单位，直接格式化输出
+			if bytes >= 1024 {
+				return fmt.Sprintf("%.2f TB", bytes/1024)
+			} else {
+				return fmt.Sprintf("%.2f GB", bytes)
 			}
 		},
 		// 新增函数，用于判断资源池是否需要显示
-		"shouldShowPool": func(cpuUsage, memoryUsage float64) bool {
-			// 根据新模板，只显示 CPU 或内存使用率 >= 70% 的资源池
-			return cpuUsage >= 70.0 || memoryUsage >= 70.0
+		"shouldShowPool": func(cpuUsage, memoryUsage float64, bmCount int) bool {
+			// 根据物理机节点数量使用不同的阈值
+			if bmCount > 150 {
+				// 大型集群（物理机节点数 > 150）
+				return cpuUsage >= 80.0 || memoryUsage >= 80.0 || cpuUsage < 55.0 || memoryUsage < 55.0
+			} else {
+				// 小型集群（物理机节点数 <= 150）
+				return cpuUsage >= 70.0 || memoryUsage >= 70.0 || cpuUsage < 55.0 || memoryUsage < 55.0
+			}
 		},
 		// 新增函数，用于获取资源池类型的颜色
 		"getPoolTypeColor": func(poolType string) string {
 			switch poolType {
 			case "total":
-				return "#3498db" // 蓝色
+				return "#00188F" // 深蓝色
 			case "intel_common":
-				return "#2ecc71" // 绿色
+				return "#0078D7" // 蓝色
 			case "intel_gpu":
-				return "#e74c3c" // 红色
+				return "#2B579A" // 深蓝色
+			case "amd_common":
+				return "#D83B01" // 红色
 			case "arm_common":
-				return "#f39c12" // 橙色
-			case "total_common":
-				return "#9b59b6" // 紫色
+				return "#107C10" // 绿色
+			case "hg_common":
+				return "#5C2D91" // 紫色
 			default:
-				return "#95a5a6" // 灰色
+				return "#000000" // 黑色
 			}
 		},
-		// 新增函数，用于获取资源使用率的颜色
-		"getUsageColor": func(usagePercent float64) string {
-			// 根据新模板，使用 70%、75%、90% 作为警告、危险和紧急的阈值
-			switch {
-			case usagePercent >= 90.0:
-				return "#e74c3c" // 红色（紧急）
-			case usagePercent >= 75.0:
-				return "#f39c12" // 橙色（危险）
-			case usagePercent >= 70.0:
-				return "#f1c40f" // 黄色（警告）
-			default:
-				return "#2ecc71" // 绿色（正常）
+		// 获取CPU颜色类的函数
+		"getCpuColorClass": func(pool *ResourcePool, environment string) string {
+			if pool == nil {
+				return ""
 			}
+
+			isLargePool := pool.BMCount > 150
+			cpuUsage := pool.CPUUsagePercent
+
+			if environment == "test" {
+				// 测试环境规则
+				if isLargePool {
+					if cpuUsage >= 95.0 {
+						return "emergency"
+					} else if cpuUsage >= 90.0 {
+						return "critical"
+					} else if cpuUsage >= 85.0 {
+						return "warning"
+					}
+					return "normal"
+				} else {
+					if cpuUsage >= 90.0 {
+						return "emergency"
+					} else if cpuUsage >= 80.0 {
+						return "critical"
+					} else if cpuUsage >= 75.0 {
+						return "warning"
+					}
+					return "normal"
+				}
+			} else {
+				// 生产环境规则
+				if isLargePool {
+					if cpuUsage >= 95.0 {
+						return "emergency"
+					} else if cpuUsage >= 85.0 {
+						return "critical"
+					} else if cpuUsage >= 80.0 {
+						return "warning"
+					} else if cpuUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				} else {
+					if cpuUsage >= 90.0 {
+						return "emergency"
+					} else if cpuUsage >= 75.0 {
+						return "critical"
+					} else if cpuUsage >= 70.0 {
+						return "warning"
+					} else if cpuUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				}
+			}
+		},
+		// 获取内存颜色类的函数
+		"getMemColorClass": func(pool *ResourcePool, environment string) string {
+			if pool == nil {
+				return ""
+			}
+
+			isLargePool := pool.BMCount > 150
+			memUsage := pool.MemoryUsagePercent
+
+			if environment == "test" {
+				// 测试环境规则
+				if isLargePool {
+					if memUsage >= 95.0 {
+						return "emergency"
+					} else if memUsage >= 90.0 {
+						return "critical"
+					} else if memUsage >= 85.0 {
+						return "warning"
+					}
+					return "normal"
+				} else {
+					if memUsage >= 90.0 {
+						return "emergency"
+					} else if memUsage >= 80.0 {
+						return "critical"
+					} else if memUsage >= 75.0 {
+						return "warning"
+					}
+					return "normal"
+				}
+			} else {
+				// 生产环境规则
+				if isLargePool {
+					if memUsage >= 95.0 {
+						return "emergency"
+					} else if memUsage >= 85.0 {
+						return "critical"
+					} else if memUsage >= 80.0 {
+						return "warning"
+					} else if memUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				} else {
+					if memUsage >= 90.0 {
+						return "emergency"
+					} else if memUsage >= 75.0 {
+						return "critical"
+					} else if memUsage >= 70.0 {
+						return "warning"
+					} else if memUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				}
+			}
+		},
+		// 创建字符串切片函数
+		"slice": func(args ...interface{}) []interface{} {
+			return args
 		},
 	}
 }
 
-// createMockData 创建模拟数据
-func createMockData(reportDate string) ReportTemplateData {
+// 创建示例数据
+func createMockData(reportDate string, environment string) ReportTemplateData {
 	// 创建生产环境集群（高负载）
-	cluster1 := ClusterResourceSummary{
+	cluster1 := resource_report.ClusterResourceSummary{
 		ClusterName:         "production-cluster",
-		Name:                "production-cluster",
 		TotalNodes:          30,
-		PhysicalNodes:       20,
-		VirtualNodes:        10,
 		TotalCPUCapacity:    480.0,
 		TotalMemoryCapacity: 960.0,
-		TotalCPU:            480.0,
-		TotalMemory:         960.0,
-		RequestedCPU:        408.0,
-		RequestedMemory:     864.0,
-		CPUUsagePercent:     85.0,
-		MemoryUsagePercent:  90.0,
-		ResourcePools: []ResourcePool{
+		TotalCPURequest:     408.0,
+		TotalMemoryRequest:  864.0,
+		ResourcePools: []resource_report.ResourcePool{
 			{
-				ResourceType:       "total",
-				NodeType:           "总资源",
-				Nodes:              30,
-				NodeCount:          30,
-				Type:               "total",
-				CPUCapacity:        480.0,
-				MemoryCapacity:     960.0,
-				CPURequest:         408.0,
-				MemoryRequest:      864.0,
-				CPUUsagePercent:    85.0,
-				MemoryUsagePercent: 90.0,
-				PhysicalNodes:      20,
-				VirtualNodes:       10,
-				BMCount:            20,
-				VMCount:            10,
-				TotalCPU:           480.0,
-				TotalMemory:        960.0,
-				RequestedCPU:       408.0,
-				RequestedMemory:    864.0,
+				ResourceType:      "total",
+				NodeType:          "总资源",
+				Nodes:             30,
+				CPUCapacity:       480.0,
+				MemoryCapacity:    960.0,
+				CPURequest:        408.0,
+				MemoryRequest:     864.0,
+				BMCount:           20,
+				VMCount:           10,
+				PodCount:          300,
+				PerNodeCpuRequest: 13.6,
+				PerNodeMemRequest: 28.8,
+				CPUHistory:        []float64{78.0, 80.0, 82.0, 85.0, 83.0, 84.0, 85.0},
+				MemoryHistory:     []float64{82.0, 85.0, 87.0, 90.0, 88.0, 89.0, 90.0},
 			},
 			{
-				ResourceType:       "intel_common",
-				NodeType:           "Intel通用节点",
-				Nodes:              15,
-				NodeCount:          15,
-				Type:               "intel_common",
-				CPUCapacity:        240.0,
-				MemoryCapacity:     480.0,
-				CPURequest:         216.0,
-				MemoryRequest:      456.0,
-				CPUUsagePercent:    90.0,
-				MemoryUsagePercent: 95.0,
-				PhysicalNodes:      10,
-				VirtualNodes:       5,
-				BMCount:            10,
-				VMCount:            5,
-				TotalCPU:           240.0,
-				TotalMemory:        480.0,
-				RequestedCPU:       216.0,
-				RequestedMemory:    456.0,
+				ResourceType:      "intel_common",
+				NodeType:          "Intel通用节点",
+				Nodes:             15,
+				CPUCapacity:       240.0,
+				MemoryCapacity:    480.0,
+				CPURequest:        216.0,
+				MemoryRequest:     456.0,
+				BMCount:           10,
+				VMCount:           5,
+				PodCount:          160,
+				PerNodeCpuRequest: 14.4,
+				PerNodeMemRequest: 30.4,
+				CPUHistory:        []float64{85.0, 87.0, 88.0, 90.0, 92.0, 91.0, 90.0},
+				MemoryHistory:     []float64{90.0, 92.0, 93.0, 94.0, 96.0, 95.0, 95.0},
 			},
+		},
+		NodesData: []resource_report.NodeResourceDetail{
 			{
-				ResourceType:       "intel_gpu",
-				NodeType:           "Intel GPU节点",
-				Nodes:              5,
-				NodeCount:          5,
-				Type:               "intel_gpu",
-				CPUCapacity:        80.0,
-				MemoryCapacity:     160.0,
-				CPURequest:         76.0,
-				MemoryRequest:      152.0,
-				CPUUsagePercent:    95.0,
-				MemoryUsagePercent: 95.0,
-				PhysicalNodes:      5,
-				VirtualNodes:       0,
-				BMCount:            5,
-				VMCount:            0,
-				TotalCPU:           80.0,
-				TotalMemory:        160.0,
-				RequestedCPU:       76.0,
-				RequestedMemory:    152.0,
+				NodeName:          "node-1",
+				CPURequest:        14.2,
+				MemoryRequest:     28.4,
+				CPULimit:          16.0,
+				MemoryLimit:       32.0,
+				CPUUsage:          12.1,
+				MemoryUsage:       26.8,
+				CPUAllocatable:    16.0,
+				MemoryAllocatable: 32.0,
 			},
 		},
 	}
 
 	// 创建测试环境集群（中等负载）
-	cluster2 := ClusterResourceSummary{
+	cluster2 := resource_report.ClusterResourceSummary{
 		ClusterName:         "test-cluster",
-		Name:                "test-cluster",
 		TotalNodes:          15,
-		PhysicalNodes:       8,
-		VirtualNodes:        7,
 		TotalCPUCapacity:    240.0,
 		TotalMemoryCapacity: 480.0,
-		TotalCPU:            240.0,
-		TotalMemory:         480.0,
-		RequestedCPU:        168.0,
-		RequestedMemory:     360.0,
-		CPUUsagePercent:     70.0,
-		MemoryUsagePercent:  75.0,
-		ResourcePools: []ResourcePool{
+		TotalCPURequest:     168.0,
+		TotalMemoryRequest:  360.0,
+		ResourcePools: []resource_report.ResourcePool{
 			{
-				ResourceType:       "total",
-				NodeType:           "总资源",
-				Nodes:              15,
-				NodeCount:          15,
-				Type:               "total",
-				CPUCapacity:        240.0,
-				MemoryCapacity:     480.0,
-				CPURequest:         168.0,
-				MemoryRequest:      360.0,
-				CPUUsagePercent:    70.0,
-				MemoryUsagePercent: 75.0,
-				PhysicalNodes:      8,
-				VirtualNodes:       7,
-				BMCount:            8,
-				VMCount:            7,
-				TotalCPU:           240.0,
-				TotalMemory:        480.0,
-				RequestedCPU:       168.0,
-				RequestedMemory:    360.0,
-			},
-			{
-				ResourceType:       "intel_common",
-				NodeType:           "Intel通用节点",
-				Nodes:              10,
-				NodeCount:          10,
-				Type:               "intel_common",
-				CPUCapacity:        160.0,
-				MemoryCapacity:     320.0,
-				CPURequest:         128.0,
-				MemoryRequest:      272.0,
-				CPUUsagePercent:    80.0,
-				MemoryUsagePercent: 85.0,
-				PhysicalNodes:      6,
-				VirtualNodes:       4,
-				BMCount:            6,
-				VMCount:            4,
-				TotalCPU:           160.0,
-				TotalMemory:        320.0,
-				RequestedCPU:       128.0,
-				RequestedMemory:    272.0,
+				ResourceType:      "total",
+				NodeType:          "总资源",
+				Nodes:             15,
+				CPUCapacity:       240.0,
+				MemoryCapacity:    480.0,
+				CPURequest:        168.0,
+				MemoryRequest:     360.0,
+				BMCount:           8,
+				VMCount:           7,
+				PodCount:          120,
+				PerNodeCpuRequest: 11.2,
+				PerNodeMemRequest: 24.0,
+				CPUHistory:        []float64{65.0, 67.0, 68.0, 70.0, 72.0, 71.0, 70.0},
+				MemoryHistory:     []float64{70.0, 72.0, 73.0, 75.0, 76.0, 74.0, 75.0},
 			},
 		},
 	}
 
-	// 创建开发环境集群（低负载）
-	cluster3 := ClusterResourceSummary{
-		ClusterName:         "dev-cluster",
-		Name:                "dev-cluster",
+	// 创建低使用率集群示例
+	cluster3 := resource_report.ClusterResourceSummary{
+		ClusterName:         "underutilized-cluster",
+		TotalNodes:          20,
+		TotalCPUCapacity:    320.0,
+		TotalMemoryCapacity: 640.0,
+		TotalCPURequest:     160.0,
+		TotalMemoryRequest:  320.0,
+		ResourcePools: []resource_report.ResourcePool{
+			{
+				ResourceType:        "total",
+				NodeType:            "总资源",
+				Nodes:               20,
+				CPUCapacity:         320.0,
+				MemoryCapacity:      640.0,
+				CPURequest:          160.0,
+				MemoryRequest:       320.0,
+				BMCount:             12,
+				VMCount:             8,
+				PodCount:            80,
+				PerNodeCpuRequest:   8.0,
+				PerNodeMemRequest:   16.0,
+				CPUHistory:          []float64{48.0, 47.0, 46.0, 45.0, 44.0, 45.0, 50.0},
+				MemoryHistory:       []float64{52.0, 51.0, 50.0, 49.0, 48.0, 47.0, 50.0},
+				MaxCpuUsageRatio:    0.65,
+				MaxMemoryUsageRatio: 0.70,
+			},
+			{
+				ResourceType:        "intel_common",
+				NodeType:            "Intel通用节点",
+				Nodes:               10,
+				CPUCapacity:         160.0,
+				MemoryCapacity:      320.0,
+				CPURequest:          80.0,
+				MemoryRequest:       160.0,
+				BMCount:             6,
+				VMCount:             4,
+				PodCount:            40,
+				PerNodeCpuRequest:   8.0,
+				PerNodeMemRequest:   16.0,
+				CPUHistory:          []float64{45.0, 44.0, 43.0, 42.0, 41.0, 40.0, 50.0},
+				MemoryHistory:       []float64{50.0, 49.0, 48.0, 47.0, 46.0, 45.0, 50.0},
+				MaxCpuUsageRatio:    0.60,
+				MaxMemoryUsageRatio: 0.65,
+			},
+			{
+				ResourceType:        "hg_common",
+				NodeType:            "海光通用节点",
+				Nodes:               5,
+				CPUCapacity:         80.0,
+				MemoryCapacity:      160.0,
+				CPURequest:          40.0,
+				MemoryRequest:       80.0,
+				BMCount:             3,
+				VMCount:             2,
+				PodCount:            20,
+				PerNodeCpuRequest:   8.0,
+				PerNodeMemRequest:   16.0,
+				CPUHistory:          []float64{48.0, 47.0, 46.0, 45.0, 44.0, 45.0, 50.0},
+				MemoryHistory:       []float64{52.0, 51.0, 50.0, 49.0, 48.0, 47.0, 50.0},
+				MaxCpuUsageRatio:    0.55,
+				MaxMemoryUsageRatio: 0.60,
+			},
+			{
+				ResourceType:        "arm_common",
+				NodeType:            "ARM通用节点",
+				Nodes:               5,
+				CPUCapacity:         80.0,
+				MemoryCapacity:      160.0,
+				CPURequest:          40.0,
+				MemoryRequest:       80.0,
+				BMCount:             3,
+				VMCount:             2,
+				PodCount:            20,
+				PerNodeCpuRequest:   8.0,
+				PerNodeMemRequest:   16.0,
+				CPUHistory:          []float64{52.0, 51.0, 50.0, 49.0, 48.0, 47.0, 50.0},
+				MemoryHistory:       []float64{54.0, 53.0, 52.0, 51.0, 50.0, 49.0, 50.0},
+				MaxCpuUsageRatio:    0.70,
+				MaxMemoryUsageRatio: 0.75,
+			},
+		},
+	}
+
+	// 创建极低使用率集群示例
+	cluster4 := resource_report.ClusterResourceSummary{
+		ClusterName:         "very-underutilized-cluster",
 		TotalNodes:          10,
-		PhysicalNodes:       4,
-		VirtualNodes:        6,
 		TotalCPUCapacity:    160.0,
 		TotalMemoryCapacity: 320.0,
-		TotalCPU:            160.0,
-		TotalMemory:         320.0,
-		RequestedCPU:        96.0,
-		RequestedMemory:     192.0,
-		CPUUsagePercent:     60.0,
-		MemoryUsagePercent:  60.0,
-		ResourcePools: []ResourcePool{
+		TotalCPURequest:     40.0,
+		TotalMemoryRequest:  80.0,
+		ResourcePools: []resource_report.ResourcePool{
 			{
-				ResourceType:       "total",
-				NodeType:           "总资源",
-				Nodes:              10,
-				NodeCount:          10,
-				Type:               "total",
-				CPUCapacity:        160.0,
-				MemoryCapacity:     320.0,
-				CPURequest:         96.0,
-				MemoryRequest:      192.0,
-				CPUUsagePercent:    60.0,
-				MemoryUsagePercent: 60.0,
-				PhysicalNodes:      4,
-				VirtualNodes:       6,
-				BMCount:            4,
-				VMCount:            6,
-				TotalCPU:           160.0,
-				TotalMemory:        320.0,
-				RequestedCPU:       96.0,
-				RequestedMemory:    192.0,
+				ResourceType:      "total",
+				NodeType:          "总资源",
+				Nodes:             10,
+				CPUCapacity:       160.0,
+				MemoryCapacity:    320.0,
+				CPURequest:        40.0,
+				MemoryRequest:     80.0,
+				BMCount:           6,
+				VMCount:           4,
+				PodCount:          20,
+				PerNodeCpuRequest: 4.0,
+				PerNodeMemRequest: 8.0,
+				CPUHistory:        []float64{28.0, 27.0, 26.0, 25.0, 24.0, 25.0, 25.0},
+				MemoryHistory:     []float64{27.0, 26.0, 25.0, 24.0, 23.0, 22.0, 25.0},
 			},
 		},
 	}
 
-	// 检查是否有高负载集群
-	hasHighUsageClusters := false
-	for _, cluster := range []ClusterResourceSummary{cluster1, cluster2, cluster3} {
-		// 根据新模板，使用 70% 作为高负载的阈值
-		if cluster.CPUUsagePercent >= 70.0 || cluster.MemoryUsagePercent >= 70.0 {
-			hasHighUsageClusters = true
-			break
-		}
+	// 创建统计信息
+	stats := resource_report.ClusterStats{
+		TotalClusters:     10,
+		NormalClusters:    6,
+		AbnormalClusters:  4, // 增加了两个低使用率集群
+		GeneralPodDensity: 10.5,
 	}
 
-	return ReportTemplateData{
+	// 创建标准的模板数据
+	standardData := resource_report.ReportTemplateData{
 		ReportDate:           reportDate,
-		Clusters:             []ClusterResourceSummary{cluster1, cluster2, cluster3},
-		HasHighUsageClusters: hasHighUsageClusters,
+		Clusters:             []resource_report.ClusterResourceSummary{cluster1, cluster2, cluster3, cluster4},
+		Stats:                stats,
+		HasHighUsageClusters: true,        // 表示有异常使用率（高或低）的集群
+		Environment:          environment, // 使用传入的环境类型
 	}
+
+	// 转换为本地格式
+	return convertTemplateData(standardData)
 }
 
 // GeneratePreview 生成预览文件
-func generatePreview() error {
+func generatePreview(environment string) error {
 	// 生成当前日期字符串
 	reportDate := time.Now().Format("2006-01-02")
 
@@ -400,7 +739,7 @@ func generatePreview() error {
 
 	// 创建模拟数据
 	// 这里我们创建一个简单的模拟数据集
-	data := createMockData(reportDate)
+	data := createMockData(reportDate, environment)
 
 	// 渲染模板
 	var buf bytes.Buffer
@@ -416,6 +755,14 @@ func generatePreview() error {
 		}
 	}
 
+	// 生成Excel报告
+	excelFilePath, err := generateExcelReport(data, reportDate)
+	if err != nil {
+		fmt.Printf("生成Excel报告失败: %v\n", err)
+	} else {
+		fmt.Printf("Excel报告已生成: %s\n", excelFilePath)
+	}
+
 	// 将结果保存到文件
 	outputPath := filepath.Join(outputDir, "preview.html")
 	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
@@ -425,16 +772,6 @@ func generatePreview() error {
 	// 获取当前目录的绝对路径
 	absPath, _ := filepath.Abs(outputPath)
 	fmt.Printf("预览HTML文件已生成: %s\n", absPath)
-
-	// 生成Excel预览文件
-	excelPath, err := generateExcelReport(data, reportDate)
-	if err != nil {
-		return fmt.Errorf("生成Excel预览文件失败: %v", err)
-	}
-
-	// 获取Excel文件的绝对路径
-	excelAbsPath, _ := filepath.Abs(excelPath)
-	fmt.Printf("预览Excel文件已生成: %s\n", excelAbsPath)
 
 	return nil
 }

@@ -100,6 +100,65 @@
             height: 100%;
             border-radius: 4px;
         }
+        .usage-bar.underutilized-usage {
+            background-color: #93c5fd;
+        }
+
+        /* 添加简略波动图样式 */
+        .trend-container {
+            margin-top: 8px;
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .trend-container td {
+            height: 15px;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .trend-day {
+            width: 14.28%; /* 7天平分 */
+        }
+        .trend-label {
+            font-size: 10px;
+            color: #718096;
+            text-align: right;
+            margin-top: 2px;
+            display: block;
+        }
+        /* CPU分配率颜色 */
+        .cpu-trend-underutilized {
+            background-color: rgba(147, 197, 253, 0.5);
+        }
+        .cpu-trend-normal {
+            background-color: rgba(79, 209, 197, 0.4);
+        }
+        .cpu-trend-high {
+            background-color: rgba(250, 204, 21, 0.6);
+        }
+        .cpu-trend-critical {
+            background-color: rgba(248, 113, 113, 0.7);
+        }
+        .cpu-trend-emergency {
+            background-color: rgba(239, 68, 68, 0.8);
+        }
+        /* 内存分配率颜色 */
+        .memory-trend-underutilized {
+            background-color: rgba(147, 197, 253, 0.5);
+        }
+        .memory-trend-normal {
+            background-color: rgba(99, 102, 241, 0.4);
+        }
+        .memory-trend-high {
+            background-color: rgba(250, 204, 21, 0.6);
+        }
+        .memory-trend-critical {
+            background-color: rgba(248, 113, 113, 0.7);
+        }
+        .memory-trend-emergency {
+            background-color: rgba(239, 68, 68, 0.8);
+        }
         .high-usage {
             background-color: #facc15;
         }
@@ -108,6 +167,10 @@
         }
         .emergency-usage {
             background-color: #ef4444;
+        }
+        .summary-item.underutilized {
+            background-color: #dbeafe;
+            border: 1px solid #93c5fd;
         }
         .summary-item.warning {
             background-color: #fef9c3;
@@ -121,6 +184,9 @@
             background-color: #fecaca;
             border: 1px solid #ef4444;
         }
+        .summary-value.underutilized {
+            color: #1e40af;
+        }
         .summary-value.warning {
             color: #854d0e;
         }
@@ -129,6 +195,63 @@
         }
         .summary-value.emergency {
             color: #7f1d1d;
+        }
+
+        /* 健康概览样式 - 从安全报告模板中复制 */
+        .health-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .health-card {
+            padding: 20px 24px;
+            text-align: center;
+            border-right: 1px solid #e2e8f0;
+        }
+        .health-card:last-child {
+            border-right: none;
+        }
+        .health-score {
+            font-size: 2.5em;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .health-label {
+            font-size: 0.95em;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            font-weight: 500;
+        }
+        .health-good { color: #10b981; }
+        .health-warning { color: #f59e0b; }
+        .health-critical { color: #ef4444; }
+
+        /* 响应式设计调整 */
+        @media (max-width: 768px) {
+            .health-summary {
+                grid-template-columns: 1fr 1fr;
+            }
+            .health-card {
+                padding: 15px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .health-card:nth-child(odd) {
+                border-right: 1px solid #e2e8f0;
+            }
+            .health-card:nth-child(even) {
+                border-right: none;
+            }
+            .health-card:nth-child(3),
+            .health-card:nth-child(4) {
+                border-bottom: none;
+            }
+            .health-score {
+                font-size: 2em;
+            }
         }
         .resource-pools {
             padding: 0 20px 20px;
@@ -195,6 +318,11 @@
             height: 24px;
             margin-left: 8px;
         }
+        .node-detail {
+            margin-left: 4px;
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
         .resource-pool-info {
             font-size: 0.8em;
             color: rgba(255, 255, 255, 0.9);
@@ -244,6 +372,109 @@
             padding: 15px;
             background-color: white;
         }
+        /* 资源池中的健康卡片样式 */
+        .resource-grid .health-card {
+            background-color: #f8fafc;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            margin: 0;
+        }
+        .resource-grid .health-score {
+            font-size: 2em;
+            margin-bottom: 4px;
+        }
+
+        /* 工具提示样式 */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+        /* 为不同位置的工具提示设置不同的样式 */
+        .resource-grid .tooltip .tooltip-text {
+            top: 105%; /* 跟元素更近，减少空隙 */
+            bottom: auto;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75em; /* 减小字体 */
+            padding: 6px 10px; /* 减小内边距 */
+        }
+        /* 为CPU和内存分配率的悬停框调整位置 */
+        .summary-item.tooltip .tooltip-text {
+            top: 105%;
+            bottom: auto;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: left;
+            width: 250px;
+            font-size: 0.75em;
+            padding: 6px 10px;
+        }
+        .resource-pool-type .tooltip .tooltip-text {
+            bottom: auto;
+            top: 110%; /* 跟元素更近 */
+            left: 0;
+            transform: none;
+            text-align: left;
+            font-size: 0.75em;
+            padding: 6px 10px;
+        }
+        .node-type-indicator .tooltip .tooltip-text {
+            top: auto;
+            bottom: 110%; /* 改为显示在上方而非下方 */
+            left: 0;
+            transform: none;
+            text-align: left;
+            width: 250px;
+            font-size: 0.75em;
+            padding: 6px 10px;
+        }
+        .node-type-indicator .tooltip .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 15px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+        }
+        .tooltip .tooltip-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            font-size: 10px;
+            margin-left: 6px;
+            color: white;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            position: absolute;
+            z-index: 1000; /* 增加z-index确保显示在最上层 */
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px 12px;
+            width: 220px;
+            font-size: 0.8em;
+            font-weight: normal;
+            line-height: 1.4;
+            opacity: 0;
+            transition: opacity 0.2s, visibility 0.2s;
+            pointer-events: none; /* 防止鼠标事件被捕获导致闪烁 */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* 添加阴影增强可见度 */
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
         .node-type-indicator {
             display: flex;
             flex-wrap: wrap;
@@ -265,37 +496,301 @@
             font-weight: 600;
             color: #334155;
         }
-        .threshold-legend {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-top: 15px;
-            padding: 10px;
+        /* 资源池概览表格样式 */
+        .resource-overview-table {
+            margin: 20px auto 30px;
+            max-width: 1000px;
+            overflow-x: auto;
+            padding: 0 5px;
+        }
+        .resource-overview-table h2 {
+            margin-bottom: 15px;
+            color: #1e293b;
+            font-size: 1.3em;
+            font-weight: 600;
+            text-align: center;
+            padding-bottom: 8px;
+            position: relative;
+        }
+        .resource-overview-table h2:after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(to right, #3b82f6, #93c5fd);
+            border-radius: 3px;
+        }
+        .overview-table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: separate;
+            border-spacing: 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 30px;
+            background-color: #fff;
+        }
+        .overview-table th, .overview-table td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: center;
+            transition: background-color 0.2s;
+            overflow: hidden;
+        }
+        .overview-table th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            color: #1e293b;
+            padding: 16px 8px;
+            border-bottom: 2px solid #cbd5e1;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .overview-table tr:last-child td {
+            border-bottom: none;
+        }
+        .overview-table tr:nth-child(even) {
             background-color: #f8fafc;
+        }
+        .overview-table tr:hover {
+            background-color: #f1f5f9;
+        }
+        .overview-table td:first-child {
+            text-align: left;
+            font-weight: 600;
+            background-color: #f8fafc;
+            color: #334155;
+            border-right: 1px solid #e2e8f0;
+            width: 18%;
+            padding-left: 16px;
+        }
+        .overview-table th:not(:first-child),
+        .overview-table td:not(:first-child) {
+            width: 20.5%;
+        }
+        .resource-indicators {
+            display: flex;
+            flex-direction: row;
+            gap: 6px;
+            max-width: 200px;
+            margin: 0 auto;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        .resource-indicator {
+            padding: 8px 10px;
             border-radius: 6px;
             font-size: 0.85em;
+            position: relative;
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease-in-out;
+            flex: 1;
+            text-align: center;
+            cursor: pointer;
+            min-width: 75px;
+            max-width: 95px;
+        }
+        .resource-indicator span {
+            white-space: nowrap;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .resource-indicator:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+            z-index: 5;
+        }
+        .resource-indicators:hover {
+            z-index: 10;
+        }
+        /* 颜色类 - 更新为与说明框一致的颜色 */
+        .resource-indicator.normal {
+            background-color: #4ade80;
+            border: 1px solid #16a34a;
+        }
+        .resource-indicator.warning {
+            background-color: #facc15;
+            border: 1px solid #d97706;
+        }
+        .resource-indicator.critical {
+            background-color: #f87171;
+            border: 1px solid #c2410c;
+        }
+        .resource-indicator.emergency {
+            background-color: #ef4444;
+            border: 1px solid #b91c1c;
+        }
+        .resource-indicator.underutilized {
+            background-color: #93c5fd;
+            border: 1px solid #3b82f6;
+        }
+        /* 悬停卡片样式 */
+        .resource-card-popup {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            width: 350px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            padding: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: left;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+            animation: fadeIn 0.25s ease-out;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -48%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        .resource-card-popup h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #1e293b;
+            font-size: 1.25em;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 12px;
+            position: relative;
+        }
+        .resource-card-popup h4:after {
+            content: "";
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(to right, #3b82f6, #93c5fd);
+            border-radius: 3px;
+        }
+        .resource-card-popup p {
+            margin: 10px 0;
+            font-size: 0.95em;
+            line-height: 1.6;
+            padding: 6px 0;
+            border-bottom: 1px dashed #f1f5f9;
+        }
+        .resource-card-popup p:last-child {
+            border-bottom: none;
+        }
+        .resource-card-popup strong {
+            color: #475569;
+            font-weight: 600;
+            margin-right: 5px;
+            min-width: 120px;
+            display: inline-block;
+        }
+        .resource-indicator:hover .resource-card-popup {
+            display: block;
+        }
+        /* 添加遮罩层 */
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        .resource-indicator:hover .popup-overlay {
+            display: block;
+        }
+        .no-data {
+            color: #94a3b8;
+            font-style: italic;
+            font-size: 0.9em;
+            padding: 12px 15px;
+            text-align: center;
+            background-color: #f8fafc;
+            border-radius: 6px;
+            border: 1px dashed #cbd5e1;
+            margin: 5px;
+        }
+        /* 资源分配率说明样式 */
+        .threshold-indicators {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .threshold-title {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #334155;
+            font-size: 0.95em;
+        }
+        .threshold-group {
+            margin-bottom: 10px;
+            background-color: #f8fafc;
+            border-radius: 6px;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: top;
+            width: calc(50% - 15px);
+        }
+        .threshold-group:last-child {
+            margin-right: 0;
+        }
+        .threshold-group-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #4a5568;
+            font-size: 0.9em;
+        }
+        .threshold-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 6px 0;
         }
         .threshold-item {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
+            background-color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            font-size: 0.8em;
+            margin-bottom: 4px;
         }
         .threshold-color {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 2px;
+            flex-shrink: 0;
+        }
+        .threshold-color.underutilized {
+            background-color: #93c5fd; /* 浅蓝色 - 低分配率 */
         }
         .threshold-color.normal {
-            background-color: #4ade80;
+            background-color: #4ade80; /* 绿色 - 正常 */
         }
         .threshold-color.warning {
-            background-color: #facc15;
+            background-color: #facc15; /* 黄色 - 警告 */
         }
         .threshold-color.critical {
-            background-color: #f87171;
+            background-color: #f87171; /* 橙红色 - 危险 */
         }
         .threshold-color.emergency {
-            background-color: #ef4444;
+            background-color: #ef4444; /* 红色 - 紧急 */
         }
         .footer {
             text-align: center;
@@ -309,16 +804,17 @@
             background-color: #f0f9ff;
             border: 1px solid #bae6fd;
             border-radius: 8px;
-            padding: 15px 20px;
-            margin: 20px 0;
+            padding: 12px 15px;
+            margin: 15px 0;
             color: #0369a1;
-            font-size: 0.95em;
-            line-height: 1.5;
+            font-size: 0.9em;
+            line-height: 1.4;
         }
         .note-box-title {
             font-weight: 600;
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
+            font-size: 0.95em;
         }
         .warning-alert {
             background-color: #fef2f2;
@@ -367,12 +863,53 @@
             .resource-grid {
                 grid-template-columns: 1fr 1fr;
             }
+            .resource-grid .health-card {
+                padding: 12px;
+            }
+            .resource-grid .health-score {
+                font-size: 1.8em;
+            }
             .resource-pool-header {
                 flex-direction: column;
                 align-items: flex-start;
             }
             .resource-pool-info {
                 margin-top: 5px;
+            }
+            /* 移动端阈值组样式 */
+            .threshold-group {
+                padding: 8px;
+                margin-bottom: 8px;
+                width: 100%;
+                margin-right: 0;
+            }
+            .threshold-group-title {
+                font-size: 0.85em;
+            }
+            .threshold-item {
+                padding: 3px 6px;
+                font-size: 0.75em;
+            }
+            /* 移动端提示框样式调整 */
+            .tooltip .tooltip-text {
+                width: 180px;
+                font-size: 0.7em;
+                padding: 5px 8px;
+            }
+            .resource-grid .tooltip .tooltip-text {
+                top: 102%;
+            }
+            .summary-item.tooltip .tooltip-text {
+                top: 102%;
+            }
+            .resource-pool-type .tooltip .tooltip-text {
+                left: -50px;
+                width: 180px;
+                top: 105%;
+            }
+            .node-type-indicator .tooltip .tooltip-text {
+                width: 180px;
+                top: 105%;
             }
         }
         @media (max-width: 480px) {
@@ -382,6 +919,114 @@
             .resource-grid {
                 grid-template-columns: 1fr;
             }
+            /* 小屏幕设备上的提示框样式 */
+            .tooltip .tooltip-text {
+                width: 160px;
+                font-size: 0.65em;
+                padding: 4px 6px;
+                line-height: 1.3;
+            }
+            .resource-grid .tooltip .tooltip-text {
+                top: 101%;
+            }
+            .summary-item.tooltip .tooltip-text {
+                top: 101%;
+            }
+            .resource-pool-type .tooltip .tooltip-text {
+                left: 0;
+                width: 160px;
+                top: 103%;
+            }
+            .node-type-indicator .tooltip .tooltip-text {
+                width: 160px;
+                top: 103%;
+            }
+        }
+        /* 表格控制和分页样式 */
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            background-color: #f8fafc;
+            padding: 12px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .search-box {
+            position: relative;
+            width: 250px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 35px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #334155;
+            transition: all 0.3s;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.3);
+        }
+        .search-box .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+        .table-pagination {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        .pagination-info {
+            font-size: 0.85em;
+            color: #64748b;
+        }
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .pagination-controls button {
+            background-color: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 0.85em;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination-controls button:hover:not(:disabled) {
+            background-color: #e2e8f0;
+        }
+        .pagination-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        @media (max-width: 768px) {
+            .table-controls {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+            }
+            .search-box {
+                width: 100%;
+            }
+            .table-pagination {
+                align-items: center;
+            }
+        }
+
+        /* JavaScript 添加的类 */
+        .hidden {
+            display: none;
         }
     </style>
 </head>
@@ -395,48 +1040,196 @@
             {{ if not .Clusters }}
                 <p>今日无可用资源数据。</p>
             {{ else }}
+
+                <!-- 集群健康概览 -->
+                <div class="health-summary">
+                    <div class="health-card">
+                        <span class="health-score">{{ .Stats.TotalClusters }}</span>
+                        <span class="health-label">总已巡检集群数</span>
+                    </div>
+                    <div class="health-card">
+                        <span class="health-score health-good">{{ .Stats.NormalClusters }}</span>
+                        <span class="health-label">正常集群数</span>
+                    </div>
+                    <div class="health-card">
+                        <span class="health-score {{ if gt .Stats.AbnormalClusters 0 }}health-critical{{ else }}health-good{{ end }}">{{ .Stats.AbnormalClusters }}</span>
+                        <span class="health-label">异常集群数</span>
+                    </div>
+                    <div class="health-card">
+                        <span class="health-score">{{ printf "%.2f" .Stats.GeneralPodDensity }}</span>
+                        <span class="health-label">通用集群Pod密度</span>
+                    </div>
+                </div>
+
+                <!-- 资源池概览表格 -->
+                <div class="resource-overview-table">
+                    <h2>资源池概览</h2>
+                    
+                    <div class="table-controls">
+                        <div class="search-box">
+                            <input type="text" id="clusterSearch" onkeyup="searchClusters()" placeholder="搜索集群名称...">
+                            <span class="search-icon">🔍</span>
+                        </div>
+                        <div class="table-pagination">
+                            <span class="pagination-info">显示 <span id="currentPageInfo">1-10</span> / <span id="totalClusters">{{ len .Clusters }}</span> 个集群</span>
+                            <div class="pagination-controls">
+                                <button onclick="changePage(-1)" id="prevPage" disabled>上一页</button>
+                                <span id="currentPage">1</span> / <span id="totalPages">{{ if eq (len .Clusters) 0 }}1{{ else }}{{ div (add (len .Clusters) 9) 10 }}{{ end }}</span>
+                                <button onclick="changePage(1)" id="nextPage">下一页</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <table class="overview-table" id="clusterTable">
+                        <thead>
+                            <tr>
+                                <th>集群名称</th>
+                                <th>通用资源 (total_common)</th>
+                                <th>Intel通用 (intel_common)</th>
+                                <th>海光通用 (hg_common)</th>
+                                <th>ARM通用 (arm_common)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{ range .Clusters }}
+                            {{ $cluster := . }}
+                            <tr class="cluster-row">
+                                <td>{{ .ClusterName }}</td>
+                                <!-- 为每种资源池类型创建单元格 -->
+                                {{ $poolTypes := slice "total_common" "intel_common" "hg_common" "arm_common" }}
+                                {{ range $poolTypes }}
+                                    {{ $poolType := . }}
+                                    <td>
+                                        {{ $foundPool := false }}
+                                        {{ range $cluster.ResourcePools }}
+                                            {{ if and (eq .ResourceType $poolType) (not $foundPool) }}
+                                                {{ $foundPool = true }}
+                                                <!-- 创建CPU和内存指示器 -->
+                                                <div class="resource-indicators">
+                                                    {{ $env := $.Environment }}
+                                                    <!-- CPU指示器 -->
+                                                    <div class="resource-indicator {{ if gt .CPUUsagePercent 0.0 }}
+                                                        {{ $isLargeCluster := gt .BMCount 150 }}
+                                                        {{ if $isLargeCluster }}
+                                                            {{ if ge .CPUUsagePercent 95.0 }}emergency{{ else if ge .CPUUsagePercent 85.0 }}critical{{ else if ge .CPUUsagePercent 80.0 }}warning{{ else if lt .CPUUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}
+                                                        {{ else }}
+                                                            {{ if ge .CPUUsagePercent 90.0 }}emergency{{ else if ge .CPUUsagePercent 75.0 }}critical{{ else if ge .CPUUsagePercent 70.0 }}warning{{ else if lt .CPUUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}
+                                                        {{ end }}
+                                                    {{ end }}">
+                                                        <span>CPU: {{ printf "%.1f%%" .CPUUsagePercent }}</span>
+                                                    </div>
+                                                    <!-- 内存指示器 -->
+                                                    <div class="resource-indicator {{ if gt .MemoryUsagePercent 0.0 }}
+                                                        {{ $isLargeCluster := gt .BMCount 150 }}
+                                                        {{ if $isLargeCluster }}
+                                                            {{ if ge .MemoryUsagePercent 95.0 }}emergency{{ else if ge .MemoryUsagePercent 85.0 }}critical{{ else if ge .MemoryUsagePercent 80.0 }}warning{{ else if lt .MemoryUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}
+                                                        {{ else }}
+                                                            {{ if ge .MemoryUsagePercent 90.0 }}emergency{{ else if ge .MemoryUsagePercent 75.0 }}critical{{ else if ge .MemoryUsagePercent 70.0 }}warning{{ else if lt .MemoryUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}
+                                                        {{ end }}
+                                                    {{ end }}">
+                                                        <span>内存: {{ printf "%.1f%%" .MemoryUsagePercent }}</span>
+                                                    </div>
+                                                    <!-- 悬停时显示的资源卡片和遮罩 -->
+                                                    <div class="popup-overlay"></div>
+                                                    <div class="resource-card-popup">
+                                                        <h4>{{ .NodeType }} ({{ .ResourceType }})</h4>
+                                                        <p><strong>CPU分配率:</strong> {{ printf "%.1f%%" .CPUUsagePercent }} ({{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核)</p>
+                                                        <p><strong>内存分配率:</strong> {{ printf "%.1f%%" .MemoryUsagePercent }} ({{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB)</p>
+                                                        <p><strong>节点数:</strong> {{ .Nodes }} (物理机: {{ .BMCount }}, 虚拟机: {{ .VMCount }})</p>
+                                                        <p><strong>Pod数量:</strong> {{ .PodCount }}</p>
+                                                        <p><strong>平均CPU:</strong> {{ printf "%.1f核" .PerNodeCpuRequest }}</p>
+                                                        <p><strong>平均内存:</strong> {{ printf "%.1fGiB" .PerNodeMemRequest }}</p>
+                                                    </div>
+                                                </div>
+                                            {{ end }}
+                                        {{ end }}
+                                        {{ if not $foundPool }}
+                                            <div class="no-data">无数据</div>
+                                        {{ end }}
+                                    </td>
+                                {{ end }}
+                            </tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                </div>
+
                 <div class="note-box">
                     <span class="note-box-title">📊 报告说明</span>
-                    <p>此报告仅显示资源分配率超过70%的集群与资源池，以便重点关注潜在风险区域。完整数据已附加在邮件中的Excel文件。</p>
-                    <p>资源数据仅计算物理机节点，虚拟机节点仅计算节点数量。</p>
+                    {{ if eq .Environment "test" }}
+                    <p style="margin: 0 0 8px 0; font-size: 0.9em;">此报告显示<strong>测试环境</strong>资源分配率异常的集群与资源池，以便重点关注潜在风险区域。测试环境低利用率不计为异常，高利用率阈值比生产环境高5%。完整数据已附加在邮件中的Excel文件。</p>
+                    {{ else }}
+                    <p style="margin: 0 0 8px 0; font-size: 0.9em;">此报告显示<strong>生产环境</strong>资源分配率异常（低于55%或高于阈值）的集群与资源池，以便重点关注潜在风险区域。完整数据已附加在邮件中的Excel文件。</p>
+                    {{ end }}
+                    <p style="margin: 0; font-size: 0.9em;">资源数据仅计算物理机节点，虚拟机节点仅计算节点数量。</p>
+
+                    <div class="threshold-indicators">
+                        <span class="threshold-title">资源分配率说明：</span>
+
+                        {{ if eq .Environment "test" }}
+                        <!-- 测试环境阈值 -->
+                        <div class="threshold-group">
+                            <div class="threshold-group-title">物理机节点数 ≤ 150台（测试环境）：</div>
+                            <div class="threshold-legend">
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 75%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (75% - 80%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (80% - 95%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 95%)</span></div>
+                            </div>
+                        </div>
+
+                        <div class="threshold-group">
+                            <div class="threshold-group-title">物理机节点数 > 150台（测试环境）：</div>
+                            <div class="threshold-legend">
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 85%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (85% - 90%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (90% - 95%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 95%)</span></div>
+                            </div>
+                        </div>
+                        {{ else }}
+                        <!-- 生产环境阈值 -->
+                        <div class="threshold-group">
+                            <div class="threshold-group-title">物理机节点数 ≤ 150台（生产环境）：</div>
+                            <div class="threshold-legend">
+                                <div class="threshold-item"><div class="threshold-color underutilized"></div> <span>低分配率 (< 55%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (55% - 70%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (70% - 75%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (75% - 90%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 90%)</span></div>
+                            </div>
+                        </div>
+
+                        <div class="threshold-group">
+                            <div class="threshold-group-title">物理机节点数 > 150台（生产环境）：</div>
+                            <div class="threshold-legend">
+                                <div class="threshold-item"><div class="threshold-color underutilized"></div> <span>低分配率 (< 55%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (55% - 80%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (80% - 85%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (85% - 95%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 95%)</span></div>
+                            </div>
+                        </div>
+                        {{ end }}
+                    </div>
                 </div>
 
-                <div class="threshold-legend">
-                    <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 70%)</span></div>
-                    <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (70% - 75%)</span></div>
-                    <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (75% - 90%)</span></div>
-                    <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 90%)</span></div>
-                </div>
-
-                {{ $hasHighUsage := false }}
                 {{ range .Clusters }}
-                    {{ $clusterHasHighUsage := false }}
-                    {{ $totalCPURequest := 0.0 }}
-                    {{ $totalMemRequest := 0.0 }}
+                    {{ $clusterHasAbnormalUsage := false }}
 
-                    {{ range .ResourcePools }}
-                        {{ if eq .ResourceType "total" }}
-                            {{ $totalCPURequest = .CPURequest }}
-                            {{ $totalMemRequest = .MemoryRequest }}
+                    {{ if eq $.Environment "test" }}
+                        <!-- 测试环境：低利用率不计算为异常，高利用率阈值上调5% -->
+                        {{ if or (ge .CPUUsagePercent 75.0) (ge .MemoryUsagePercent 75.0) }}
+                            {{ $clusterHasAbnormalUsage = true }}
+                        {{ end }}
+                    {{ else }}
+                        <!-- 生产环境：使用当前规则 -->
+                        {{ if or (ge .CPUUsagePercent 70.0) (ge .MemoryUsagePercent 70.0) (lt .CPUUsagePercent 55.0) (lt .MemoryUsagePercent 55.0) }}
+                            {{ $clusterHasAbnormalUsage = true }}
                         {{ end }}
                     {{ end }}
 
-                    {{ $cpuUsagePerc := 0.0 }}
-                    {{ if gt .TotalCPUCapacity 0.0 }}
-                        {{ $cpuUsagePerc = div $totalCPURequest .TotalCPUCapacity | mul 100.0 }}
-                    {{ end }}
-
-                    {{ $memUsagePerc := 0.0 }}
-                    {{ if gt .TotalMemoryCapacity 0.0 }}
-                        {{ $memUsagePerc = div $totalMemRequest .TotalMemoryCapacity | mul 100.0 }}
-                    {{ end }}
-
-                    {{ if or (ge $cpuUsagePerc 70.0) (ge $memUsagePerc 70.0) }}
-                        {{ $clusterHasHighUsage = true }}
-                        {{ $hasHighUsage = true }}
-                    {{ end }}
-
-                    {{ if $clusterHasHighUsage }}
+                    {{ if $clusterHasAbnormalUsage }}
                     <div class="cluster-section">
                         <div class="cluster-header">
                             <span>集群: {{ .ClusterName }}</span>
@@ -475,57 +1268,284 @@
                                     {{ $memUsagePerc = div .MemoryRequest .MemoryCapacity | mul 100.0 }}
                                 {{ end }}
 
-                                {{ if or (ge $cpuUsagePerc 70.0) (ge $memUsagePerc 70.0) }}
+                                {{ $isLargePool := gt .BMCount 150 }}
+                                {{ $showPool := false }}
+
+                                {{ if eq $.Environment "test" }}
+                                    <!-- 测试环境：低利用率不计算为异常，高利用率阈值上调5% -->
+                                    {{ if $isLargePool }}
+                                        {{ if or (ge .CPUUsagePercent 85.0) (ge .MemoryUsagePercent 85.0) }}
+                                            {{ $showPool = true }}
+                                        {{ end }}
+                                    {{ else }}
+                                        {{ if or (ge .CPUUsagePercent 75.0) (ge .MemoryUsagePercent 75.0) }}
+                                            {{ $showPool = true }}
+                                        {{ end }}
+                                    {{ end }}
+                                {{ else }}
+                                    <!-- 生产环境：使用当前规则 -->
+                                    {{ if $isLargePool }}
+                                        {{ if or (lt .CPUUsagePercent 55.0) (lt .MemoryUsagePercent 55.0) (ge .CPUUsagePercent 80.0) (ge .MemoryUsagePercent 80.0) }}
+                                            {{ $showPool = true }}
+                                        {{ end }}
+                                    {{ else }}
+                                        {{ if or (lt .CPUUsagePercent 55.0) (lt .MemoryUsagePercent 55.0) (ge .CPUUsagePercent 70.0) (ge .MemoryUsagePercent 70.0) }}
+                                            {{ $showPool = true }}
+                                        {{ end }}
+                                    {{ end }}
+                                {{ end }}
+                                {{ if $showPool }}
                                 <div class="resource-pool">
                                     <div class="resource-pool-header {{ $headerClass }}">
                                         <div class="resource-pool-type">
-                                            <span>{{ .NodeType }}</span>
-                                            <span class="node-count-badge">{{ .Nodes }} 节点</span>
+                                            <span class="tooltip">
+                                                {{ .NodeType }} ({{ .ResourceType }})
+                                                <span class="tooltip-icon">?</span>
+                                                <span class="tooltip-text">
+                                                    {{ if .TooltipText }}
+                                                        {{ .TooltipText }}
+                                                    {{ else if eq .ResourceType "total" }}
+                                                        集群所有物理机资源总和，包含集群中所有类型的节点。
+                                                    {{ else if eq .ResourceType "intel_common" }}
+                                                        Intel物理机通用应用节点资源，没有特殊标记或污点的Intel节点。
+                                                    {{ else if eq .ResourceType "arm_common" }}
+                                                        ARM物理机节点通用应用资源，没有特殊标记或污点的ARM节点。
+                                                    {{ else }}
+                                                        {{ .NodeType }}资源池，类型: {{ .ResourceType }}
+                                                    {{ end }}
+                                                </span>
+                                            </span>
+                                            <span class="node-count-badge">{{ .Nodes }} 节点 <span class="node-detail">(物理机: {{ .BMCount }}, 虚拟机: {{ .VMCount }})</span></span>
                                         </div>
-
                                     </div>
                                     <div class="resource-grid">
-                                        <div class="summary-item">
-                                            <span class="summary-label">节点数</span>
-                                            <span class="summary-value">{{ .Nodes }}</span>
+                                        <div class="health-card tooltip">
+                                            <span class="health-score">
+                                                {{ if gt .BMCount 0 }}
+                                                    {{ printf "%.1f" (div (float64 .PodCount) (float64 .BMCount)) }}
+                                                {{ else }}
+                                                    0
+                                                {{ end }}
+                                            </span>
+                                            <span class="health-label">Pod密度</span>
+                                            <span class="tooltip-text">
+                                                Pod密度表示每台物理机上运行的Pod数量。计算方式：Pod总数 / 物理机数量。该指标可以反映集群的资源利用效率。
+                                            </span>
                                         </div>
                                         {{ if gt .CPUCapacity 0.0 }}
-                                            <div class="summary-item {{ if ge $cpuUsagePerc 90.0 }}emergency{{ else if ge $cpuUsagePerc 75.0 }}critical{{ else if ge $cpuUsagePerc 70.0 }}warning{{ end }}">
-                                                <span class="summary-label">CPU 使用率 ({{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核)</span>
-                                                <span class="summary-value {{ if ge $cpuUsagePerc 90.0 }}emergency{{ else if ge $cpuUsagePerc 75.0 }}critical{{ else if ge $cpuUsagePerc 70.0 }}warning{{ end }}">
+                                            {{ $isLargeCluster := gt .BMCount 150 }}
+                                            {{ $cpuClass := "" }}
+                                            {{ if $isLargeCluster }}
+                                                {{ if ge $cpuUsagePerc 95.0 }}
+                                                    {{ $cpuClass = "emergency" }}
+                                                {{ else if ge $cpuUsagePerc 85.0 }}
+                                                    {{ $cpuClass = "critical" }}
+                                                {{ else if ge $cpuUsagePerc 80.0 }}
+                                                    {{ $cpuClass = "warning" }}
+                                                {{ else if lt $cpuUsagePerc 55.0 }}
+                                                    {{ $cpuClass = "underutilized" }}
+                                                {{ end }}
+                                            {{ else }}
+                                                {{ if ge $cpuUsagePerc 90.0 }}
+                                                    {{ $cpuClass = "emergency" }}
+                                                {{ else if ge $cpuUsagePerc 75.0 }}
+                                                    {{ $cpuClass = "critical" }}
+                                                {{ else if ge $cpuUsagePerc 70.0 }}
+                                                    {{ $cpuClass = "warning" }}
+                                                {{ else if lt $cpuUsagePerc 55.0 }}
+                                                    {{ $cpuClass = "underutilized" }}
+                                                {{ end }}
+                                            {{ end }}
+                                            <div class="summary-item tooltip {{ $cpuClass }}">
+                                                <span class="summary-label">CPU 分配率 ({{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核)</span>
+                                                <span class="summary-value {{ $cpuClass }}">
                                                     {{ printf "%.1f%%" $cpuUsagePerc }}
                                                 </span>
+                                                <span class="tooltip-text">
+                                                    CPU分配率表示已分配的CPU核心数与总可用CPU核心数的比率。计算方式：已分配核心数 / 总核心数 * 100%。
+                                                    <br><br>当前值：{{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核 ({{ printf "%.1f%%" $cpuUsagePerc }})
+                                                    {{ if $isLargeCluster }}
+                                                        {{ if ge $cpuUsagePerc 95.0 }}<br><br>状态：<b>紧急</b> - 资源池CPU分配率超过95%，需要立即关注并采取措施。{{ else if ge $cpuUsagePerc 85.0 }}<br><br>状态：<b>危险</b> - 资源池CPU分配率在85%-95%之间，需要尽快关注。{{ else if ge $cpuUsagePerc 80.0 }}<br><br>状态：<b>警告</b> - 资源池CPU分配率在80%-85%之间，建议关注资源趋势。{{ else if lt $cpuUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池CPU分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池CPU分配率在安全范围内。{{ end }}
+                                                    {{ else }}
+                                                        {{ if ge $cpuUsagePerc 90.0 }}<br><br>状态：<b>紧急</b> - 资源池CPU分配率超过90%，需要立即关注并采取措施。{{ else if ge $cpuUsagePerc 75.0 }}<br><br>状态：<b>危险</b> - 资源池CPU分配率在75%-90%之间，需要尽快关注。{{ else if ge $cpuUsagePerc 70.0 }}<br><br>状态：<b>警告</b> - 资源池CPU分配率在70%-75%之间，建议关注资源趋势。{{ else if lt $cpuUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池CPU分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池CPU分配率在安全范围内。{{ end }}
+                                                    {{ end }}
+                                                </span>
+                                                {{ $barClass := "" }}
+                                                {{ if $isLargeCluster }}
+                                                    {{ if ge $cpuUsagePerc 95.0 }}
+                                                        {{ $barClass = "emergency-usage" }}
+                                                    {{ else if ge $cpuUsagePerc 85.0 }}
+                                                        {{ $barClass = "danger-usage" }}
+                                                    {{ else if ge $cpuUsagePerc 80.0 }}
+                                                        {{ $barClass = "high-usage" }}
+                                                    {{ else if lt $cpuUsagePerc 55.0 }}
+                                                        {{ $barClass = "underutilized-usage" }}
+                                                    {{ end }}
+                                                {{ else }}
+                                                    {{ if ge $cpuUsagePerc 90.0 }}
+                                                        {{ $barClass = "emergency-usage" }}
+                                                    {{ else if ge $cpuUsagePerc 75.0 }}
+                                                        {{ $barClass = "danger-usage" }}
+                                                    {{ else if ge $cpuUsagePerc 70.0 }}
+                                                        {{ $barClass = "high-usage" }}
+                                                    {{ else if lt $cpuUsagePerc 55.0 }}
+                                                        {{ $barClass = "underutilized-usage" }}
+                                                    {{ end }}
+                                                {{ end }}
                                                 <div class="usage-bar-container">
-                                                    <div class="usage-bar {{ if ge $cpuUsagePerc 90.0 }}emergency-usage{{ else if ge $cpuUsagePerc 75.0 }}danger-usage{{ else if ge $cpuUsagePerc 70.0 }}high-usage{{ end }}"
-                                                         style="width: {{ if gt $cpuUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $cpuUsagePerc }}{{ end }}">
+                                                    <div class="usage-bar {{ $barClass }}" style="width: {{ if gt $cpuUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $cpuUsagePerc }}{{ end }}">
                                                     </div>
                                                 </div>
+
+                                                <!-- CPU分配率波动图 -->
+                                                {{ if .CPUHistory }}
+                                                <table class="trend-container" cellspacing="0" cellpadding="0">
+                                                    <tr>
+                                                        {{ range $i, $value := .CPUHistory }}
+                                                            {{ $height := $value }}
+                                                            {{ if gt $height 100.0 }}{{ $height = 100.0 }}{{ end }}
+                                                            {{ $dayLabel := "" }}
+                                                            {{ if eq $i 6 }}
+                                                                {{ $dayLabel = "今天" }}
+                                                            {{ else if eq $i 5 }}
+                                                                {{ $dayLabel = "昨天" }}
+                                                            {{ else }}
+                                                                {{ $daysAgo := sub 6 $i }}
+                                                                {{ $dayLabel = printf "%d天前" $daysAgo }}
+                                                            {{ end }}
+                                                            <td class="trend-day {{ if $isLargeCluster }}
+                                                                {{ if ge $height 95.0 }}cpu-trend-emergency{{ else if ge $height 85.0 }}cpu-trend-critical{{ else if ge $height 80.0 }}cpu-trend-high{{ else if lt $height 55.0 }}cpu-trend-underutilized{{ else }}cpu-trend-normal{{ end }}
+                                                            {{ else }}
+                                                                {{ if ge $height 90.0 }}cpu-trend-emergency{{ else if ge $height 75.0 }}cpu-trend-critical{{ else if ge $height 70.0 }}cpu-trend-high{{ else if lt $height 55.0 }}cpu-trend-underutilized{{ else }}cpu-trend-normal{{ end }}
+                                                            {{ end }}" title="{{ $dayLabel }} CPU分配率: {{ printf "%.1f%%" $height }}"></td>
+                                                        {{ end }}
+                                                    </tr>
+                                                </table>
+                                                <span class="trend-label">7天波动</span>
+                                                {{ end }}
                                             </div>
                                         {{ end }}
 
                                         {{ if gt .MemoryCapacity 0.0 }}
-                                            <div class="summary-item {{ if ge $memUsagePerc 90.0 }}emergency{{ else if ge $memUsagePerc 75.0 }}critical{{ else if ge $memUsagePerc 70.0 }}warning{{ end }}">
-                                                <span class="summary-label">内存使用率 ({{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB)</span>
-                                                <span class="summary-value {{ if ge $memUsagePerc 90.0 }}emergency{{ else if ge $memUsagePerc 75.0 }}critical{{ else if ge $memUsagePerc 70.0 }}warning{{ end }}">
+                                            {{ $isLargeCluster := gt .BMCount 150 }}
+                                            {{ $memClass := "" }}
+                                            {{ if $isLargeCluster }}
+                                                {{ if ge $memUsagePerc 95.0 }}
+                                                    {{ $memClass = "emergency" }}
+                                                {{ else if ge $memUsagePerc 85.0 }}
+                                                    {{ $memClass = "critical" }}
+                                                {{ else if ge $memUsagePerc 80.0 }}
+                                                    {{ $memClass = "warning" }}
+                                                {{ else if lt $memUsagePerc 55.0 }}
+                                                    {{ $memClass = "underutilized" }}
+                                                {{ end }}
+                                            {{ else }}
+                                                {{ if ge $memUsagePerc 90.0 }}
+                                                    {{ $memClass = "emergency" }}
+                                                {{ else if ge $memUsagePerc 75.0 }}
+                                                    {{ $memClass = "critical" }}
+                                                {{ else if ge $memUsagePerc 70.0 }}
+                                                    {{ $memClass = "warning" }}
+                                                {{ else if lt $memUsagePerc 55.0 }}
+                                                    {{ $memClass = "underutilized" }}
+                                                {{ end }}
+                                            {{ end }}
+                                            <div class="summary-item tooltip {{ $memClass }}">
+                                                <span class="summary-label">内存分配率 ({{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB)</span>
+                                                <span class="summary-value {{ $memClass }}">
                                                     {{ printf "%.1f%%" $memUsagePerc }}
                                                 </span>
+                                                <span class="tooltip-text">
+                                                    内存分配率表示已分配的内存与总可用内存的比率。计算方式：已分配内存 / 总内存 * 100%。
+                                                    <br><br>当前值：{{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB ({{ printf "%.1f%%" $memUsagePerc }})
+                                                    {{ if $isLargeCluster }}
+                                                        {{ if ge $memUsagePerc 95.0 }}<br><br>状态：<b>紧急</b> - 资源池内存分配率超过95%，需要立即关注并采取措施。{{ else if ge $memUsagePerc 85.0 }}<br><br>状态：<b>危险</b> - 资源池内存分配率在85%-95%之间，需要尽快关注。{{ else if ge $memUsagePerc 80.0 }}<br><br>状态：<b>警告</b> - 资源池内存分配率在80%-85%之间，建议关注资源趋势。{{ else if lt $memUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池内存分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池内存分配率在安全范围内。{{ end }}
+                                                    {{ else }}
+                                                        {{ if ge $memUsagePerc 90.0 }}<br><br>状态：<b>紧急</b> - 资源池内存分配率超过90%，需要立即关注并采取措施。{{ else if ge $memUsagePerc 75.0 }}<br><br>状态：<b>危险</b> - 资源池内存分配率在75%-90%之间，需要尽快关注。{{ else if ge $memUsagePerc 70.0 }}<br><br>状态：<b>警告</b> - 资源池内存分配率在70%-75%之间，建议关注资源趋势。{{ else if lt $memUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池内存分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池内存分配率在安全范围内。{{ end }}
+                                                    {{ end }}
+                                                </span>
+                                                {{ $barClass := "" }}
+                                                {{ if $isLargeCluster }}
+                                                    {{ if ge $memUsagePerc 95.0 }}
+                                                        {{ $barClass = "emergency-usage" }}
+                                                    {{ else if ge $memUsagePerc 85.0 }}
+                                                        {{ $barClass = "danger-usage" }}
+                                                    {{ else if ge $memUsagePerc 80.0 }}
+                                                        {{ $barClass = "high-usage" }}
+                                                    {{ else if lt $memUsagePerc 55.0 }}
+                                                        {{ $barClass = "underutilized-usage" }}
+                                                    {{ end }}
+                                                {{ else }}
+                                                    {{ if ge $memUsagePerc 90.0 }}
+                                                        {{ $barClass = "emergency-usage" }}
+                                                    {{ else if ge $memUsagePerc 75.0 }}
+                                                        {{ $barClass = "danger-usage" }}
+                                                    {{ else if ge $memUsagePerc 70.0 }}
+                                                        {{ $barClass = "high-usage" }}
+                                                    {{ else if lt $memUsagePerc 55.0 }}
+                                                        {{ $barClass = "underutilized-usage" }}
+                                                    {{ end }}
+                                                {{ end }}
                                                 <div class="usage-bar-container">
-                                                    <div class="usage-bar {{ if ge $memUsagePerc 90.0 }}emergency-usage{{ else if ge $memUsagePerc 75.0 }}danger-usage{{ else if ge $memUsagePerc 70.0 }}high-usage{{ end }}"
-                                                         style="width: {{ if gt $memUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $memUsagePerc }}{{ end }}">
+                                                    <div class="usage-bar {{ $barClass }}" style="width: {{ if gt $memUsagePerc 100.0 }}100%{{ else }}{{ printf "%.1f%%" $memUsagePerc }}{{ end }}">
                                                     </div>
                                                 </div>
+
+                                                <!-- 内存分配率波动图 -->
+                                                {{ if .MemoryHistory }}
+                                                <table class="trend-container" cellspacing="0" cellpadding="0">
+                                                    <tr>
+                                                        {{ range $i, $value := .MemoryHistory }}
+                                                            {{ $height := $value }}
+                                                            {{ if gt $height 100.0 }}{{ $height = 100.0 }}{{ end }}
+                                                            {{ $dayLabel := "" }}
+                                                            {{ if eq $i 6 }}
+                                                                {{ $dayLabel = "今天" }}
+                                                            {{ else if eq $i 5 }}
+                                                                {{ $dayLabel = "昨天" }}
+                                                            {{ else }}
+                                                                {{ $daysAgo := sub 6 $i }}
+                                                                {{ $dayLabel = printf "%d天前" $daysAgo }}
+                                                            {{ end }}
+                                                            <td class="trend-day {{ if $isLargeCluster }}
+                                                                {{ if ge $height 95.0 }}memory-trend-emergency{{ else if ge $height 85.0 }}memory-trend-critical{{ else if ge $height 80.0 }}memory-trend-high{{ else if lt $height 55.0 }}memory-trend-underutilized{{ else }}memory-trend-normal{{ end }}
+                                                            {{ else }}
+                                                                {{ if ge $height 90.0 }}memory-trend-emergency{{ else if ge $height 75.0 }}memory-trend-critical{{ else if ge $height 70.0 }}memory-trend-high{{ else if lt $height 55.0 }}memory-trend-underutilized{{ else }}memory-trend-normal{{ end }}
+                                                            {{ end }}" title="{{ $dayLabel }} 内存分配率: {{ printf "%.1f%%" $height }}"></td>
+                                                        {{ end }}
+                                                    </tr>
+                                                </table>
+                                                <span class="trend-label">7天波动</span>
+                                                {{ end }}
                                             </div>
                                         {{ end }}
                                     </div>
 
                                     <div class="node-type-indicator">
-                                        <div class="node-type-badge">
-                                            <span>物理机:</span>
-                                            <span class="badge-label">{{ .BMCount }}</span>
+                                        <div class="node-type-badge tooltip">
+                                            <span>Pod数量:</span>
+                                            <span class="badge-label">{{ .PodCount }}</span>
+                                            <span class="tooltip-text">按天分布取过去一个月中某天最大的已发布pod数（不区分在线状态）</span>
                                         </div>
-                                        <div class="node-type-badge">
-                                            <span>虚拟机:</span>
-                                            <span class="badge-label">{{ .VMCount }}</span>
+                                        <div class="node-type-badge tooltip">
+                                            <span>平均CPU:</span>
+                                            <span class="badge-label">{{ printf "%.1f核" .PerNodeCpuRequest }}</span>
+                                            <span class="tooltip-text">已分配的cpu/物理机节点，即每节点平均分配cpu</span>
+                                        </div>
+                                        <div class="node-type-badge tooltip">
+                                            <span>平均内存:</span>
+                                            <span class="badge-label">{{ printf "%.1fGiB" .PerNodeMemRequest }}</span>
+                                            <span class="tooltip-text">已分配的内存/物理机节点，即每节点平均分配内存</span>
+                                        </div>
+                                        <div class="node-type-badge tooltip">
+                                            <span>CPU最大使用率:</span>
+                                            <span class="badge-label">{{ printf "%.1f%%" (mul .MaxCpuUsageRatio 100) }}</span>
+                                            <span class="tooltip-text">过去24小时内CPU平均最大使用率</span>
+                                        </div>
+                                        <div class="node-type-badge tooltip">
+                                            <span>内存最大使用率:</span>
+                                            <span class="badge-label">{{ printf "%.1f%%" (mul .MaxMemoryUsageRatio 100) }}</span>
+                                            <span class="tooltip-text">过去24小时内内存平均最大使用率</span>
                                         </div>
                                     </div>
                                 </div>
@@ -536,10 +1556,14 @@
                     {{ end }}
                 {{ end }}
 
-                {{ if not $hasHighUsage }}
+                {{ if not .HasHighUsageClusters }}
                     <div class="note-box" style="background-color: #f0fff4; border-color: #c6f6d5; color: #2f855a;">
                         <span class="note-box-title">✅ 资源状态良好</span>
-                        <p>当前所有集群的资源分配率均在正常范围内（低于70%），未发现需要特别关注的情况。完整数据请查看附件中的Excel表格。</p>
+                        {{ if eq .Environment "test" }}
+                            <p>当前所有集群的资源分配率均在正常范围内（低于测试环境阈值），未发现需要特别关注的情况。完整数据请查看附件中的Excel表格。</p>
+                        {{ else }}
+                            <p>当前所有集群的资源分配率均在正常范围内（55%-70%之间），未发现需要特别关注的情况。完整数据请查看附件中的Excel表格。</p>
+                        {{ end }}
                     </div>
                 {{ end }}
             {{ end }}
@@ -548,6 +1572,92 @@
             此邮件为系统自动生成，完整数据请查看附件Excel文件。如有问题请联系运维团队。
         </div>
     </div>
+
+    <script>
+        // 分页和搜索功能
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        let filteredRows = [];
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initTable();
+        });
+        
+        function initTable() {
+            const table = document.getElementById('clusterTable');
+            const rows = Array.from(table.getElementsByClassName('cluster-row'));
+            filteredRows = rows; // 初始时所有行都可见
+            
+            // 直接调用showPage，不再需要额外的updatePagination函数
+            showPage(1);
+        }
+        
+        function showPage(page) {
+            const table = document.getElementById('clusterTable');
+            const rows = filteredRows;
+            
+            // 隐藏所有行
+            rows.forEach(row => {
+                row.classList.add('hidden');
+            });
+            
+            // 计算当前页应该显示的行
+            const startIndex = (page - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, rows.length);
+            
+            // 显示当前页的行
+            for (let i = startIndex; i < endIndex; i++) {
+                if (rows[i]) {
+                    rows[i].classList.remove('hidden');
+                }
+            }
+            
+            // 更新当前页信息
+            currentPage = page;
+            document.getElementById('currentPage').textContent = page;
+            
+            // 更新分页信息
+            const start = startIndex + 1;
+            const end = Math.min(startIndex + rowsPerPage, rows.length);
+            document.getElementById('currentPageInfo').textContent = 
+                rows.length > 0 ? `${start}-${end}` : '0-0';
+            
+            // 更新按钮状态
+            document.getElementById('prevPage').disabled = page <= 1;
+            document.getElementById('nextPage').disabled = page >= Math.ceil(rows.length / rowsPerPage);
+        }
+        
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            const maxPage = Math.ceil(filteredRows.length / rowsPerPage);
+            
+            if (newPage >= 1 && newPage <= maxPage) {
+                showPage(newPage);
+            }
+        }
+        
+        function searchClusters() {
+            const searchText = document.getElementById('clusterSearch').value.toLowerCase();
+            const table = document.getElementById('clusterTable');
+            const rows = Array.from(table.getElementsByClassName('cluster-row'));
+            
+            filteredRows = rows.filter(row => {
+                const clusterName = row.cells[0].textContent.toLowerCase();
+                return clusterName.includes(searchText);
+            });
+            
+            // 更新总数
+            document.getElementById('totalClusters').textContent = filteredRows.length;
+            
+            // 更新总页数
+            const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
+            document.getElementById('totalPages').textContent = totalPages;
+            
+            // 重置到第一页并显示
+            showPage(1);
+        }
+    </script>
 </body>
 </html>
 

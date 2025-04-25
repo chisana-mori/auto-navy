@@ -7,11 +7,15 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap" // Import zap
 
 	"navy-ng/job/chore/security_check"
 	"navy-ng/job/email/resource_report" // 新增：导入资源报告包
 	"navy-ng/job/email/security_report"
+	// Assuming initDB and initS3Client are defined in job/init.go or another package
 )
+
+// Removed placeholder initDB and initS3Client functions as they likely exist elsewhere
 
 var (
 	rootCmd = &cobra.Command{
@@ -166,40 +170,64 @@ var (
 )
 
 // -------- 新增 K8s 资源报告命令 ---------
-var resourceReportCmd = &cobra.Command{
-	Use:   "resource-report",
-	Short: "Send Kubernetes resource report email",
-	Long:  `Generates and sends a daily Kubernetes cluster resource usage report via email.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// 初始化数据库连接
-		db, err := initDB(mysqlDSN)
-		if err != nil {
-			return fmt.Errorf("failed to initialize database: %w", err)
-		}
+var (
+	// 资源报告相关参数
+	generalClusters string // 通用集群列表，用于计算Pod密度，使用逗号分隔
+	environment     string // 环境类型："prd" 或 "test"
 
-		// 解析收件人列表
-		recipients := strings.Split(toEmails, ",")
-		if len(recipients) == 0 {
-			return fmt.Errorf("at least one recipient email is required")
-		}
+	resourceReportCmd = &cobra.Command{
+		Use:   "resource-report",
+		Short: "Send Kubernetes resource report email",
+		Long:  `Generates and sends a daily Kubernetes cluster resource usage report via email.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Initialize logger
+			logger := zap.NewExample() // Or zap.NewProduction()
+			defer logger.Sync()        // flushes buffer, if any
 
-		// 创建并运行资源报告发送器
-		sender := resource_report.NewResourceReportSender(
-			db,
-			smtpHost,
-			smtpPort,
-			smtpUser,
-			smtpPassword,
-			fromEmail,
-			recipients,
-		)
-		if err := sender.Run(cmd.Context()); err != nil {
-			return fmt.Errorf("failed to send resource report: %w", err)
-		}
+			// 初始化数据库连接
+			db, err := initDB(mysqlDSN)
+			if err != nil {
+				// Log error before returning
+				logger.Error("Failed to initialize database", zap.String("dsn", mysqlDSN), zap.Error(err))
+				return fmt.Errorf("failed to initialize database: %w", err)
+			}
 
-		return nil
-	},
-}
+			// 解析收件人列表
+			recipients := strings.Split(toEmails, ",")
+			if len(recipients) == 0 {
+				logger.Error("No recipient emails provided", zap.String("toEmails", toEmails))
+				return fmt.Errorf("at least one recipient email is required")
+			}
+
+			// 解析通用集群列表
+			var generalClusterList []string
+			if generalClusters != "" {
+				generalClusterList = strings.Split(generalClusters, ",")
+			}
+
+			// 创建并运行资源报告发送器
+			sender := resource_report.NewResourceReportSender(
+				db,
+				smtpHost,
+				smtpPort,
+				smtpUser,
+				smtpPassword,
+				fromEmail,
+				recipients,
+				generalClusterList,
+				environment, // 传入环境类型
+				logger,      // Pass the logger instance
+			)
+			if err := sender.Run(cmd.Context()); err != nil {
+				logger.Error("Failed to send resource report", zap.Error(err))
+				return fmt.Errorf("failed to send resource report: %w", err)
+			}
+
+			logger.Info("Resource report sent successfully")
+			return nil
+		},
+	}
+)
 
 // ----------------------------------------
 
@@ -246,6 +274,8 @@ func init() {
 	resourceReportCmd.Flags().StringVar(&smtpPassword, "smtp-password", "", "SMTP password")
 	resourceReportCmd.Flags().StringVar(&fromEmail, "from", "", "Sender email address")
 	resourceReportCmd.Flags().StringVar(&toEmails, "to", "", "Comma-separated list of recipient email addresses")
+	resourceReportCmd.Flags().StringVar(&generalClusters, "general-clusters", "", "Comma-separated list of general purpose clusters for POD density calculation")
+	resourceReportCmd.Flags().StringVar(&environment, "env", "prd", "Environment type: 'prd' or 'test'. Production environment uses standard thresholds, test environment ignores low utilization and increases high utilization thresholds by 5%")
 
 	// 标记资源报告命令必需的标志
 	resourceReportCmd.MarkFlagRequired("smtp-host")
@@ -260,7 +290,8 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Printf("Error: %v\n", err)
+		// Use standard log here as zap might not be initialized if Execute fails early
+		log.Printf("Error executing root command: %v\n", err)
 		os.Exit(1)
 	}
 }
