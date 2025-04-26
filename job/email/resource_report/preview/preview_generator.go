@@ -46,12 +46,14 @@ type ResourcePool struct {
 	// 过去24小时平均CPU和内存最大使用率
 	MaxCpuUsageRatio    float64 // 平均CPU最大使用率，存储为小数，如0.36代表百分之36
 	MaxMemoryUsageRatio float64 // 平均内存最大使用率，存储为小数，如0.36代表百分之36
+	Desc                string  // 资源池描述字段
 }
 
 // ClusterResourceSummary 集群资源摘要 - Preview generator's local version with additional fields
 type ClusterResourceSummary struct {
 	ClusterName         string
 	Name                string // 添加Name字段以兼容模板
+	Desc                string // 集群分组描述字段，用于将集群按组分类和排序
 	TotalNodes          int
 	PhysicalNodes       int // 物理节点数量
 	VirtualNodes        int // 虚拟节点数量
@@ -82,6 +84,7 @@ type ReportTemplateData struct {
 	Stats                ClusterStats // 添加集群统计信息
 	HasHighUsageClusters bool         // 是否存在高使用率集群（CPU或内存使用率>=70%）
 	Environment          string       // 环境类型："prd" 或 "test"
+	ShowResourcePoolDesc bool         // 是否显示资源池描述
 }
 
 // 将资源报告的标准ResourcePool转换为预览本地的ResourcePool
@@ -177,6 +180,7 @@ func convertResourcePool(pool resource_report.ResourcePool) ResourcePool {
 		TooltipText:         tooltipText,
 		MaxCpuUsageRatio:    pool.MaxCpuUsageRatio,
 		MaxMemoryUsageRatio: pool.MaxMemoryUsageRatio,
+		Desc:                "", // 资源池描述默认为空字符串
 	}
 }
 
@@ -214,6 +218,7 @@ func convertClusterSummary(cluster resource_report.ClusterResourceSummary) Clust
 	return ClusterResourceSummary{
 		ClusterName:         cluster.ClusterName,
 		Name:                cluster.ClusterName,
+		Desc:                cluster.Desc, // 复制集群描述字段
 		TotalNodes:          cluster.TotalNodes,
 		PhysicalNodes:       physicalNodes,
 		VirtualNodes:        virtualNodes,
@@ -244,6 +249,7 @@ func convertTemplateData(data resource_report.ReportTemplateData) ReportTemplate
 		Stats:                ClusterStats(data.Stats), // 结构一致，可以直接转换
 		HasHighUsageClusters: data.HasHighUsageClusters,
 		Environment:          data.Environment,
+		ShowResourcePoolDesc: data.ShowResourcePoolDesc,
 	}
 }
 
@@ -499,6 +505,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 	// 创建生产环境集群（高负载）
 	cluster1 := resource_report.ClusterResourceSummary{
 		ClusterName:         "production-cluster",
+		Desc:                "生产环境", // 添加集群描述
 		TotalNodes:          30,
 		TotalCPUCapacity:    480.0,
 		TotalMemoryCapacity: 960.0,
@@ -556,6 +563,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 	// 创建测试环境集群（中等负载）
 	cluster2 := resource_report.ClusterResourceSummary{
 		ClusterName:         "test-cluster",
+		Desc:                "测试环境", // 添加集群描述
 		TotalNodes:          15,
 		TotalCPUCapacity:    240.0,
 		TotalMemoryCapacity: 480.0,
@@ -584,6 +592,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 	// 创建低使用率集群示例
 	cluster3 := resource_report.ClusterResourceSummary{
 		ClusterName:         "underutilized-cluster",
+		Desc:                "低利用率集群", // 添加集群描述
 		TotalNodes:          20,
 		TotalCPUCapacity:    320.0,
 		TotalMemoryCapacity: 640.0,
@@ -668,6 +677,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 	// 创建极低使用率集群示例
 	cluster4 := resource_report.ClusterResourceSummary{
 		ClusterName:         "very-underutilized-cluster",
+		Desc:                "极低利用率集群", // 添加集群描述
 		TotalNodes:          10,
 		TotalCPUCapacity:    160.0,
 		TotalMemoryCapacity: 320.0,
@@ -695,9 +705,9 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 
 	// 创建统计信息
 	stats := resource_report.ClusterStats{
-		TotalClusters:     10,
-		NormalClusters:    6,
-		AbnormalClusters:  4, // 增加了两个低使用率集群
+		TotalClusters:     4, // 修正为实际的集群数量，与上面创建的cluster1/2/3/4一致
+		NormalClusters:    2, // 正常集群数量
+		AbnormalClusters:  2, // 异常集群数量
 		GeneralPodDensity: 10.5,
 	}
 
@@ -708,6 +718,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 		Stats:                stats,
 		HasHighUsageClusters: true,        // 表示有异常使用率（高或低）的集群
 		Environment:          environment, // 使用传入的环境类型
+		ShowResourcePoolDesc: true,        // 设置ShowResourcePoolDesc为true
 	}
 
 	// 转换为本地格式

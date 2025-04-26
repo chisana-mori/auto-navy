@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"html/template"
 	"net/smtp"
+	"regexp"
 	"sort"
 	"strconv" // Add strconv import for custom funcs
+	"strings"
 	"time"
 
 	"navy-ng/models/portal"
@@ -28,6 +30,9 @@ var defaultGeneralClusters = []string{
 	"cluster2",
 	"cluster3",
 }
+
+// 在函数外部定义全局正则表达式
+var groupRegex = regexp.MustCompile(`-([^-]+)-`)
 
 // NewResourceReportSender creates a new ResourceReportSender with the given parameters
 func NewResourceReportSender(db *gorm.DB, smtpHost string, smtpPort int, smtpUser, smtpPassword, fromEmail string, toEmails []string, generalClusterList []string, environment string, logger *zap.Logger) *ResourceReportSender { // Add environment and logger parameters
@@ -118,10 +123,11 @@ func (s *ResourceReportSender) initializeParameters() {
 // prepareTemplateData creates a ReportTemplateData structure from cluster data.
 func (s *ResourceReportSender) prepareTemplateData(clusters []ClusterResourceSummary, stats ClusterStats) ReportTemplateData {
 	templateData := ReportTemplateData{
-		ReportDate:  s.ReportDate.Format(DateFormat),
-		Clusters:    clusters,
-		Stats:       stats,
-		Environment: s.Environment, // 设置环境类型
+		ReportDate:           s.ReportDate.Format(DateFormat),
+		Clusters:             clusters,
+		Stats:                stats,
+		Environment:          s.Environment, // 设置环境类型
+		ShowResourcePoolDesc: false,         // 默认不显示资源池描述，因为当前ResourcePool类型没有Desc字段
 	}
 
 	// Determine if any clusters have abnormal usage
@@ -257,7 +263,10 @@ func (s *ResourceReportSender) processData(
 		// Continue without historical data, but the report might be incomplete
 	}
 
-	return clusterSummaries, stats, nil
+	// 根据集群名称或标签分配组别和排序优先级
+	clusters := s.assignGroupsAndOrder(clusterSummaries)
+
+	return clusters, stats, nil
 }
 
 // filterSnapshotsForDate filters a list of snapshots to include only those from a specific date.
@@ -673,13 +682,25 @@ func (s *ResourceReportSender) calculateClusterStats(clusters []ClusterResourceS
 	}
 }
 
-// isClusterAbnormal determines if a cluster's resource usage is abnormal.
+// isClusterAbnormal determines if a cluster has abnormally high resource usage
+// based on CPU and memory usage thresholds.
 func (s *ResourceReportSender) isClusterAbnormal(cluster ClusterResourceSummary) bool {
-	// First check resource pools for abnormal usage
-	if s.hasAbnormalResourcePool(cluster) {
+	// 根据环境类型使用不同的阈值
+	cpuThreshold := 90.0 // 默认生产环境阈值
+	memThreshold := 90.0
+
+	if s.Environment == "test" {
+		cpuThreshold = 80.0 // 测试环境使用较低的阈值
+		memThreshold = 80.0
+	}
+
+	// 直接检查CPU和内存使用率是否超过阈值
+	if cluster.CPUUsagePercent >= cpuThreshold || cluster.MemoryUsagePercent >= memThreshold {
 		return true
 	}
-	return false
+
+	// 检查是否有异常的资源池
+	return s.hasAbnormalResourcePool(cluster)
 }
 
 // hasAbnormalResourcePool checks if any of the cluster's resource pools have abnormal usage.
@@ -1142,4 +1163,58 @@ func (s *ResourceReportSender) sendEmail(subject, body string) error {
 	}
 	s.Logger.Info("Email sent successfully")
 	return nil
+}
+
+// 根据集群名称或标签分配组别和排序优先级
+func (s *ResourceReportSender) assignGroupsAndOrder(summaries []ClusterResourceSummary) []ClusterResourceSummary {
+	for i := range summaries {
+		clusterName := summaries[i].ClusterName
+
+		// 提取集群名称中的组标识符
+		matches := groupRegex.FindStringSubmatch(clusterName)
+		group := ""
+		if len(matches) > 1 {
+			group = matches[1]
+		}
+
+		// 设置默认值
+		summaries[i].Desc = group
+		summaries[i].GroupOrder = 1000 // 默认优先级最低
+
+		// 根据组名称设置描述和排序优先级
+		if s.containsAny(group, []string{"通用"}) || s.containsAny(clusterName, []string{"通用"}) {
+			summaries[i].GroupOrder = 100 // 最高优先级
+		} else if strings.Contains(group, "+") || strings.Contains(group, "plus") {
+			summaries[i].GroupOrder = 200 // 第二优先级
+		} else if s.containsAny(group, []string{"工具"}) || s.containsAny(clusterName, []string{"工具"}) {
+			summaries[i].GroupOrder = 300 // 第三优先级
+		} else if s.containsAny(group, []string{"赛飞", "推理", "大数据"}) || s.containsAny(clusterName, []string{"赛飞", "推理", "大数据"}) {
+			summaries[i].GroupOrder = 400 // 第四优先级
+		}
+
+		// 如果描述为空，使用默认描述
+		if summaries[i].Desc == "" {
+			summaries[i].Desc = "其他"
+		}
+	}
+
+	// 按 GroupOrder 和 Desc 排序
+	sort.Slice(summaries, func(i, j int) bool {
+		if summaries[i].GroupOrder != summaries[j].GroupOrder {
+			return summaries[i].GroupOrder < summaries[j].GroupOrder
+		}
+		return summaries[i].Desc < summaries[j].Desc
+	})
+
+	return summaries
+}
+
+// 检查字符串是否包含给定子串列表中的任何一个
+func (s *ResourceReportSender) containsAny(str string, substrings []string) bool {
+	for _, substr := range substrings {
+		if strings.Contains(str, substr) {
+			return true
+		}
+	}
+	return false
 }

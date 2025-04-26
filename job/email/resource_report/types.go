@@ -18,21 +18,24 @@ type snapshotQueryResult struct {
 // ClusterResourceSummary holds aggregated resource data for a single cluster.
 type ClusterResourceSummary struct {
 	ClusterName         string
+	Desc                string // 集群分组描述字段，用于将集群按组分类和排序
+	GroupOrder          int    // 组顺序，用于自定义排序规则，数字越小排序越靠前
 	TotalNodes          int
-	TotalCPURequest     float64                  // in cores
-	TotalMemoryRequest  float64                  // in GiB
-	TotalCPUCapacity    float64                  // Total CPU capacity in cores
-	TotalMemoryCapacity float64                  // Total Memory capacity in GiB
-	ResourcePools       []ResourcePool           // 添加ResourcePools字段
-	ResourcePoolsByType map[string]*ResourcePool // 根据资源池类型快速查找资源池
-	// Additional usage percentage fields
-	CPUUsagePercent    float64
-	MemoryUsagePercent float64
+	TotalCPURequest     float64 // in cores
+	TotalMemoryRequest  float64 // in GiB
+	TotalCPUCapacity    float64 // Total CPU capacity in cores
+	TotalMemoryCapacity float64 // Total Memory capacity in GiB
+	CPUUsagePercent     float64
+	MemoryUsagePercent  float64
 	// Optional fields that may be used by the template but not directly set
 	NodesData []NodeResourceDetail
 	// Additional fields for physical/virtual nodes
-	PhysicalNodes int // 物理节点数量
-	VirtualNodes  int // 虚拟节点数量
+	PhysicalNodes       int                      // 物理节点数量
+	VirtualNodes        int                      // 虚拟节点数量
+	ResourcePools       []ResourcePool           // 添加ResourcePools字段
+	ResourcePoolsByType map[string]*ResourcePool // 根据资源池类型快速查找资源池
+	// Additional usage percentage fields
+
 }
 
 // ResourcePool 资源池详情
@@ -90,5 +93,6 @@ type ReportTemplateData struct {
 	Stats                ClusterStats // 添加集群统计信息
 	HasHighUsageClusters bool         // 是否存在高使用率集群（CPU或内存使用率>=70%）
 	Environment          string       // 环境类型："prd" 或 "test"
+	ShowResourcePoolDesc bool         // 是否显示资源池描述
 	// Add any other global data needed for the template
 }
