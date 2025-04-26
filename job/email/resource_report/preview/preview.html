@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kubernetes 集群资源报告 - 2025-04-26</title>
     <style type="text/css">
         body {
@@ -884,6 +884,7 @@
             .container {
                 margin: 10px;
                 padding: 0;
+                max-width: 100%;
             }
             .content {
                 padding: 15px;
@@ -892,7 +893,7 @@
                 padding: 15px 20px;
             }
             .header-title {
-                font-size: 1.4em;
+                font-size: 1.3em;
             }
             .cluster-header {
                 font-size: 1.1em;
@@ -903,97 +904,114 @@
             .cluster-header-info {
                 margin-top: 5px;
             }
-            .cluster-summary {
-                grid-template-columns: 1fr 1fr;
-                padding: 15px;
-                gap: 10px;
+             
+            .overview-table {
+                font-size: 0.8em;
+                min-width: 100%;
+                border-radius: 8px;
+                overflow-x: auto;
+                display: block;
             }
-            .summary-item {
-                padding: 12px;
+            .overview-table th, .overview-table td {
+                padding: 4px !important;
+                height: auto !important;
+                min-height: auto !important;
+                max-height: none !important;
             }
-            .summary-value {
-                font-size: 1.2em;
-            }
-            .resource-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-            .resource-grid .health-card {
-                padding: 12px;
-            }
-            .resource-grid .health-score {
-                font-size: 1.8em;
-            }
-            .resource-pool-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .resource-pool-info {
-                margin-top: 5px;
+            .overview-table td:first-child {
+                max-width: 120px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
              
-            .threshold-group {
-                padding: 8px;
-                margin-bottom: 8px;
-                width: 100%;
-                margin-right: 0;
+            .resource-indicators {
+                max-width: 120px;
             }
-            .threshold-group-title {
-                font-size: 0.85em;
+            .resource-indicator {
+                padding: 1px 2px !important;
+                font-size: 0.65em !important;
+                height: 16px !important;
+                min-height: 16px !important;
+                max-height: 16px !important;
+                line-height: 14px !important;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        }
+
+        @media (max-width: 480px) {
+             
+            .cluster-summary {
+                grid-template-columns: 1fr;
+            }
+            .resource-grid {
+                grid-template-columns: 1fr;
+            }
+             
+            .overview-table {
+                font-size: 0.7em;
             }
             .threshold-item {
-                padding: 3px 6px;
+                font-size: 0.7em;
+                padding: 2px 4px;
+            }
+             
+            .threshold-legend {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+             
+            .cluster-header {
+                font-size: 1em;
+                padding: 10px;
+            }
+            .cluster-header-info {
                 font-size: 0.75em;
             }
              
-            .tooltip .tooltip-text {
-                width: 180px;
-                font-size: 0.7em;
-                padding: 5px 8px;
+            .resource-indicators {
+                max-width: 100px;
             }
-            .resource-grid .tooltip .tooltip-text {
-                top: 102%;
-            }
-            .summary-item.tooltip .tooltip-text {
-                top: 102%;
-            }
-            .resource-pool-type .tooltip .tooltip-text {
-                left: -50px;
-                width: 180px;
-                top: 105%;
-            }
-            .node-type-indicator .tooltip .tooltip-text {
-                width: 180px;
-                top: 105%;
-            }
-        }
-        @media (max-width: 480px) {
-            .cluster-summary {
-                grid-template-columns: 1fr;
-            }
-            .resource-grid {
-                grid-template-columns: 1fr;
+            .resource-indicator {
+                font-size: 0.6em !important;
+                height: 14px !important;
+                min-height: 14px !important;
+                max-height: 14px !important;
+                line-height: 12px !important;
             }
              
             .tooltip .tooltip-text {
-                width: 160px;
+                max-width: 80vw;
+                left: 10px;
+                right: 10px;
+                transform: none;
                 font-size: 0.65em;
-                padding: 4px 6px;
-                line-height: 1.3;
+                width: auto;
             }
-            .resource-grid .tooltip .tooltip-text {
-                top: 101%;
+        }
+
+         
+        @media (max-width: 360px) {
+            .container {
+                margin: 5px;
             }
-            .summary-item.tooltip .tooltip-text {
-                top: 101%;
+            .content {
+                padding: 10px;
             }
-            .resource-pool-type .tooltip .tooltip-text {
-                left: 0;
-                width: 160px;
-                top: 103%;
+            .header-title {
+                font-size: 1.1em;
             }
-            .node-type-indicator .tooltip .tooltip-text {
-                width: 160px;
-                top: 103%;
+            .overview-table {
+                font-size: 0.65em;
+            }
+             
+            .overview-table th:nth-child(n+4), 
+            .overview-table td:nth-child(n+4) {
+                display: none;  
+            }
+            .resource-indicators {
+                max-width: 90px;
             }
         }
          
@@ -1220,7 +1238,7 @@
 </head>
 <body>
     <div class="container">
-        <a id="top"></a>
+        
         <div class="header">
             <h1 class="header-title">Kubernetes 集群资源报告</h1>
             <p class="header-date">报告日期: 2025-04-26</p>
@@ -1285,6 +1303,7 @@
 
                 
                 <div class="resource-overview-table">
+                    <a id="top"></a>
                     <table class="overview-table" id="clusterTable">
                         <thead>
                             <tr>
