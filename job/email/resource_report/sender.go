@@ -111,7 +111,7 @@ func (s *ResourceReportSender) Run(ctx context.Context) error {
 func (s *ResourceReportSender) initializeParameters() {
 	// Set default report date to yesterday if not specified
 	if s.ReportDate.IsZero() {
-		s.ReportDate = time.Now().AddDate(0, 0, -1)
+		s.ReportDate = time.Now().AddDate(0, 0, 0)
 	}
 
 	// Initialize general clusters if not set
@@ -648,9 +648,13 @@ func (s *ResourceReportSender) convertToSortedSummaries(clusterMap map[string]*C
 		clusterSummaries = append(clusterSummaries, *summary)
 	}
 
-	// Sort the clusters by name for consistency
+	// 按 GroupOrder 和 Desc 排序
 	sort.Slice(clusterSummaries, func(i, j int) bool {
-		return clusterSummaries[i].ClusterName < clusterSummaries[j].ClusterName
+		if clusterSummaries[i].GroupOrder != clusterSummaries[j].GroupOrder {
+			return clusterSummaries[i].GroupOrder < clusterSummaries[j].GroupOrder // 主要按 GroupOrder 排序
+		}
+		// 次要直接按 Desc 字符串排序
+		return clusterSummaries[i].Desc < clusterSummaries[j].Desc
 	})
 
 	return clusterSummaries
@@ -1201,8 +1205,9 @@ func (s *ResourceReportSender) assignGroupsAndOrder(summaries []ClusterResourceS
 	// 按 GroupOrder 和 Desc 排序
 	sort.Slice(summaries, func(i, j int) bool {
 		if summaries[i].GroupOrder != summaries[j].GroupOrder {
-			return summaries[i].GroupOrder < summaries[j].GroupOrder
+			return summaries[i].GroupOrder < summaries[j].GroupOrder // 主要按 GroupOrder 排序
 		}
+		// 次要直接按 Desc 字符串排序
 		return summaries[i].Desc < summaries[j].Desc
 	})
 
