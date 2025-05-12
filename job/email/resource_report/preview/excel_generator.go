@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"navy-ng/job/email/resource_report"
 	"path/filepath"
 
 	"github.com/xuri/excelize/v2"
@@ -25,6 +26,17 @@ func NewExcelReportGenerator(data ReportTemplateData, date string) *ExcelReportG
 }
 
 // generateExcelReport 生成Excel报表预览
+// 分配率告警规则说明：
+// 1. 生产环境：
+//   - 物理机数量 >= 150：>=95% 紧急，90-95% 危险，80-90% 警告，55-80% 正常，<=55% 低利用率
+//   - 物理机数量 < 150：≥95% 紧急，85-95% 危险，75-85% 警告，55-75% 正常，<=55% 低利用率告警
+//
+// 2. 测试环境：不计算低利用率告警，警告和正常区间阈值分别在生产基础上增加5%
+//   - 物理机数量 >= 150：>=95% 紧急，90-95% 危险，85-90% 警告，<85% 正常
+//   - 物理机数量 < 150：≥95% 紧急，90-95% 危险，80-90% 警告，<80% 正常
+//
+// 3. 低利用率告警仅在生产环境下生效
+// 4. 具体分配率区间可根据实际业务需求调整
 func generateExcelReport(data ReportTemplateData, date string) (string, error) {
 	generator := NewExcelReportGenerator(data, date)
 	return generator.Generate()
@@ -439,6 +451,8 @@ func (g *ExcelReportGenerator) setupClusterSheetHeaders(sheet string) {
 		"总通用资源-内存请求(GiB)",
 		"总通用资源-内存分配率(%)",
 		"总通用资源-内存最大使用率(%)",
+		"总通用资源-物理机节点数",
+		"总通用资源-虚拟机节点数",
 		"总通用资源-Pod数量",
 		"总通用资源-Pod密度",
 		"总通用资源-节点平均CPU(核)",
@@ -466,15 +480,17 @@ func (g *ExcelReportGenerator) setupClusterSheetHeaders(sheet string) {
 		"Intel通用-内存请求(GiB)",
 		"Intel通用-内存分配率(%)",
 		"Intel通用-内存最大使用率(%)",
+		"Intel通用-物理机节点数",
+		"Intel通用-虚拟机节点数",
 		"Intel通用-Pod数量",
 		"Intel通用-Pod密度",
 		"Intel通用-节点平均CPU(核)",
 		"Intel通用-节点平均内存(GiB)",
 	}
 
-	// Set Intel headers starting from column N (index 13)
+	// Set Intel headers starting from column P (index 15)
 	for i, header := range intelHeaders {
-		colName := getColumnName(i + 13)
+		colName := getColumnName(i + 15)
 		cellID := colName + "1"
 		g.workbook.SetCellValue(sheet, cellID, header)
 
@@ -493,15 +509,17 @@ func (g *ExcelReportGenerator) setupClusterSheetHeaders(sheet string) {
 		"海光通用-内存请求(GiB)",
 		"海光通用-内存分配率(%)",
 		"海光通用-内存最大使用率(%)",
+		"海光通用-物理机节点数",
+		"海光通用-虚拟机节点数",
 		"海光通用-Pod数量",
 		"海光通用-Pod密度",
 		"海光通用-节点平均CPU(核)",
 		"海光通用-节点平均内存(GiB)",
 	}
 
-	// Set HG headers starting from column Z (index 25)
+	// Set HG headers starting from column AD (index 29)
 	for i, header := range hgHeaders {
-		colName := getColumnName(i + 25)
+		colName := getColumnName(i + 29)
 		cellID := colName + "1"
 		g.workbook.SetCellValue(sheet, cellID, header)
 
@@ -520,15 +538,17 @@ func (g *ExcelReportGenerator) setupClusterSheetHeaders(sheet string) {
 		"ARM通用-内存请求(GiB)",
 		"ARM通用-内存分配率(%)",
 		"ARM通用-内存最大使用率(%)",
+		"ARM通用-物理机节点数",
+		"ARM通用-虚拟机节点数",
 		"ARM通用-Pod数量",
 		"ARM通用-Pod密度",
 		"ARM通用-节点平均CPU(核)",
 		"ARM通用-节点平均内存(GiB)",
 	}
 
-	// Set ARM headers starting from column AL (index 37)
+	// Set ARM headers starting from column AR (index 43)
 	for i, header := range armHeaders {
-		colName := getColumnName(i + 37)
+		colName := getColumnName(i + 43)
 		cellID := colName + "1"
 		g.workbook.SetCellValue(sheet, cellID, header)
 
@@ -582,7 +602,7 @@ func (g *ExcelReportGenerator) writeClusterRow(sheet string, row int, cluster Cl
 
 	// Apply base data style to entire row
 	// Calculate the total number of columns we need to style
-	totalColumns := 13 + 12 + 12 + 12 // Total + Intel + HG + ARM columns
+	totalColumns := 15 + 14 + 14 + 14 // Total + Intel + HG + ARM columns
 	for i := 0; i < totalColumns; i++ {
 		cell := getColumnName(i) + fmt.Sprintf("%d", row)
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["data"])
@@ -595,13 +615,13 @@ func (g *ExcelReportGenerator) writeClusterRow(sheet string, row int, cluster Cl
 	g.writePoolData(sheet, row, getColumnName(1), totalPool)
 
 	// Write Intel pool data
-	g.writePoolData(sheet, row, getColumnName(13), intelPool)
+	g.writePoolData(sheet, row, getColumnName(15), intelPool)
 
 	// Write HG pool data
-	g.writePoolData(sheet, row, getColumnName(25), hgPool)
+	g.writePoolData(sheet, row, getColumnName(29), hgPool)
 
 	// Write ARM pool data
-	g.writePoolData(sheet, row, getColumnName(37), armPool)
+	g.writePoolData(sheet, row, getColumnName(43), armPool)
 
 	// Apply usage-based styles
 	g.applyPoolStyles(sheet, row, totalPool, intelPool, hgPool, armPool)
@@ -629,19 +649,23 @@ func (g *ExcelReportGenerator) writePoolData(sheet string, row int, startCol str
 	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+6)+fmt.Sprintf("%d", row), fmt.Sprintf("%.1f%%", pool.MemoryUsagePercent))
 	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+7)+fmt.Sprintf("%d", row), fmt.Sprintf("%.1f%%", pool.MaxMemoryUsageRatio*100))
 
+	// 节点数指标 - 物理机和虚拟机节点数
+	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+8)+fmt.Sprintf("%d", row), pool.BMCount)
+	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+9)+fmt.Sprintf("%d", row), pool.VMCount)
+
 	// Other metrics
-	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+8)+fmt.Sprintf("%d", row), pool.PodCount)
+	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+10)+fmt.Sprintf("%d", row), pool.PodCount)
 
 	// Calculate pod density
 	var podDensity float64
 	if pool.BMCount > 0 {
 		podDensity = float64(pool.PodCount) / float64(pool.BMCount)
 	}
-	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+9)+fmt.Sprintf("%d", row), fmt.Sprintf("%.2f", podDensity))
+	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+11)+fmt.Sprintf("%d", row), fmt.Sprintf("%.2f", podDensity))
 
 	// Node average metrics
-	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+10)+fmt.Sprintf("%d", row), pool.PerNodeCpuRequest)
-	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+11)+fmt.Sprintf("%d", row), pool.PerNodeMemRequest)
+	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+12)+fmt.Sprintf("%d", row), pool.PerNodeCpuRequest)
+	g.workbook.SetCellValue(sheet, getColumnName(startColIndex+13)+fmt.Sprintf("%d", row), pool.PerNodeMemRequest)
 }
 
 // applyPoolStyles applies usage-based styles to resource usage cells
@@ -655,24 +679,24 @@ func (g *ExcelReportGenerator) applyPoolStyles(sheet string, row int, totalPool,
 	}
 
 	intelPoolIndices := map[string]int{
-		"cpuUsage":    15, // P
-		"cpuMaxUsage": 16, // Q
-		"memUsage":    19, // T
-		"memMaxUsage": 20, // U
+		"cpuUsage":    17, // R
+		"cpuMaxUsage": 18, // S
+		"memUsage":    21, // V
+		"memMaxUsage": 22, // W
 	}
 
 	hgPoolIndices := map[string]int{
-		"cpuUsage":    27, // AB
-		"cpuMaxUsage": 28, // AC
-		"memUsage":    31, // AF
-		"memMaxUsage": 32, // AG
+		"cpuUsage":    31, // AF
+		"cpuMaxUsage": 32, // AG
+		"memUsage":    35, // AJ
+		"memMaxUsage": 36, // AK
 	}
 
 	armPoolIndices := map[string]int{
-		"cpuUsage":    39, // AN
-		"cpuMaxUsage": 40, // AO
-		"memUsage":    43, // AR
-		"memMaxUsage": 44, // AS
+		"cpuUsage":    45, // AT
+		"cpuMaxUsage": 46, // AU
+		"memUsage":    49, // AX
+		"memMaxUsage": 50, // AY
 	}
 
 	// Apply styles to total pool
@@ -710,30 +734,40 @@ func (g *ExcelReportGenerator) applyPoolStyles(sheet string, row int, totalPool,
 
 // applyCPUUsageStyle applies appropriate style based on CPU usage percentage
 func (g *ExcelReportGenerator) applyCPUUsageStyle(sheet, cell string, cpuUsage float64) {
-	if cpuUsage >= 90.0 {
+	// 使用资源样式库获取样式
+	style := resource_report.GetCPUStyle(150, cpuUsage, g.data.Environment)
+
+	// 根据样式类型应用相应的Excel样式
+	switch style {
+	case "emergency":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["critical"])
-	} else if cpuUsage >= 75.0 {
+	case "critical":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["danger"])
-	} else if cpuUsage >= 70.0 {
+	case "warning":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["warning"])
-	} else if cpuUsage >= 55.0 && cpuUsage < 70.0 {
+	case "normal":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["normal"])
-	} else if cpuUsage < 55.0 && cpuUsage > 0 {
+	case "underutilized":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["lowUsage"])
 	}
 }
 
 // applyMemUsageStyle applies appropriate style based on memory usage percentage
 func (g *ExcelReportGenerator) applyMemUsageStyle(sheet, cell string, memUsage float64) {
-	if memUsage >= 90.0 {
+	// 使用资源样式库获取样式
+	style := resource_report.GetMemoryStyle(150, memUsage, g.data.Environment)
+
+	// 根据样式类型应用相应的Excel样式
+	switch style {
+	case "emergency":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["critical"])
-	} else if memUsage >= 75.0 {
+	case "critical":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["danger"])
-	} else if memUsage >= 70.0 {
+	case "warning":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["warning"])
-	} else if memUsage >= 55.0 && memUsage < 70.0 {
+	case "normal":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["normal"])
-	} else if memUsage < 55.0 && memUsage > 0 {
+	case "underutilized":
 		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["lowUsage"])
 	}
 }
@@ -850,36 +884,14 @@ func (g *ExcelReportGenerator) writeResourcePoolRow(sheet string, row int, clust
 
 // applyResourcePoolCPUStyle applies style to CPU usage cells based on usage percentage
 func (g *ExcelReportGenerator) applyResourcePoolCPUStyle(sheet, cell string, cpuUsage float64) {
-	if cpuUsage >= 90.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["critical"])
-	} else if cpuUsage >= 75.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["danger"])
-	} else if cpuUsage >= 70.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["warning"])
-	} else if cpuUsage >= 55.0 && cpuUsage < 70.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["normal"])
-	} else if cpuUsage < 55.0 && cpuUsage > 0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["lowUsage"])
-	} else {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["data"])
-	}
+	// 复用通用的 CPU 样式应用逻辑
+	g.applyCPUUsageStyle(sheet, cell, cpuUsage)
 }
 
 // applyResourcePoolMemStyle applies style to memory usage cells based on usage percentage
 func (g *ExcelReportGenerator) applyResourcePoolMemStyle(sheet, cell string, memUsage float64) {
-	if memUsage >= 90.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["critical"])
-	} else if memUsage >= 75.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["danger"])
-	} else if memUsage >= 70.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["warning"])
-	} else if memUsage >= 55.0 && memUsage < 70.0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["normal"])
-	} else if memUsage < 55.0 && memUsage > 0 {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["lowUsage"])
-	} else {
-		g.workbook.SetCellStyle(sheet, cell, cell, g.styles["data"])
-	}
+	// 复用通用的内存样式应用逻辑
+	g.applyMemUsageStyle(sheet, cell, memUsage)
 }
 
 // getColumnName converts a 0-based index to Excel column name (A, B, C, ..., Z, AA, AB, ...)

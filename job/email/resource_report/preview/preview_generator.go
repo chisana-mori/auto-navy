@@ -349,16 +349,41 @@ func customTemplateFuncs() template.FuncMap {
 				return fmt.Sprintf("%.2f GB", bytes)
 			}
 		},
+		// 获取CPU样式类的函数
+		"getCpuStyleClass": func(bmCount int, cpuUsage float64, environment string) string {
+			return string(resource_report.GetCPUStyle(bmCount, cpuUsage, environment))
+		},
+		// 获取内存样式类的函数
+		"getMemStyleClass": func(bmCount int, memUsage float64, environment string) string {
+			return string(resource_report.GetMemoryStyle(bmCount, memUsage, environment))
+		},
+		// 判断资源池是否应该显示的函数
+		"shouldShowResourcePool": func(bmCount int, cpuUsage, memUsage float64, environment string) bool {
+			status := resource_report.GetResourcePoolStatus(bmCount, cpuUsage, memUsage, environment)
+			return status.ShouldDisplay
+		},
+		// 判断资源池是否异常的函数
+		"isResourcePoolAbnormal": func(bmCount int, cpuUsage, memUsage float64, environment string) bool {
+			return resource_report.IsResourcePoolAbnormal(bmCount, cpuUsage, memUsage, environment)
+		},
 		// 新增函数，用于判断资源池是否需要显示
-		"shouldShowPool": func(cpuUsage, memoryUsage float64, bmCount int) bool {
-			// 根据物理机节点数量使用不同的阈值
-			if bmCount > 150 {
-				// 大型集群（物理机节点数 > 150）
-				return cpuUsage >= 80.0 || memoryUsage >= 80.0 || cpuUsage < 55.0 || memoryUsage < 55.0
-			} else {
-				// 小型集群（物理机节点数 <= 150）
-				return cpuUsage >= 70.0 || memoryUsage >= 70.0 || cpuUsage < 55.0 || memoryUsage < 55.0
+		"shouldShowPool": func(cpuUsage, memoryUsage float64, bmCount int, environment string) bool {
+			// 使用统一样式库判断资源池是否应显示
+			return resource_report.GetResourcePoolStatus(bmCount, cpuUsage, memoryUsage, environment).ShouldDisplay
+		},
+		// 获取CPU颜色类的函数 - 使用统一样式库
+		"getCpuColorClass": func(pool *ResourcePool, environment string) string {
+			if pool == nil {
+				return ""
 			}
+			return string(resource_report.GetCPUStyle(pool.BMCount, pool.CPUUsagePercent, environment))
+		},
+		// 获取内存颜色类的函数 - 使用统一样式库
+		"getMemColorClass": func(pool *ResourcePool, environment string) string {
+			if pool == nil {
+				return ""
+			}
+			return string(resource_report.GetMemoryStyle(pool.BMCount, pool.MemoryUsagePercent, environment))
 		},
 		// 新增函数，用于获取资源池类型的颜色
 		"getPoolTypeColor": func(poolType string) string {
@@ -377,120 +402,6 @@ func customTemplateFuncs() template.FuncMap {
 				return "#5C2D91" // 紫色
 			default:
 				return "#000000" // 黑色
-			}
-		},
-		// 获取CPU颜色类的函数
-		"getCpuColorClass": func(pool *ResourcePool, environment string) string {
-			if pool == nil {
-				return ""
-			}
-
-			isLargePool := pool.BMCount > 150
-			cpuUsage := pool.CPUUsagePercent
-
-			if environment == "test" {
-				// 测试环境规则
-				if isLargePool {
-					if cpuUsage >= 95.0 {
-						return "emergency"
-					} else if cpuUsage >= 90.0 {
-						return "critical"
-					} else if cpuUsage >= 85.0 {
-						return "warning"
-					}
-					return "normal"
-				} else {
-					if cpuUsage >= 90.0 {
-						return "emergency"
-					} else if cpuUsage >= 80.0 {
-						return "critical"
-					} else if cpuUsage >= 75.0 {
-						return "warning"
-					}
-					return "normal"
-				}
-			} else {
-				// 生产环境规则
-				if isLargePool {
-					if cpuUsage >= 95.0 {
-						return "emergency"
-					} else if cpuUsage >= 85.0 {
-						return "critical"
-					} else if cpuUsage >= 80.0 {
-						return "warning"
-					} else if cpuUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				} else {
-					if cpuUsage >= 90.0 {
-						return "emergency"
-					} else if cpuUsage >= 75.0 {
-						return "critical"
-					} else if cpuUsage >= 70.0 {
-						return "warning"
-					} else if cpuUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				}
-			}
-		},
-		// 获取内存颜色类的函数
-		"getMemColorClass": func(pool *ResourcePool, environment string) string {
-			if pool == nil {
-				return ""
-			}
-
-			isLargePool := pool.BMCount > 150
-			memUsage := pool.MemoryUsagePercent
-
-			if environment == "test" {
-				// 测试环境规则
-				if isLargePool {
-					if memUsage >= 95.0 {
-						return "emergency"
-					} else if memUsage >= 90.0 {
-						return "critical"
-					} else if memUsage >= 85.0 {
-						return "warning"
-					}
-					return "normal"
-				} else {
-					if memUsage >= 90.0 {
-						return "emergency"
-					} else if memUsage >= 80.0 {
-						return "critical"
-					} else if memUsage >= 75.0 {
-						return "warning"
-					}
-					return "normal"
-				}
-			} else {
-				// 生产环境规则
-				if isLargePool {
-					if memUsage >= 95.0 {
-						return "emergency"
-					} else if memUsage >= 85.0 {
-						return "critical"
-					} else if memUsage >= 80.0 {
-						return "warning"
-					} else if memUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				} else {
-					if memUsage >= 90.0 {
-						return "emergency"
-					} else if memUsage >= 75.0 {
-						return "critical"
-					} else if memUsage >= 70.0 {
-						return "warning"
-					} else if memUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				}
 			}
 		},
 		// 创建字符串切片函数

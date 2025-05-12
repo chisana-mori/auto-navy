@@ -689,22 +689,13 @@ func (s *ResourceReportSender) calculateClusterStats(clusters []ClusterResourceS
 // isClusterAbnormal determines if a cluster has abnormally high resource usage
 // based on CPU and memory usage thresholds.
 func (s *ResourceReportSender) isClusterAbnormal(cluster ClusterResourceSummary) bool {
-	// 根据环境类型使用不同的阈值
-	cpuThreshold := 90.0 // 默认生产环境阈值
-	memThreshold := 90.0
-
-	if s.Environment == "test" {
-		cpuThreshold = 80.0 // 测试环境使用较低的阈值
-		memThreshold = 80.0
+	// 检查集群"total"资源池的BMCount
+	bmCount := 0
+	if totalPool, ok := cluster.ResourcePoolsByType["total"]; ok {
+		bmCount = totalPool.BMCount
 	}
 
-	// 直接检查CPU和内存使用率是否超过阈值
-	if cluster.CPUUsagePercent >= cpuThreshold || cluster.MemoryUsagePercent >= memThreshold {
-		return true
-	}
-
-	// 检查是否有异常的资源池
-	return s.hasAbnormalResourcePool(cluster)
+	return IsClusterAbnormal(bmCount, cluster.CPUUsagePercent, cluster.MemoryUsagePercent, s.Environment)
 }
 
 // hasAbnormalResourcePool checks if any of the cluster's resource pools have abnormal usage.
@@ -720,30 +711,7 @@ func (s *ResourceReportSender) hasAbnormalResourcePool(cluster ClusterResourceSu
 
 // isResourcePoolAbnormal determines if a resource pool's usage is outside acceptable thresholds.
 func (s *ResourceReportSender) isResourcePoolAbnormal(pool ResourcePool) bool {
-	// 根据环境类型应用不同的规则
-	if s.Environment == "test" {
-		// 测试环境：低利用率不计算为异常，高利用率阈值上调5%
-		if pool.BMCount > 150 {
-			// 大型集群 (>150 物理节点)
-			// 测试环境大型集群阈值：85% (80% + 5%)
-			return pool.CPUUsagePercent >= 85.0 || pool.MemoryUsagePercent >= 85.0
-		} else {
-			// 小型/中型集群 (≤150 物理节点)
-			// 测试环境小型/中型集群阈值：75% (70% + 5%)
-			return pool.CPUUsagePercent >= 75.0 || pool.MemoryUsagePercent >= 75.0
-		}
-	} else {
-		// 生产环境：使用当前规则
-		if pool.BMCount > 150 {
-			// 大型集群 (>150 物理节点)
-			return pool.CPUUsagePercent >= 80.0 || pool.MemoryUsagePercent >= 80.0 ||
-				pool.CPUUsagePercent < 55.0 || pool.MemoryUsagePercent < 55.0
-		} else {
-			// 小型/中型集群 (≤150 物理节点)
-			return pool.CPUUsagePercent >= 70.0 || pool.MemoryUsagePercent >= 70.0 ||
-				pool.CPUUsagePercent < 55.0 || pool.MemoryUsagePercent < 55.0
-		}
-	}
+	return portal.IsResourcePoolAbnormal(pool.BMCount, pool.CPUUsagePercent, pool.MemoryUsagePercent, s.Environment)
 }
 
 // hasAbnormalClusterMetrics checks if the cluster's overall metrics are abnormal.
@@ -940,144 +908,43 @@ func customTemplateFuncs() template.FuncMap {
 				return fmt.Sprintf("%.2f GB", bytes)
 			}
 		},
-		// 获取CPU颜色类的函数
+		// 获取CPU样式类的函数
+		"getCpuStyleClass": func(bmCount int, cpuUsage float64, environment string) string {
+			return string(portal.GetCPUStyle(bmCount, cpuUsage, environment))
+		},
+		// 获取内存样式类的函数
+		"getMemStyleClass": func(bmCount int, memUsage float64, environment string) string {
+			return string(portal.GetMemoryStyle(bmCount, memUsage, environment))
+		},
+		// 判断资源池是否应该显示的函数
+		"shouldShowResourcePool": func(bmCount int, cpuUsage, memUsage float64, environment string) bool {
+			status := portal.GetResourcePoolStatus(bmCount, cpuUsage, memUsage, environment)
+			return status.ShouldDisplay
+		},
+		// 判断资源池是否异常的函数
+		"isResourcePoolAbnormal": func(bmCount int, cpuUsage, memUsage float64, environment string) bool {
+			return portal.IsResourcePoolAbnormal(bmCount, cpuUsage, memUsage, environment)
+		},
+		// 获取CPU颜色类的函数 - 使用统一样式库
 		"getCpuColorClass": func(pool *ResourcePool, environment string) string {
 			if pool == nil {
 				return ""
 			}
-
-			isLargePool := pool.BMCount > 150
-			cpuUsage := pool.CPUUsagePercent
-
-			if environment == "test" {
-				// 测试环境规则
-				if isLargePool {
-					if cpuUsage >= 95.0 {
-						return "emergency"
-					} else if cpuUsage >= 90.0 {
-						return "critical"
-					} else if cpuUsage >= 85.0 {
-						return "warning"
-					}
-					return "normal"
-				} else {
-					if cpuUsage >= 90.0 {
-						return "emergency"
-					} else if cpuUsage >= 80.0 {
-						return "critical"
-					} else if cpuUsage >= 75.0 {
-						return "warning"
-					}
-					return "normal"
-				}
-			} else {
-				// 生产环境规则
-				if isLargePool {
-					if cpuUsage >= 95.0 {
-						return "emergency"
-					} else if cpuUsage >= 85.0 {
-						return "critical"
-					} else if cpuUsage >= 80.0 {
-						return "warning"
-					} else if cpuUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				} else {
-					if cpuUsage >= 90.0 {
-						return "emergency"
-					} else if cpuUsage >= 75.0 {
-						return "critical"
-					} else if cpuUsage >= 70.0 {
-						return "warning"
-					} else if cpuUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				}
-			}
+			return string(portal.GetCPUStyle(pool.BMCount, pool.CPUUsagePercent, environment))
 		},
-		// 获取内存颜色类的函数
+		// 获取内存颜色类的函数 - 使用统一样式库
 		"getMemColorClass": func(pool *ResourcePool, environment string) string {
 			if pool == nil {
 				return ""
 			}
-
-			isLargePool := pool.BMCount > 150
-			memUsage := pool.MemoryUsagePercent
-
-			if environment == "test" {
-				// 测试环境规则
-				if isLargePool {
-					if memUsage >= 95.0 {
-						return "emergency"
-					} else if memUsage >= 90.0 {
-						return "critical"
-					} else if memUsage >= 85.0 {
-						return "warning"
-					}
-					return "normal"
-				} else {
-					if memUsage >= 90.0 {
-						return "emergency"
-					} else if memUsage >= 80.0 {
-						return "critical"
-					} else if memUsage >= 75.0 {
-						return "warning"
-					}
-					return "normal"
-				}
-			} else {
-				// 生产环境规则
-				if isLargePool {
-					if memUsage >= 95.0 {
-						return "emergency"
-					} else if memUsage >= 85.0 {
-						return "critical"
-					} else if memUsage >= 80.0 {
-						return "warning"
-					} else if memUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				} else {
-					if memUsage >= 90.0 {
-						return "emergency"
-					} else if memUsage >= 75.0 {
-						return "critical"
-					} else if memUsage >= 70.0 {
-						return "warning"
-					} else if memUsage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				}
-			}
+			return string(portal.GetMemoryStyle(pool.BMCount, pool.MemoryUsagePercent, environment))
 		},
-		// 新增函数，用于判断资源池是否需要显示
+		// 判断资源池是否需要显示的函数 - 使用统一样式库
 		"shouldShowPool": func(cpuUsage, memoryUsage float64, bmCount int, environment string) bool {
-			// 根据环境类型应用不同的规则
-			if environment == "test" {
-				// 测试环境：低利用率不计算为异常，高利用率阈值上调5%
-				if bmCount > 150 {
-					// 大型集群（物理机节点数 > 150）
-					return cpuUsage >= 85.0 || memoryUsage >= 85.0
-				} else {
-					// 小型集群（物理机节点数 <= 150）
-					return cpuUsage >= 75.0 || memoryUsage >= 75.0
-				}
-			} else {
-				// 生产环境：使用当前规则
-				if bmCount > 150 {
-					// 大型集群（物理机节点数 > 150）
-					return cpuUsage >= 80.0 || memoryUsage >= 80.0 || cpuUsage < 55.0 || memoryUsage < 55.0
-				} else {
-					// 小型集群（物理机节点数 <= 150）
-					return cpuUsage >= 70.0 || memoryUsage >= 70.0 || cpuUsage < 55.0 || memoryUsage < 55.0
-				}
-			}
+			// 使用统一样式库判断资源池是否应显示
+			return portal.GetResourcePoolStatus(bmCount, cpuUsage, memoryUsage, environment).ShouldDisplay
 		},
-		// 新增函数，用于获取资源池类型的颜色
+		// 获取资源池类型的颜色
 		"getPoolTypeColor": func(poolType string) string {
 			switch poolType {
 			case "total":
