@@ -525,6 +525,11 @@ func (s *SecurityReportSender) generateEmailData(reports []SecurityReportData) E
 		clusterAbnormalNodes := 0
 		clusterFailedChecks := 0 // Recalculate failed checks per cluster for health status
 
+		// 使用映射来跟踪每个节点的所有失败项，确保每个节点只在AbnormalDetails中出现一次
+		nodeFailedItemsMap := make(map[string][]FailedItem)
+		nodeTypeMap := make(map[string]string)
+		nodeNameMap := make(map[string]string)
+
 		// Populate AbnormalDetails and count cluster abnormal nodes
 		clusterNodes := clusterNodeFailureMap[report.ClusterName]
 		for nodeKey, hasFailure := range clusterNodes {
@@ -536,11 +541,20 @@ func (s *SecurityReportSender) generateEmailData(reports []SecurityReportData) E
 				if len(parts) == 3 {
 					nodeType := string(parts[1])
 					nodeName := string(parts[2])
-					var failedItems []FailedItem
+
+					// 保存节点类型和名称，以便后续使用
+					nodeTypeMap[nodeKey] = nodeType
+					nodeNameMap[nodeKey] = nodeName
+
+					// 初始化该节点的失败项列表（如果尚未初始化）
+					if _, exists := nodeFailedItemsMap[nodeKey]; !exists {
+						nodeFailedItemsMap[nodeKey] = []FailedItem{}
+					}
+
 					// Find failed items for this specific node
 					for _, detail := range report.DetailedResults {
 						if detail.NodeType == nodeType && detail.NodeName == nodeName && !detail.Status {
-							failedItems = append(failedItems, FailedItem{
+							nodeFailedItemsMap[nodeKey] = append(nodeFailedItemsMap[nodeKey], FailedItem{
 								ItemName:      detail.ItemName,
 								ItemValue:     detail.ItemValue,
 								FixSuggestion: detail.FixSuggestion,
@@ -548,14 +562,18 @@ func (s *SecurityReportSender) generateEmailData(reports []SecurityReportData) E
 							clusterFailedChecks++ // Count failed checks for this cluster
 						}
 					}
-					data.AbnormalDetails = append(data.AbnormalDetails, AbnormalDetail{
-						ClusterName: report.ClusterName,
-						NodeType:    nodeType,
-						NodeName:    nodeName,
-						FailedItems: failedItems,
-					})
 				}
 			}
+		}
+
+		// 将合并后的节点失败项添加到AbnormalDetails中
+		for nodeKey, failedItems := range nodeFailedItemsMap {
+			data.AbnormalDetails = append(data.AbnormalDetails, AbnormalDetail{
+				ClusterName: report.ClusterName,
+				NodeType:    nodeTypeMap[nodeKey],
+				NodeName:    nodeNameMap[nodeKey],
+				FailedItems: failedItems,
+			})
 		}
 
 		// 获取集群状态信息

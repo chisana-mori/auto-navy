@@ -443,6 +443,7 @@ func (g *ExcelReportGenerator) setupClusterSheetHeaders(sheet string) {
 	// Define column headers
 	columnHeaders := []string{
 		"集群",
+		"集群用途",
 		"总通用资源-CPU容量(核)",
 		"总通用资源-CPU请求(核)",
 		"总通用资源-CPU分配率(%)",
@@ -467,6 +468,12 @@ func (g *ExcelReportGenerator) setupClusterSheetHeaders(sheet string) {
 
 		// Set column width based on header text
 		width := calculateColumnWidth(header)
+
+		// Increase the width of the "集群" column by 3 times
+		if i == 0 {
+			width *= 3
+		}
+
 		g.workbook.SetColWidth(sheet, colName, colName, width)
 	}
 
@@ -610,9 +617,10 @@ func (g *ExcelReportGenerator) writeClusterRow(sheet string, row int, cluster Cl
 
 	// Write basic cluster info
 	g.workbook.SetCellValue(sheet, getColumnName(0)+fmt.Sprintf("%d", row), cluster.ClusterName)
+	g.workbook.SetCellValue(sheet, getColumnName(1)+fmt.Sprintf("%d", row), cluster.Desc)
 
-	// Write total pool data
-	g.writePoolData(sheet, row, getColumnName(1), totalPool)
+	// Write total pool data - starts at column C (index 2) due to the new column
+	g.writePoolData(sheet, row, getColumnName(2), totalPool)
 
 	// Write Intel pool data
 	g.writePoolData(sheet, row, getColumnName(15), intelPool)
@@ -670,12 +678,12 @@ func (g *ExcelReportGenerator) writePoolData(sheet string, row int, startCol str
 
 // applyPoolStyles applies usage-based styles to resource usage cells
 func (g *ExcelReportGenerator) applyPoolStyles(sheet string, row int, totalPool, intelPool, hgPool, armPool ResourcePool) {
-	// Define column indices for each pool's CPU and memory usage cells
+	// Define column indices for each pool's CPU and memory usage cells (adjust all indices to account for the new column)
 	totalPoolIndices := map[string]int{
-		"cpuUsage":    3, // D
-		"cpuMaxUsage": 4, // E
-		"memUsage":    8, // I
-		"memMaxUsage": 9, // J
+		"cpuUsage":    4,  // E (was D)
+		"cpuMaxUsage": 5,  // F (was E)
+		"memUsage":    9,  // J (was I)
+		"memMaxUsage": 10, // K (was J)
 	}
 
 	intelPoolIndices := map[string]int{
@@ -784,7 +792,7 @@ func (g *ExcelReportGenerator) generateResourcePoolsSheet() error {
 	for _, cluster := range g.data.Clusters {
 		for _, pool := range cluster.ResourcePools {
 			// Apply base data style to entire row
-			for i := 0; i < 10; i++ { // 10 columns (A-J)
+			for i := 0; i < 11; i++ { // 11 columns (A-K), increased by 1 for the new column
 				cell := getColumnName(i) + fmt.Sprintf("%d", row)
 				g.workbook.SetCellStyle(sheet, cell, cell, g.styles["data"])
 			}
@@ -802,15 +810,16 @@ func (g *ExcelReportGenerator) setupResourcePoolHeaders(sheet string) {
 	// Define column headers
 	columnHeaders := []string{
 		"集群",         // A - Cluster name
-		"资源池",        // B - Resource type
-		"CPU容量",      // C - CPU capacity
-		"CPU分配率",     // D - CPU allocation rate
-		"平均CPU最大使用率", // E - Average CPU max usage
-		"内存容量",       // F - Memory capacity
-		"内存分配率",      // G - Memory allocation rate
-		"平均内存最大使用率",  // H - Average memory max usage
-		"Pod数量",      // I - Pod count
-		"Pod密度",      // J - Pod density
+		"集群用途",       // B - Cluster description/purpose
+		"资源池",        // C - Resource type
+		"CPU容量",      // D - CPU capacity
+		"CPU分配率",     // E - CPU allocation rate
+		"平均CPU最大使用率", // F - Average CPU max usage
+		"内存容量",       // G - Memory capacity
+		"内存分配率",      // H - Memory allocation rate
+		"平均内存最大使用率",  // I - Average memory max usage
+		"Pod数量",      // J - Pod count
+		"Pod密度",      // K - Pod density
 	}
 
 	// Set column headers and calculate widths
@@ -823,6 +832,12 @@ func (g *ExcelReportGenerator) setupResourcePoolHeaders(sheet string) {
 
 		// Calculate and set column width based on header text
 		width := calculateColumnWidth(header)
+
+		// Increase the width of the "集群" column by 3 times
+		if i == 0 {
+			width *= 3
+		}
+
 		g.workbook.SetColWidth(sheet, colName, colName, width)
 
 		// Apply header style
@@ -845,20 +860,22 @@ func (g *ExcelReportGenerator) writeResourcePoolRow(sheet string, row int, clust
 
 	// Define column indices
 	columnIndices := map[string]int{
-		"cluster":      0, // A
-		"resourceType": 1, // B
-		"cpuCapacity":  2, // C
-		"cpuUsage":     3, // D
-		"cpuMaxUsage":  4, // E
-		"memCapacity":  5, // F
-		"memUsage":     6, // G
-		"memMaxUsage":  7, // H
-		"podCount":     8, // I
-		"podDensity":   9, // J
+		"cluster":      0,  // A
+		"clusterDesc":  1,  // B - New column for cluster description
+		"resourceType": 2,  // C (was B)
+		"cpuCapacity":  3,  // D (was C)
+		"cpuUsage":     4,  // E (was D)
+		"cpuMaxUsage":  5,  // F (was E)
+		"memCapacity":  6,  // G (was F)
+		"memUsage":     7,  // H (was G)
+		"memMaxUsage":  8,  // I (was H)
+		"podCount":     9,  // J (was I)
+		"podDensity":   10, // K (was J)
 	}
 
 	// Basic info
 	g.workbook.SetCellValue(sheet, getColumnName(columnIndices["cluster"])+fmt.Sprintf("%d", row), cluster.ClusterName)
+	g.workbook.SetCellValue(sheet, getColumnName(columnIndices["clusterDesc"])+fmt.Sprintf("%d", row), cluster.Desc)
 	g.workbook.SetCellValue(sheet, getColumnName(columnIndices["resourceType"])+fmt.Sprintf("%d", row), pool.ResourceType)
 
 	// CPU metrics

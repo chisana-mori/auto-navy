@@ -35,6 +35,7 @@ type ClusterResourceSummary struct {
 	ResourcePools       []ResourcePool           // 添加ResourcePools字段
 	ResourcePoolsByType map[string]*ResourcePool // 根据资源池类型快速查找资源池
 	// Additional usage percentage fields
+	IsAbnormal bool // 添加标志位，表示此集群是否有异常资源池
 
 }
 
@@ -63,6 +64,7 @@ type ResourcePool struct {
 	// 过去24小时平均CPU和内存最大使用率
 	MaxCpuUsageRatio    float64 // 平均CPU最大使用率，存储为小数，如0.36代表百分之36
 	MaxMemoryUsageRatio float64 // 平均内存最大使用率，存储为小数，如0.36代表百分之36
+	IsAbnormal          bool    // 添加标志位，表示此资源池是否异常
 }
 
 // NodeResourceDetail holds resource data for a single node.
@@ -80,10 +82,47 @@ type NodeResourceDetail struct {
 
 // ClusterStats 集群统计信息
 type ClusterStats struct {
-	TotalClusters     int     // 总已巡检集群数
-	NormalClusters    int     // 正常集群数
-	AbnormalClusters  int     // 异常集群数
-	GeneralPodDensity float64 // 通用集群Pod密度
+	TotalClusters     int
+	NormalClusters    int
+	AbnormalClusters  int
+	GeneralPodDensity float64
+
+	// 新增字段
+	FormattedGeneralPodDensity string // 例如 "10.50"
+	AbnormalClustersClass      string // 例如 "health-critical" 或 "health-good"
+}
+
+type SummaryItem struct {
+	Label           string
+	Value           string
+	UsagePercentage float64
+	Status          string // "normal", "underutilized", "warning", "critical", "emergency"
+	ShowUsageBar    bool
+	TrendData       []TrendDay
+}
+
+type TrendDay struct {
+	CPUUsage     float64
+	MemoryUsage  float64
+	CPUStatus    string // "normal", "underutilized", "high", "critical", "emergency"
+	MemoryStatus string // "normal", "underutilized", "high", "critical", "emergency"
+
+	// 新增字段
+	TrendCPUClass    string // 例如 "cpu-trend-high"
+	TrendMemoryClass string // 例如 "memory-trend-critical"
+}
+
+type UsageStat struct {
+	UsagePercentage float64
+	UsageStatClass  string // 例如 "usage-stat warning"
+}
+
+type ResourceIndicator struct {
+	ResourceIndicatorClass string // 例如 "resource-indicator warning"
+}
+
+type ResourceGridItem struct {
+	ResourceGridItemClass string // 例如 "resource-grid-item warning"
 }
 
 // ReportTemplateData structures the fetched data for the HTML template.

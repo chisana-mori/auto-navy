@@ -14,23 +14,26 @@
         }
         .container {
             max-width: 840px;
-            margin: 30px auto;
+            margin: 20px auto; /* 减小外边距 */
             background: #fff;
-            border-radius: 14px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            border-radius: 12px; /* 减小圆角 */
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05); /* 调整阴影 */
             padding: 0;
             overflow: hidden;
         }
         .header {
-            background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+            /* background: linear-gradient(135deg, #334155 0%, #1e293b 100%); */ /* 可以考虑简化背景 */
+            background-color: #2d3748;
             color: white;
-            padding: 26px 32px;
+            padding: 20px 24px; /* 调整内边距 */
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap; /* 允许换行 */
+            gap: 10px; /* 添加间距 */
         }
         .header-title {
-            font-size: 1.6em;
+            font-size: 1.4em; /* 调整字体大小 */
             font-weight: 600;
             letter-spacing: 0.5px;
         }
@@ -40,16 +43,20 @@
         }
         .health-summary {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
+            /* grid-template-columns: 1fr 1fr 1fr 1fr; */ /* 移除固定列数 */
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* 自动适应列数 */
             border-bottom: 1px solid #e2e8f0;
+            gap: 1px; /* 用间隙代替边框 */
+            background-color: #e2e8f0; /* 背景填充间隙 */
         }
         .health-card {
-            padding: 20px 24px;
+            padding: 15px; /* 调整内边距 */
             text-align: center;
-            border-right: 1px solid #e2e8f0;
+            /* border-right: 1px solid #e2e8f0; */ /* 移除右边框 */
+            background-color: #fff; /* 卡片背景 */
         }
         .health-card:last-child {
-            border-right: none;
+            /* border-right: none; */ /* 移除 */
         }
         .health-score {
             font-size: 2.5em;
@@ -68,11 +75,11 @@
         .health-good { color: #10b981; }
         .health-warning { color: #f59e0b; }
         .health-critical { color: #ef4444; }
-        
+
         .main-content {
             padding: 32px;
         }
-        
+
         .alert-box {
             border-radius: 10px;
             padding: 20px 24px;
@@ -125,7 +132,7 @@
         .alert-good .alert-title {
             color: #047857;
         }
-        
+
         .alert-warning {
             background-color: #fffbeb;
             border-left: 6px solid #f59e0b;
@@ -137,7 +144,7 @@
         .alert-warning .alert-title {
             color: #b45309;
         }
-        
+
         .section {
             margin-bottom: 36px;
         }
@@ -168,7 +175,7 @@
             justify-content: center;
             font-size: 0.9em;
         }
-        
+
         /* Dashboard grid */
         .dashboard-grid {
             display: grid;
@@ -197,39 +204,61 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         /* Charts styling */
         .chart-container {
             width: 100%;
             height: 220px;
         }
-        
+
         /* Table styling */
-        .data-table, .cluster-health-table {
+        .data-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 0;
             font-size: 0.95em;
         }
-        .data-table th, 
-        .data-table td,
-        .cluster-health-table th,
-        .cluster-health-table td {
+        .cluster-health-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.9em;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .data-table th,
+        .data-table td {
             padding: 12px 16px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
         }
-        .data-table th,
+        .cluster-health-table th,
+        .cluster-health-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+        }
+        .data-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+        }
         .cluster-health-table th {
             background-color: #f8fafc;
             font-weight: 600;
             color: #475569;
         }
-        .data-table tr:last-child td,
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
         .cluster-health-table tr:last-child td {
             border-bottom: none;
         }
-        .data-table td.highlight,
+        .data-table td.highlight {
+            font-weight: 500;
+        }
         .cluster-health-table td.highlight {
             font-weight: 500;
         }
@@ -243,7 +272,7 @@
         .cluster-row[data-is-healthy="false"] td:first-child {
             border-left: 3px solid #ef4444;
         }
-        
+
         /* Fix for cluster row borders */
         .cluster-row[data-status="red"] td:first-child {
             border-left: 3px solid #ef4444;
@@ -251,7 +280,7 @@
         .cluster-row[data-status="green"] td:first-child {
             border-left: 3px solid #10b981;
         }
-        
+
         /* Status indicators */
         .status-indicator {
             display: flex;
@@ -276,7 +305,7 @@
         .status-text {
             font-weight: 500;
         }
-        
+
         .view-details-link {
             color: #3b82f6;
             text-decoration: none;
@@ -298,7 +327,7 @@
             display: inline-block;
             padding: 6px 12px;
         }
-        
+
         /* Critical issue cards */
         .issue-cards {
             display: grid;
@@ -359,7 +388,7 @@
             font-size: 0.9em;
             font-style: italic;
         }
-        
+
         /* Action buttons */
         .action-button {
             display: inline-block;
@@ -379,7 +408,7 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
         }
-        
+
         /* Footer styling */
         .footer {
             background: #f8fafc;
@@ -389,25 +418,25 @@
             text-align: center;
             border-top: 1px solid #e2e8f0;
         }
-        
+
         /* 热力图样式 */
-        .heat-level-high { 
-            color: #ef4444; 
-            font-weight: 600; 
+        .heat-level-high {
+            color: #ef4444;
+            font-weight: 600;
         }
-        .heat-level-2 { 
-            color: #f59e0b; 
-            font-weight: 500; 
+        .heat-level-2 {
+            color: #f59e0b;
+            font-weight: 500;
         }
-        .heat-level-1 { 
-            color: #f97316; 
+        .heat-level-1 {
+            color: #f97316;
          }
-        
+
         /* 添加CSS和JavaScript */
         .hidden-node {
             display: block !important;
         }
-        
+
         /* 新增样式：隐藏正常集群 */
         .hidden-cluster {
             display: none;
@@ -446,7 +475,7 @@
         .arrow.up {
             transform: rotate(-135deg);
         }
-        
+
         /* 节点数量链接样式 */
         .count-link {
             display: inline-block;
@@ -475,7 +504,7 @@
             padding-bottom: 6px;
             border-bottom: 1px dashed #e2e8f0;
         }
-        
+
         /* 折叠相关样式 */
         .cluster-header {
             cursor: pointer;
@@ -507,46 +536,39 @@
 
         /* 响应式设计 - 手机适配 */
         @media (max-width: 768px) {
-            /* 容器调整 */
             .container {
-                margin: 0;
-                border-radius: 0;
-                width: 100%;
-                max-width: 100%;
-                box-shadow: none;
+                margin: 10px; /* 移动端进一步减小外边距 */
+                border-radius: 8px;
+                width: auto; /* 移除固定宽度 */
+                max-width: calc(100% - 20px); /* 考虑边距 */
+                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             }
 
             /* 页眉调整 */
             .header {
-                padding: 20px;
-                flex-direction: column;
-                align-items: flex-start;
+                padding: 15px 20px;
+                /* flex-direction: column; */ /* 保持flex布局 */
+                /* align-items: flex-start; */
             }
             .header-title {
                 font-size: 1.3em;
-                margin-bottom: 8px;
+                /* margin-bottom: 8px; */ /* 由gap处理 */
             }
 
             /* 健康卡片调整 */
             .health-summary {
-                grid-template-columns: 1fr 1fr;
+                 grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* 调整最小宽度 */
             }
             .health-card {
-                padding: 15px;
-                border-bottom: 1px solid #e2e8f0;
+                padding: 12px;
+                /* border-bottom: 1px solid #e2e8f0; */ /* 由父级gap处理 */
             }
-            .health-card:nth-child(odd) {
-                border-right: 1px solid #e2e8f0;
-            }
-            .health-card:nth-child(even) {
-                border-right: none;
-            }
-            .health-card:nth-child(3),
-            .health-card:nth-child(4) {
-                border-bottom: none;
-            }
+            /* 移除旧的边框规则 */
+            /* .health-card:nth-child(odd) { ... } */
+            /* .health-card:nth-child(even) { ... } */
+            /* .health-card:nth-child(3), .health-card:nth-child(4) { ... } */
             .health-score {
-                font-size: 2em;
+                font-size: 1.8em;
             }
 
             /* 主内容区域调整 */
@@ -577,17 +599,43 @@
 
             /* 表格调整 - 水平滚动 */
             .cluster-health-table {
-                display: block;
+                display: block; /* 使其可滚动 */
                 overflow-x: auto;
                 width: 100%;
                 -webkit-overflow-scrolling: touch;
                 font-size: 0.85em;
+                border-radius: 0; /* 滚动时移除圆角 */
+                border-left: none;
+                border-right: none;
+                border-top: 1px solid #e2e8f0; /* 保持顶部边框 */
+                border-bottom: 1px solid #e2e8f0; /* 保持底部边框 */
+            }
+             .cluster-health-table thead, .cluster-health-table tbody, .cluster-health-table tr {
+                display: block;
             }
             .cluster-health-table th,
             .cluster-health-table td {
-                padding: 10px 12px;
-                white-space: nowrap;
+                /* padding: 10px 12px; */ /* 调整内边距 */
+                padding: 8px 10px;
+                white-space: nowrap; /* 防止滚动时换行 */
+                display: inline-block; /* 水平排列 */
+                width: 130px; /* 固定宽度 */
+                vertical-align: top;
             }
+             .cluster-health-table td:first-child, .cluster-health-table th:first-child {
+                 width: 160px; /* 集群名称列稍宽 */
+             }
+             .cluster-health-table tr {
+                 border-bottom: 1px solid #e2e8f0;
+                 display: block; /* 确保 tr 也是 block */
+                 white-space: nowrap; /* 防止内部元素换行导致 tr 高度变化 */
+             }
+             .cluster-health-table tr:last-child {
+                 border-bottom: none;
+             }
+             .cluster-health-table tbody tr:hover {
+                 background-color: inherit;
+             }
             /* 确保表格边框在移动端显示正确 */
             .cluster-row[data-is-healthy="true"] td:first-child,
             .cluster-row[data-is-healthy="false"] td:first-child,
@@ -609,7 +657,7 @@
             .missing-cluster-section {
                 margin-bottom: 15px;
             }
-            
+
             /* 数据表格调整 */
             .data-table {
                 display: block;
@@ -618,13 +666,13 @@
                 -webkit-overflow-scrolling: touch;
                 font-size: 0.85em;
             }
-            
+
             /* 集群标题调整 */
             .cluster-title {
                 font-size: 1em;
                 word-break: break-word;
             }
-            
+
             /* 链接样式调整 */
             .count-link {
                 padding: 2px 6px;
@@ -641,7 +689,36 @@
                 height: 24px;
             }
         }
-        
+
+        }
+
+        @media (max-width: 480px) { /* 增加 480px 断点 */
+             .header {
+                 padding: 12px 15px;
+             }
+             .header-title {
+                 font-size: 1.2em;
+             }
+             .health-summary {
+                 grid-template-columns: 1fr 1fr; /* 小屏幕固定两列 */
+             }
+             .health-card {
+                 padding: 10px;
+             }
+             .health-score {
+                 font-size: 1.6em;
+             }
+             .cluster-health-table th,
+             .cluster-health-table td {
+                 width: 110px; /* 进一步减小宽度 */
+                 padding: 6px 8px;
+             }
+             .cluster-health-table td:first-child, .cluster-health-table th:first-child {
+                 width: 140px;
+             }
+             /* ... existing code ... */
+        }
+
         /* 针对超小屏幕设备的额外优化 */
         @media (max-width: 375px) {
             .health-card {
@@ -669,7 +746,7 @@
             <div class="header-title">节点安全基线巡检报告</div>
             <div class="header-date">生成时间: {{now | date "2006-01-02 15:04:05"}}</div>
                 </div>
-        
+
         <!-- Health summary -->
         <!-- Cluster Health summary -->
         <div class="health-summary">
@@ -686,7 +763,7 @@
                 <span class="health-label">未巡检集群</span>
             </div>
         </div>
-        
+
         <!-- Node Health summary -->
         <div class="health-summary" style="border-top: none;">
             <div class="health-card">
@@ -752,7 +829,7 @@
                 </div>
                         </div>
             {{end}}
-            
+
             <!-- Dashboard -->
             <div class="dashboard-grid">
                 <!-- 异常类型分布图表 - 现在占据整个区域 -->
@@ -760,71 +837,57 @@
                     <div class="dashboard-card-header">异常类型分布</div>
                     <div class="dashboard-card-body">
                         <div class="chart-container">
-                            <svg width="100%" height="100%" viewBox="0 0 600 200">
-                                <!-- 简化版异常类型分布图表 -->
-                                <g transform="translate(100, 20)">
-                                    <!-- 标题 -->
-                                    <text x="200" y="0" font-size="14" fill="#334155" text-anchor="middle" font-weight="500">按安全问题类型</text>
-                                    
-                                    <!-- 水平条形图 -->
-                                    {{$totalHeight := 120}}
-                                    {{$totalItems := len .CheckItemFailureSummary}}
-                                    {{if gt $totalItems 0}}
-                                        {{$barHeight := div $totalHeight $totalItems}}
-                                        {{$maxWidth := 300}}
-                                        
-                                        <!-- 计算最大失败次数以便比例缩放 -->
-                                        {{$maxFailures := 0}}
-                                        {{range .CheckItemFailureSummary}}
-                                            {{if gt .TotalFailures $maxFailures}}
-                                                {{$maxFailures = .TotalFailures}}
-                                            {{end}}
+                            <!-- 使用内联CSS创建的水平条形图，更适合邮件客户端 -->
+                            <div style="max-width:700px; margin:0 auto; padding:10px 0;">
+                                <h3 style="text-align:center; font-size:14px; color:#334155; margin-bottom:20px; font-weight:500;">按安全问题类型</h3>
+
+                                {{if gt (len .CheckItemFailureSummary) 0}}
+                                    <!-- 计算最大失败次数以便比例缩放 -->
+                                    {{$maxFailures := 0}}
+                                    {{range .CheckItemFailureSummary}}
+                                        {{if gt .TotalFailures $maxFailures}}
+                                            {{$maxFailures = .TotalFailures}}
                                         {{end}}
-                                        
-                                        <!-- 绘制每个异常类型的条形 -->
-                                        {{range $index, $item := .CheckItemFailureSummary}}
-                                            {{$yPos := add 30 (mul $index (add $barHeight 5))}}
-                                            {{$barWidth := div (mul $item.TotalFailures $maxWidth) $maxFailures}}
-                                            {{if eq $barWidth 0}}{{$barWidth = 5}}{{end}}
-                                            
-                                            <!-- 条形 -->
-                                            <rect x="100" y="{{$yPos}}" height="{{$barHeight}}" width="{{$barWidth}}"
-                                                  fill="{{if eq $item.HeatColor "heat-level-high"}}#ef4444{{else if eq $item.HeatColor "heat-level-2"}}#f59e0b{{else}}#f97316{{end}}"
-                                                  opacity="0.85" rx="2"/>
-                                            
-                                            <!-- 左侧标签 - 异常类型名称 -->
-                                            <text x="95" y="{{add $yPos (div $barHeight 2)}}" 
-                                                  font-size="12" fill="#334155" text-anchor="end" dominant-baseline="middle">
-                                                {{$item.ItemName}}
-                                            </text>
-                                            
-                                            <!-- 右侧标签 - 次数 -->
-                                            <text x="{{add 105 $barWidth}}" y="{{add $yPos (div $barHeight 2)}}"
-                                                  font-size="12" fill="#334155" dominant-baseline="middle">
-                                                {{$item.TotalFailures}}
-                                            </text>
-                                        {{end}}
-                                    {{else}}
-                                        <!-- 没有异常项时显示的内容 -->
-                                        <g>
-                                            <!-- 安全盾牌图标 -->
-                                            <circle cx="200" cy="90" r="50" fill="#dcfce7" />
-                                            <path d="M200,60 L170,70 L170,105 C170,115 180,124 200,130 C220,124 230,115 230,105 L230,70 L200,60z" 
-                                                  fill="#10b981" stroke="#0d9488" stroke-width="2" />
-                                            <path d="M190,100 L180,90 L185,85 L190,90 L215,75 L220,85 L190,100z" 
-                                                  fill="#ffffff" />
-                                            
-                                            <!-- 文字 -->
-                                            <text x="200" y="160" font-size="16" font-weight="500" fill="#10b981" text-anchor="middle">
-                                                系统安全状态良好
-                                            </text>
-                                            <text x="200" y="180" font-size="14" fill="#64748b" text-anchor="middle">
-                                                未发现安全问题
-                                            </text>
-                                        </g>
                                     {{end}}
-                                </g>
-                            </svg>
+
+                                    <!-- 绘制每个异常类型的条形 -->
+                                    {{range $index, $item := .CheckItemFailureSummary}}
+                                        <div style="display:flex; align-items:center; margin-bottom:10px;">
+                                            <!-- 左侧标签 - 异常类型名称 -->
+                                            <div style="width:45%; text-align:right; padding-right:10px; font-size:12px; color:#334155; overflow:hidden; text-overflow:ellipsis;">
+                                                {{$item.ItemName}}
+                                            </div>
+
+                                            <!-- 条形图 -->
+                                            {{$percentage := div (mul $item.TotalFailures 100) $maxFailures}}
+                                            <div style="width:40%; padding:0 5px;">
+                                                <div style="background-color:{{if eq $item.HeatColor "heat-level-high"}}#ef4444{{else if eq $item.HeatColor "heat-level-2"}}#f59e0b{{else}}#f97316{{end}};
+                                                            height:18px; width:{{$percentage}}%; min-width:5px; border-radius:3px; opacity:0.85;"></div>
+                                            </div>
+
+                                            <!-- 右侧数值 -->
+                                            <div style="width:15%; font-weight:500; font-size:12px; color:#334155;">
+                                                {{$item.TotalFailures}}
+                                            </div>
+                                        </div>
+                                    {{end}}
+                                {{else}}
+                                    <!-- 没有异常项时显示的内容 -->
+                                    <div style="text-align:center; padding:30px 0;">
+                                        <!-- 安全状态图标 -->
+                                        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                                            <tr>
+                                                <td style="background-color:#dcfce7; width:80px; height:80px; border-radius:50%; text-align:center; vertical-align:middle;">
+                                                    <span style="color:#10b981; font-size:36px; font-weight:bold;">&#10004;</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+
+                                        <div style="margin-top:15px; font-weight:500; color:#10b981;">系统安全状态良好</div>
+                                        <div style="margin-top:5px; color:#64748b; font-size:14px;">未发现安全问题</div>
+                                    </div>
+                                {{end}}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -854,8 +917,8 @@
                 </thead>
                 <tbody>
                             {{ range .ClusterHealthSummary }}
-                            <tr class="cluster-row" 
-                                data-cluster="{{ .ClusterName }}" 
+                            <tr class="cluster-row"
+                                data-cluster="{{ .ClusterName }}"
                                 data-status="{{ .StatusColor }}"
                                 data-is-healthy="{{ if (strEq .StatusColor "green") }}true{{ else }}false{{ end }}">
                                 <td>{{ .ClusterName }}</td>
@@ -897,7 +960,7 @@
                             巡检失败节点 <span class="count-badge">{{.MissingNodesCount}}个</span>
                         </div>
                     </div>
-                    
+
                     <div class="alert-box alert-critical" style="margin-top:0">
                         <div class="alert-content">
                             <p class="alert-message">以下节点未能完成巡检，请检查节点网络连接或配置是否正确。未巡检节点会导致集群状态被标记为异常（红色）。</p>
@@ -947,7 +1010,7 @@
                             高优先级异常详情 <span class="count-badge">{{.AbnormalNodes}}个</span>
                         </div>
                     </div>
-                    
+
                     <div class="alert-box alert-critical" style="margin-top:0">
                         <div class="alert-content">
                             <p class="alert-message">以下节点存在安全基线异常，请及时修复以确保集群安全。</p>
@@ -965,7 +1028,7 @@
                                         <span class="toggle-icon">
                                             <span class="arrow up"></span>
                                         </span>
-                                        集群: {{$node.ClusterName}} 
+                                        集群: {{$node.ClusterName}}
                                         <span style="color:#ef4444; font-size:0.9em;">
                                             <!-- 计算同一集群的节点数量 -->
                                             (
@@ -993,7 +1056,7 @@
                                     <div style="color:#64748b; font-size:0.9em; margin-bottom:4px;">节点类型</div>
                                     <div style="font-weight:500;">{{$node.NodeType}}</div>
                                 </div>
-                                
+
                                 {{range $node.FailedItems}}
                                 <div class="issue-detail">
                                     <div class="issue-name">{{.ItemName}}</div>

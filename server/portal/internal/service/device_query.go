@@ -172,11 +172,13 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 
 		switch block.ConditionType {
 		case ConditionTypeEqual:
-			// 将字符串值转换为布尔值
+			// 将值转换为布尔值
 			var boolValue bool
-			if strings.ToLower(block.Value) == "true" || block.Value == "1" {
-				boolValue = true
-			}
+			if valStr, ok := block.Value.(string); ok { // Type assertion
+				if strings.ToLower(valStr) == "true" || valStr == "1" {
+					boolValue = true
+				}
+			} // Handle potential non-string value if necessary, default is false
 
 			if boolValue {
 				// 查询特殊设备
@@ -185,12 +187,112 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 				// 查询非特殊设备
 				return query.Where("NOT (" + SpecialDeviceCondition + ")")
 			}
-		case ConditionTypeNotEqual:
-			// 将字符串值转换为布尔值
-			var boolValue bool
-			if strings.ToLower(block.Value) == "true" || block.Value == "1" {
-				boolValue = true
+		case ConditionTypeIn:
+			// 特殊处理 isSpecial 字段
+			if camelKey == "isSpecial" {
+				// 处理 []string 类型
+				if values, ok := block.Value.([]string); ok {
+					if len(values) == 0 {
+						return query.Where("1 = 0")
+					}
+					
+					// 构建条件
+					var conditions []string
+					for _, v := range values {
+						if strings.ToLower(v) == "true" || v == "1" {
+							conditions = append(conditions, "("+SpecialDeviceCondition+")")
+						} else if strings.ToLower(v) == "false" || v == "0" {
+							conditions = append(conditions, "NOT ("+SpecialDeviceCondition+")")
+						}
+					}
+					
+					if len(conditions) > 0 {
+						return query.Where(strings.Join(conditions, " OR "))
+					}
+					return query
+				}
+				
+				// 处理 []interface{} 类型（JSON反序列化后的常见类型）
+				if interfaceValues, ok := block.Value.([]interface{}); ok {
+					if len(interfaceValues) == 0 {
+						return query.Where("1 = 0")
+					}
+					
+					// 构建条件
+					var conditions []string
+					for _, v := range interfaceValues {
+						if str, ok := v.(string); ok {
+							if strings.ToLower(str) == "true" || str == "1" {
+								conditions = append(conditions, "("+SpecialDeviceCondition+")")
+							} else if strings.ToLower(str) == "false" || str == "0" {
+								conditions = append(conditions, "NOT ("+SpecialDeviceCondition+")")
+							}
+						} else if boolVal, ok := v.(bool); ok {
+							if boolVal {
+								conditions = append(conditions, "("+SpecialDeviceCondition+")")
+							} else {
+								conditions = append(conditions, "NOT ("+SpecialDeviceCondition+")")
+							}
+						} else {
+							// 尝试将其他类型转换为字符串，然后判断
+							strVal := fmt.Sprintf("%v", v)
+							if strings.ToLower(strVal) == "true" || strVal == "1" {
+								conditions = append(conditions, "("+SpecialDeviceCondition+")")
+							} else if strings.ToLower(strVal) == "false" || strVal == "0" {
+								conditions = append(conditions, "NOT ("+SpecialDeviceCondition+")")
+							}
+						}
+					}
+					
+					if len(conditions) > 0 {
+						return query.Where(strings.Join(conditions, " OR "))
+					}
+					return query
+				}
+				
+				return query
 			}
+			
+			// 处理其他字段
+			// 处理 []string 类型
+			if values, ok := block.Value.([]string); ok {
+				if len(values) == 0 {
+					return query.Where("1 = 0")
+				}
+				return query.Where(column+" IN (?)", values)
+			}
+			
+			// 处理 []interface{} 类型（JSON反序列化后的常见类型）
+			if interfaceValues, ok := block.Value.([]interface{}); ok {
+				if len(interfaceValues) == 0 {
+					return query.Where("1 = 0")
+				}
+				
+				// 将 []interface{} 转换为 []string
+				values := make([]string, len(interfaceValues))
+				for i, v := range interfaceValues {
+					if str, ok := v.(string); ok {
+						values[i] = str
+					} else {
+						// 尝试将非字符串值转换为字符串
+						values[i] = fmt.Sprintf("%v", v)
+					}
+				}
+				
+				return query.Where(column+" IN (?)", values)
+			}
+			
+			// 处理其他类型
+			fmt.Printf("Warning: Invalid value type for 'in' condition, expected []string or []interface{}, got %T. Skipping filter.\n", block.Value)
+			return query
+		case ConditionTypeNotEqual:
+			// 将值转换为布尔值
+			var boolValue bool
+			if valStr, ok := block.Value.(string); ok { // Type assertion
+				if strings.ToLower(valStr) == "true" || valStr == "1" {
+					boolValue = true
+				}
+			} // Handle potential non-string value if necessary, default is false
 
 			if boolValue {
 				// 查询非特殊设备
@@ -208,51 +310,173 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 	// 直接构建条件，不使用Scopes
 	switch block.ConditionType {
 	case ConditionTypeEqual:
-		return query.Where(column+" = ?", block.Value)
+		if valStr, ok := block.Value.(string); ok {
+			return query.Where(column+" = ?", valStr)
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeNotEqual:
-		return query.Where(fmt.Sprintf("(%s != ? OR %s IS NULL)", column, column), block.Value)
+		if valStr, ok := block.Value.(string); ok {
+			return query.Where(fmt.Sprintf("(%s != ? OR %s IS NULL)", column, column), valStr)
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeContains:
-		escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
-		escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
-		return query.Where(column+" LIKE ?", "%"+escapedValue+"%")
+		if valStr, ok := block.Value.(string); ok {
+			escapedValue := strings.ReplaceAll(valStr, "%", "\\%")
+			escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
+			return query.Where(column+" LIKE ?", "%"+escapedValue+"%")
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeNotContains:
-		escapedValue := strings.ReplaceAll(block.Value, "%", "\\%")
-		escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
-		return query.Where(fmt.Sprintf("(%s NOT LIKE ? OR %s IS NULL)", column, column), "%"+escapedValue+"%")
+		if valStr, ok := block.Value.(string); ok {
+			escapedValue := strings.ReplaceAll(valStr, "%", "\\%")
+			escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
+			return query.Where(fmt.Sprintf("(%s NOT LIKE ? OR %s IS NULL)", column, column), "%"+escapedValue+"%")
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeExists:
 		return query.Where(fmt.Sprintf("%s IS NOT NULL AND %s != ''", column, column))
 	case ConditionTypeNotExists:
 		return query.Where(fmt.Sprintf("%s IS NULL OR %s = ''", column, column))
 	case ConditionTypeIn:
-		values := strings.Split(block.Value, ",")
-		trimmedValues := make([]string, 0, len(values))
-		for _, v := range values {
-			trimmed := strings.TrimSpace(v)
-			if trimmed != "" {
-				trimmedValues = append(trimmedValues, trimmed)
+		// 特殊处理布尔类型字段
+		if camelKey == "isLocalization" || camelKey == "isSpecial" {
+			// 处理 []string 类型
+			if values, ok := block.Value.([]string); ok {
+				if len(values) == 0 {
+					// 如果传入空数组，则不匹配任何记录
+					return query.Where("1 = 0")
+				}
+				
+				// 将布尔值字符串转换为 "1"/"0"
+				convertedValues := make([]string, len(values))
+				for i, v := range values {
+					if strings.ToLower(v) == "true" || v == "1" {
+						convertedValues[i] = "1"
+					} else {
+						convertedValues[i] = "0"
+					}
+				}
+				
+				return query.Where(column+" IN (?)", convertedValues)
+			}
+			
+			// 处理 []interface{} 类型（JSON反序列化后的常见类型）
+			if interfaceValues, ok := block.Value.([]interface{}); ok {
+				if len(interfaceValues) == 0 {
+					// 如果传入空数组，则不匹配任何记录
+					return query.Where("1 = 0")
+				}
+				
+				// 将 []interface{} 转换为 []string，并处理布尔值
+				convertedValues := make([]string, len(interfaceValues))
+				for i, v := range interfaceValues {
+					if str, ok := v.(string); ok {
+						if strings.ToLower(str) == "true" || str == "1" {
+							convertedValues[i] = "1"
+						} else {
+							convertedValues[i] = "0"
+						}
+					} else if boolVal, ok := v.(bool); ok {
+						if boolVal {
+							convertedValues[i] = "1"
+						} else {
+							convertedValues[i] = "0"
+						}
+					} else {
+						// 尝试将其他类型转换为字符串，然后判断
+						strVal := fmt.Sprintf("%v", v)
+						if strings.ToLower(strVal) == "true" || strVal == "1" {
+							convertedValues[i] = "1"
+						} else {
+							convertedValues[i] = "0"
+						}
+					}
+				}
+				
+				return query.Where(column+" IN (?)", convertedValues)
+			}
+		} else {
+			// 处理非布尔类型字段
+			// 处理 []string 类型
+			if values, ok := block.Value.([]string); ok {
+				if len(values) == 0 {
+					// 如果传入空数组，则不匹配任何记录
+					return query.Where("1 = 0")
+				}
+				// GORM handles slice arguments for IN clauses directly
+				return query.Where(column+" IN (?)", values)
+			}
+			
+			// 处理 []interface{} 类型（JSON反序列化后的常见类型）
+			if interfaceValues, ok := block.Value.([]interface{}); ok {
+				if len(interfaceValues) == 0 {
+					// 如果传入空数组，则不匹配任何记录
+					return query.Where("1 = 0")
+				}
+				
+				// 将 []interface{} 转换为 []string
+				values := make([]string, len(interfaceValues))
+				for i, v := range interfaceValues {
+					if str, ok := v.(string); ok {
+						values[i] = str
+					} else {
+						// 尝试将非字符串值转换为字符串
+						values[i] = fmt.Sprintf("%v", v)
+					}
+				}
+				
+				return query.Where(column+" IN (?)", values)
 			}
 		}
-		if len(trimmedValues) == 0 {
-			return query.Where("1 = 0")
-		}
-		return query.Where(column+" IN (?)", trimmedValues)
+		
+		// 处理其他类型
+		fmt.Printf("Warning: Invalid value type for 'in' condition, expected []string or []interface{}, got %T. Skipping filter.\n", block.Value)
+		return query
 	case ConditionTypeNotIn:
-		values := strings.Split(block.Value, ",")
-		trimmedValues := make([]string, 0, len(values))
-		for _, v := range values {
-			trimmed := strings.TrimSpace(v)
-			if trimmed != "" {
-				trimmedValues = append(trimmedValues, trimmed)
+		// 处理 []string 类型
+		if values, ok := block.Value.([]string); ok {
+			if len(values) == 0 {
+				// 如果传入空数组，则匹配所有非 NULL 记录
+				return query.Where(fmt.Sprintf("%s IS NOT NULL", column))
 			}
+			// GORM handles slice arguments for NOT IN clauses directly
+			return query.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), values)
 		}
-		if len(trimmedValues) == 0 {
-			return query.Where(fmt.Sprintf("%s IS NOT NULL", column))
+		
+		// 处理 []interface{} 类型（JSON反序列化后的常见类型）
+		if interfaceValues, ok := block.Value.([]interface{}); ok {
+			if len(interfaceValues) == 0 {
+				// 如果传入空数组，则匹配所有非 NULL 记录
+				return query.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+			
+			// 将 []interface{} 转换为 []string
+			values := make([]string, len(interfaceValues))
+			for i, v := range interfaceValues {
+				if str, ok := v.(string); ok {
+					values[i] = str
+				} else {
+					// 尝试将非字符串值转换为字符串
+					values[i] = fmt.Sprintf("%v", v)
+				}
+			}
+			
+			return query.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), values)
 		}
-		return query.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), trimmedValues)
+		
+		// 处理其他类型
+		fmt.Printf("Warning: Invalid value type for 'notIn' condition, expected []string or []interface{}, got %T. Skipping filter.\n", block.Value)
+		return query
 	case ConditionTypeGreaterThan:
-		return query.Where(fmt.Sprintf("%s > ?", column), block.Value)
+		if valStr, ok := block.Value.(string); ok {
+			return query.Where(fmt.Sprintf("%s > ?", column), valStr)
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeLessThan:
-		return query.Where(fmt.Sprintf("%s < ?", column), block.Value)
+		if valStr, ok := block.Value.(string); ok {
+			return query.Where(fmt.Sprintf("%s < ?", column), valStr)
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeIsEmpty:
 		return query.Where(fmt.Sprintf("(%s IS NULL OR %s = '')", column, column))
 	case ConditionTypeIsNotEmpty:
@@ -302,7 +526,7 @@ type FilterBlock struct {
 	Type          FilterType      `json:"type"`          // 筛选类型
 	ConditionType ConditionType   `json:"conditionType"` // 条件类型
 	Key           string          `json:"key"`           // 键
-	Value         string          `json:"value"`         // 值
+	Value         interface{}     `json:"value"`         // 值 (可以是 string 或 []string)
 	Operator      LogicalOperator `json:"operator"`      // 与下一个条件的逻辑关系
 }
 
@@ -1003,25 +1227,67 @@ func splitAndTrimValues(value string) []string {
 func (s *DeviceQueryService) applyValueCondition(query *gorm.DB, block FilterBlock, tableAlias string) *gorm.DB {
 	switch block.ConditionType {
 	case ConditionTypeEqual:
-		return query.Where(fmt.Sprintf(SQLConditionEqual, tableAlias), block.Value)
+		if valStr, ok := block.Value.(string); ok {
+			return query.Where(fmt.Sprintf(SQLConditionEqual, tableAlias), valStr)
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeNotEqual:
-		return query.Where(fmt.Sprintf(SQLConditionNotEqual, tableAlias, tableAlias), block.Value)
+		if valStr, ok := block.Value.(string); ok {
+			return query.Where(fmt.Sprintf(SQLConditionNotEqual, tableAlias, tableAlias), valStr)
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeContains:
-		escapedValue := escapeValue(block.Value)
-		return query.Where(fmt.Sprintf(SQLConditionContains, tableAlias), "%"+escapedValue+"%")
+		if valStr, ok := block.Value.(string); ok {
+			escapedValue := escapeValue(valStr)
+			return query.Where(fmt.Sprintf(SQLConditionContains, tableAlias), "%"+escapedValue+"%")
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeNotContains:
-		escapedValue := escapeValue(block.Value)
-		return query.Where(fmt.Sprintf(SQLConditionNotContains, tableAlias, tableAlias), "%"+escapedValue+"%")
+		if valStr, ok := block.Value.(string); ok {
+			escapedValue := escapeValue(valStr)
+			return query.Where(fmt.Sprintf(SQLConditionNotContains, tableAlias, tableAlias), "%"+escapedValue+"%")
+		}
+		return query // Or handle error/invalid type
 	case ConditionTypeExists:
 		return query.Where(fmt.Sprintf(SQLConditionExists, tableAlias))
 	case ConditionTypeNotExists:
 		return query.Where(fmt.Sprintf(SQLConditionNotExists, tableAlias))
 	case ConditionTypeIn:
-		values := splitAndTrimValues(block.Value)
-		return query.Where(fmt.Sprintf(SQLConditionIn, tableAlias), values)
+		// Expect Value to be []string for 'in'
+		if values, ok := block.Value.([]string); ok {
+			if len(values) == 0 {
+				return query.Where("1 = 0") // No match if empty array
+			}
+			return query.Where(fmt.Sprintf(SQLConditionIn, tableAlias), values)
+		}
+		// Handle case where Value is string (split by comma) - legacy support?
+		if valStr, ok := block.Value.(string); ok {
+			values := splitAndTrimValues(valStr)
+			if len(values) == 0 {
+				return query.Where("1 = 0")
+			}
+			return query.Where(fmt.Sprintf(SQLConditionIn, tableAlias), values)
+		}
+		fmt.Printf("Warning: Invalid value type for 'in' condition in applyValueCondition, expected []string or string, got %T. Skipping filter.\n", block.Value)
+		return query
 	case ConditionTypeNotIn:
-		values := splitAndTrimValues(block.Value)
-		return query.Where(fmt.Sprintf(SQLConditionNotIn, tableAlias, tableAlias), values)
+		// Expect Value to be []string for 'notIn'
+		if values, ok := block.Value.([]string); ok {
+			if len(values) == 0 {
+				return query.Where(fmt.Sprintf("%s IS NOT NULL", tableAlias)) // Match all non-null if empty array
+			}
+			return query.Where(fmt.Sprintf(SQLConditionNotIn, tableAlias, tableAlias), values)
+		}
+		// Handle case where Value is string (split by comma) - legacy support?
+		if valStr, ok := block.Value.(string); ok {
+			values := splitAndTrimValues(valStr)
+			if len(values) == 0 {
+				return query.Where(fmt.Sprintf("%s IS NOT NULL", tableAlias))
+			}
+			return query.Where(fmt.Sprintf(SQLConditionNotIn, tableAlias, tableAlias), values)
+		}
+		fmt.Printf("Warning: Invalid value type for 'notIn' condition in applyValueCondition, expected []string or string, got %T. Skipping filter.\n", block.Value)
+		return query
 	default:
 		return query
 	}
@@ -1029,17 +1295,10 @@ func (s *DeviceQueryService) applyValueCondition(query *gorm.DB, block FilterBlo
 
 // applyNodeLabelFilter 应用节点标签筛选
 func (s *DeviceQueryService) applyNodeLabelFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
-	// 获取当天的开始和结束时间
-	currentTime := time.Now()
-	todayStart := now.New(currentTime).BeginningOfDay()
-	todayEnd := now.New(currentTime).EndOfDay()
-
-	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
-	// 并且只查询当天的标签数据
-	query = query.Joins(
-		fmt.Sprintf(SQLJoinNodeLabel, TableAliasNodeLabel, TableAliasK8sNode, TableAliasNodeLabel, TableAliasNodeLabel, TableAliasNodeLabel),
-		block.Key, todayStart, todayEnd,
-	)
+	// 在 WHERE 子句中添加 key 条件
+	// 使用结构化的方式添加条件，避免字符串拼接
+	// 因为基础查询中已经包含了 LEFT JOIN k8s_node_label
+	query = query.Where(TableAliasNodeLabel+".key = ?", block.Key)
 
 	// 应用值条件
 	return s.applyValueCondition(query, block, TableAliasNodeLabel)
@@ -1047,17 +1306,10 @@ func (s *DeviceQueryService) applyNodeLabelFilter(query *gorm.DB, block FilterBl
 
 // applyTaintFilter 应用污点筛选
 func (s *DeviceQueryService) applyTaintFilter(query *gorm.DB, block FilterBlock) *gorm.DB {
-	// 获取当天的开始和结束时间
-	currentTime := time.Now()
-	todayStart := now.New(currentTime).BeginningOfDay()
-	todayEnd := now.New(currentTime).EndOfDay()
-
-	// 使用 INNER JOIN 而不是 LEFT JOIN，确保只返回匹配所有条件的记录
-	// 并且只查询当天的污点数据
-	query = query.Joins(
-		fmt.Sprintf(SQLJoinNodeTaint, TableAliasNodeTaint, TableAliasK8sNode, TableAliasNodeTaint, TableAliasNodeTaint, TableAliasNodeTaint),
-		block.Key, todayStart, todayEnd,
-	)
+	// 在 WHERE 子句中添加 key 条件
+	// 使用结构化的方式添加条件，避免字符串拼接
+	// 因为基础查询中已经包含了 LEFT JOIN k8s_node_taint
+	query = query.Where(TableAliasNodeTaint+".key = ?", block.Key)
 
 	// 应用值条件
 	return s.applyValueCondition(query, block, TableAliasNodeTaint)
@@ -1204,12 +1456,27 @@ func convertGroupsToResponse(groups []FilterGroup) []FilterGroupRequest {
 	for i, group := range groups {
 		blocks := make([]FilterBlockRequest, len(group.Blocks))
 		for j, block := range group.Blocks {
+			var valueStr string
+			switch v := block.Value.(type) {
+			case string:
+				valueStr = v
+			case []string:
+				// Convert slice to comma-separated string for the response DTO
+				valueStr = strings.Join(v, ",")
+			default:
+				// Handle other types or nil if necessary, default to empty string
+				valueStr = ""
+				if block.Value != nil {
+					fmt.Printf("Warning: Unexpected type for FilterBlock.Value in convertGroupsToResponse: %T\n", block.Value)
+				}
+			}
+
 			blocks[j] = FilterBlockRequest{
 				ID:            block.ID,
 				Type:          block.Type,
 				ConditionType: block.ConditionType,
 				Key:           block.Key,
-				Value:         block.Value,
+				Value:         valueStr, // Assign the converted string value
 				Operator:      block.Operator,
 			}
 		}

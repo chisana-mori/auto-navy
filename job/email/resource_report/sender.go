@@ -137,12 +137,12 @@ func (s *ResourceReportSender) prepareTemplateData(clusters []ClusterResourceSum
 }
 
 // detectAbnormalUsageClusters checks if any clusters have abnormal resource usage.
+// 这个函数假设所有集群和资源池的IsAbnormal标志已经在processSnapshotsToSummaries中设置好了。
 func (s *ResourceReportSender) detectAbnormalUsageClusters(clusters []ClusterResourceSummary) bool {
+	// 检查是否有任何集群被标记为异常
 	for _, cluster := range clusters {
-		for _, pool := range cluster.ResourcePools {
-			if s.isResourcePoolAbnormal(pool) {
-				return true
-			}
+		if cluster.IsAbnormal {
+			return true
 		}
 	}
 	return false
@@ -298,25 +298,30 @@ func (s *ResourceReportSender) fetchHistoricalData(summaries []ClusterResourceSu
 	return nil
 }
 
-// groupSnapshotsByClusterAndDate groups snapshots by cluster name and date.
-func (s *ResourceReportSender) groupSnapshotsByClusterAndDate(snapshots []snapshotQueryResult) map[string]map[string]snapshotQueryResult {
-	result := make(map[string]map[string]snapshotQueryResult)
+// groupSnapshotsByClusterAndDate groups snapshots by cluster name, resource type, and date.
+func (s *ResourceReportSender) groupSnapshotsByClusterAndDate(snapshots []snapshotQueryResult) map[string]map[string]map[string]snapshotQueryResult {
+	// Map structure: ClusterName -> ResourceType -> Date -> Snapshot
+	result := make(map[string]map[string]map[string]snapshotQueryResult)
 
 	for _, snap := range snapshots {
 		snapTime := time.Time(snap.CreatedAt)
 		dateStr := snapTime.Format(DateFormat) // Use YYYY-MM-DD format as the key
 
+		// Initialize maps if they don't exist
 		if _, ok := result[snap.ClusterName]; !ok {
-			result[snap.ClusterName] = make(map[string]snapshotQueryResult)
+			result[snap.ClusterName] = make(map[string]map[string]snapshotQueryResult)
+		}
+		if _, ok := result[snap.ClusterName][snap.ResourceType]; !ok {
+			result[snap.ClusterName][snap.ResourceType] = make(map[string]snapshotQueryResult)
 		}
 
-		// If we already have a snapshot for this cluster on this date, keep the later one
-		if existingSnap, ok := result[snap.ClusterName][dateStr]; ok {
+		// If we already have a snapshot for this cluster, resource type, and date, keep the later one
+		if existingSnap, ok := result[snap.ClusterName][snap.ResourceType][dateStr]; ok {
 			if snapTime.After(time.Time(existingSnap.CreatedAt)) {
-				result[snap.ClusterName][dateStr] = snap
+				result[snap.ClusterName][snap.ResourceType][dateStr] = snap
 			}
 		} else {
-			result[snap.ClusterName][dateStr] = snap
+			result[snap.ClusterName][snap.ResourceType][dateStr] = snap
 		}
 	}
 
@@ -324,23 +329,29 @@ func (s *ResourceReportSender) groupSnapshotsByClusterAndDate(snapshots []snapsh
 }
 
 // populateHistoricalData fills in historical data for each cluster and resource pool.
-func (s *ResourceReportSender) populateHistoricalData(summaries []ClusterResourceSummary, snapshotsByClusterDate map[string]map[string]snapshotQueryResult) {
+func (s *ResourceReportSender) populateHistoricalData(summaries []ClusterResourceSummary, snapshotsByClusterDate map[string]map[string]map[string]snapshotQueryResult) {
 	reportDate := s.ReportDate.Truncate(24 * time.Hour) // Ensure we compare dates correctly
 
 	for i := range summaries {
 		clusterName := summaries[i].ClusterName
-		dailySnapshots, clusterFound := snapshotsByClusterDate[clusterName]
+		resourceTypeSnapshots, clusterFound := snapshotsByClusterDate[clusterName]
 
 		for j := range summaries[i].ResourcePools {
 			// Initialize history arrays (size 7 for 7 days)
 			summaries[i].ResourcePools[j].CPUHistory = make([]float64, 7)
 			summaries[i].ResourcePools[j].MemoryHistory = make([]float64, 7)
 
+			// Get the resource type for this pool
+			resourceType := summaries[i].ResourcePools[j].ResourceType
+
+			// Get snapshots for this specific resource type
+			dailySnapshots, resourceTypeFound := resourceTypeSnapshots[resourceType]
+
 			// Calculate usage for each day in the 7-day period
 			s.calculateDailyUsageForPool(
 				&summaries[i].ResourcePools[j],
 				dailySnapshots,
-				clusterFound,
+				clusterFound && resourceTypeFound,
 				reportDate,
 			)
 		}
@@ -351,7 +362,7 @@ func (s *ResourceReportSender) populateHistoricalData(summaries []ClusterResourc
 func (s *ResourceReportSender) calculateDailyUsageForPool(
 	pool *ResourcePool,
 	dailySnapshots map[string]snapshotQueryResult,
-	clusterFound bool,
+	resourceFound bool,
 	reportDate time.Time,
 ) {
 	for dayIndex := 0; dayIndex < 7; dayIndex++ {
@@ -362,7 +373,7 @@ func (s *ResourceReportSender) calculateDailyUsageForPool(
 		cpuUsage := 0.0
 		memUsage := 0.0
 
-		if clusterFound {
+		if resourceFound {
 			if snap, dateFound := dailySnapshots[currentDateStr]; dateFound {
 				// Calculate usage based on the snapshot for this day
 				cpuUsage = s.calculateCpuUsageFromSnapshot(snap)
@@ -411,6 +422,11 @@ func (s *ResourceReportSender) processSnapshotsToSummaries(
 
 	// Convert the map to a sorted slice
 	clusterSummaries := s.convertToSortedSummaries(clusterMap)
+
+	// 在计算集群统计信息前，先检测并标记异常集群和资源池
+	for i := range clusterSummaries {
+		s.isClusterAbnormal(&clusterSummaries[i])
+	}
 
 	// Calculate global statistics
 	stats := s.calculateClusterStats(clusterSummaries)
@@ -494,6 +510,7 @@ func (s *ResourceReportSender) addResourcePoolToSummary(summary *ClusterResource
 			TooltipText:         s.getResourcePoolTooltip(snap.ResourceType),
 			MaxCpuUsageRatio:    snap.MaxCpuUsageRatio,
 			MaxMemoryUsageRatio: snap.MaxMemoryUsageRatio,
+			IsAbnormal:          false, // 初始化为非异常状态
 		}
 		summary.ResourcePools = append(summary.ResourcePools, newPool)
 	}
@@ -666,9 +683,9 @@ func (s *ResourceReportSender) calculateClusterStats(clusters []ClusterResourceS
 	normalClusters := 0
 	abnormalClusters := 0
 
-	// Compute normal/abnormal based on resource usage
+	// 统计正常和异常集群数量，使用已经计算好的标志位
 	for _, cluster := range clusters {
-		if s.isClusterAbnormal(cluster) {
+		if cluster.IsAbnormal {
 			abnormalClusters++
 		} else {
 			normalClusters++
@@ -699,14 +716,14 @@ func (s *ResourceReportSender) isClusterAbnormal(cluster ClusterResourceSummary)
 }
 
 // hasAbnormalResourcePool checks if any of the cluster's resource pools have abnormal usage.
-func (s *ResourceReportSender) hasAbnormalResourcePool(cluster ClusterResourceSummary) bool {
-	for _, pool := range cluster.ResourcePools {
-		// 检查所有资源池，不再限制只检查total和total_common
-		if s.isResourcePoolAbnormal(pool) {
-			return true
+func (s *ResourceReportSender) hasAbnormalResourcePool(cluster *ClusterResourceSummary) bool {
+	hasAbnormal := false
+	for i := range cluster.ResourcePools {
+		if s.isResourcePoolAbnormal(&cluster.ResourcePools[i]) {
+			hasAbnormal = true
 		}
 	}
-	return false
+	return hasAbnormal
 }
 
 // isResourcePoolAbnormal determines if a resource pool's usage is outside acceptable thresholds.
@@ -932,12 +949,62 @@ func customTemplateFuncs() template.FuncMap {
 			}
 			return string(portal.GetCPUStyle(pool.BMCount, pool.CPUUsagePercent, environment))
 		},
-		// 获取内存颜色类的函数 - 使用统一样式库
+		// 获取内存颜色类的函数
 		"getMemColorClass": func(pool *ResourcePool, environment string) string {
 			if pool == nil {
 				return ""
 			}
-			return string(portal.GetMemoryStyle(pool.BMCount, pool.MemoryUsagePercent, environment))
+
+			isLargePool := pool.BMCount > 150
+			memUsage := pool.MemoryUsagePercent
+
+			if environment == "test" {
+				// 测试环境规则
+				if isLargePool {
+					if memUsage >= 95.0 {
+						return "emergency"
+					} else if memUsage >= 90.0 {
+						return "critical"
+					} else if memUsage >= 85.0 {
+						return "warning"
+					}
+					return "normal"
+				} else {
+					if memUsage >= 90.0 {
+						return "emergency"
+					} else if memUsage >= 80.0 {
+						return "critical"
+					} else if memUsage >= 75.0 {
+						return "warning"
+					}
+					return "normal"
+				}
+			} else {
+				// 生产环境规则
+				if isLargePool {
+					if memUsage >= 95.0 {
+						return "emergency"
+					} else if memUsage >= 85.0 {
+						return "critical"
+					} else if memUsage >= 80.0 {
+						return "warning"
+					} else if memUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				} else {
+					if memUsage >= 90.0 {
+						return "emergency"
+					} else if memUsage >= 75.0 {
+						return "critical"
+					} else if memUsage >= 70.0 {
+						return "warning"
+					} else if memUsage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				}
+			}
 		},
 		// 判断资源池是否需要显示的函数 - 使用统一样式库
 		"shouldShowPool": func(cpuUsage, memoryUsage float64, bmCount int, environment string) bool {

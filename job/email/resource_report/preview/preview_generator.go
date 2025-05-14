@@ -47,6 +47,7 @@ type ResourcePool struct {
 	MaxCpuUsageRatio    float64 // 平均CPU最大使用率，存储为小数，如0.36代表百分之36
 	MaxMemoryUsageRatio float64 // 平均内存最大使用率，存储为小数，如0.36代表百分之36
 	Desc                string  // 资源池描述字段
+	IsAbnormal          bool    // 添加IsAbnormal字段，标识资源池是否异常
 }
 
 // ClusterResourceSummary 集群资源摘要 - Preview generator's local version with additional fields
@@ -67,6 +68,7 @@ type ClusterResourceSummary struct {
 	MemoryUsagePercent  float64
 	ResourcePools       []ResourcePool
 	ResourcePoolsByType map[string]*ResourcePool // 根据资源池类型快速查找资源池
+	IsAbnormal          bool                     // 添加IsAbnormal字段，标识集群是否异常
 }
 
 // ClusterStats 集群统计信息 - Preview generator's local version
@@ -181,6 +183,7 @@ func convertResourcePool(pool resource_report.ResourcePool) ResourcePool {
 		MaxCpuUsageRatio:    pool.MaxCpuUsageRatio,
 		MaxMemoryUsageRatio: pool.MaxMemoryUsageRatio,
 		Desc:                "", // 资源池描述默认为空字符串
+		IsAbnormal:          pool.IsAbnormal,
 	}
 }
 
@@ -232,6 +235,7 @@ func convertClusterSummary(cluster resource_report.ClusterResourceSummary) Clust
 		MemoryUsagePercent:  memUsage,
 		ResourcePools:       localPools,
 		ResourcePoolsByType: poolsByType,
+		IsAbnormal:          cluster.IsAbnormal,
 	}
 }
 
@@ -244,9 +248,14 @@ func convertTemplateData(data resource_report.ReportTemplateData) ReportTemplate
 	}
 
 	return ReportTemplateData{
-		ReportDate:           data.ReportDate,
-		Clusters:             localClusters,
-		Stats:                ClusterStats(data.Stats), // 结构一致，可以直接转换
+		ReportDate: data.ReportDate,
+		Clusters:   localClusters,
+		Stats: ClusterStats{
+			TotalClusters:     data.Stats.TotalClusters,
+			NormalClusters:    data.Stats.NormalClusters,
+			AbnormalClusters:  data.Stats.AbnormalClusters,
+			GeneralPodDensity: data.Stats.GeneralPodDensity,
+		},
 		HasHighUsageClusters: data.HasHighUsageClusters,
 		Environment:          data.Environment,
 		ShowResourcePoolDesc: data.ShowResourcePoolDesc,
@@ -385,6 +394,115 @@ func customTemplateFuncs() template.FuncMap {
 			}
 			return string(resource_report.GetMemoryStyle(pool.BMCount, pool.MemoryUsagePercent, environment))
 		},
+		// 获取资源使用率对应的颜色类
+		"getResourceUsageColorClass": func(usage float64, isLargePool bool, environment string) string {
+			if environment == "test" {
+				// 测试环境规则
+				if isLargePool {
+					if usage >= 95.0 {
+						return "emergency-usage"
+					} else if usage >= 90.0 {
+						return "critical-usage"
+					} else if usage >= 85.0 {
+						return "warning-usage"
+					}
+					return "normal"
+				} else {
+					if usage >= 90.0 {
+						return "emergency-usage"
+					} else if usage >= 80.0 {
+						return "critical-usage"
+					} else if usage >= 75.0 {
+						return "warning-usage"
+					}
+					return "normal"
+				}
+			} else {
+				// 生产环境规则
+				if isLargePool {
+					if usage >= 95.0 {
+						return "emergency-usage"
+					} else if usage >= 85.0 {
+						return "critical-usage"
+					} else if usage >= 80.0 {
+						return "warning-usage"
+					} else if usage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				} else {
+					if usage >= 90.0 {
+						return "emergency-usage"
+					} else if usage >= 75.0 {
+						return "critical-usage"
+					} else if usage >= 70.0 {
+						return "warning-usage"
+					} else if usage < 55.0 {
+						return "underutilized"
+					}
+					return "normal"
+				}
+			}
+		},
+		// 获取波动图颜色类的函数
+		"getTrendColorClass": func(usage float64, isLargePool bool, resourceType, environment string) string {
+			baseClass := ""
+			if resourceType == "cpu" {
+				baseClass = "cpu-trend-"
+			} else if resourceType == "memory" {
+				baseClass = "memory-trend-"
+			} else {
+				return "" // Unknown resource type
+			}
+
+			if environment == "test" {
+				// 测试环境规则
+				if isLargePool {
+					if usage >= 95.0 {
+						return baseClass + "emergency"
+					} else if usage >= 90.0 {
+						return baseClass + "critical"
+					} else if usage >= 85.0 {
+						return baseClass + "high"
+					}
+					return baseClass + "normal"
+				} else {
+					if usage >= 90.0 {
+						return baseClass + "emergency"
+					} else if usage >= 80.0 {
+						return baseClass + "critical"
+					} else if usage >= 75.0 {
+						return baseClass + "high"
+					}
+					return baseClass + "normal"
+				}
+			} else {
+				// 生产环境规则
+				if isLargePool {
+					if usage >= 95.0 {
+						return baseClass + "emergency"
+					} else if usage >= 85.0 {
+						return baseClass + "critical"
+					} else if usage >= 80.0 {
+						return baseClass + "high"
+					} else if usage < 55.0 {
+						return baseClass + "underutilized"
+					}
+					return baseClass + "normal"
+				} else {
+					if usage >= 90.0 {
+						return baseClass + "emergency"
+					} else if usage >= 75.0 {
+						return baseClass + "critical"
+					} else if usage >= 70.0 {
+						return baseClass + "high"
+					} else if usage < 55.0 {
+						return baseClass + "underutilized"
+					}
+					return baseClass + "normal"
+				}
+			}
+		},
 		// 新增函数，用于获取资源池类型的颜色
 		"getPoolTypeColor": func(poolType string) string {
 			switch poolType {
@@ -422,6 +540,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 		TotalMemoryCapacity: 960.0,
 		TotalCPURequest:     408.0,
 		TotalMemoryRequest:  864.0,
+		IsAbnormal:          true,
 		ResourcePools: []resource_report.ResourcePool{
 			{
 				ResourceType:      "total",
@@ -438,6 +557,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 				PerNodeMemRequest: 28.8,
 				CPUHistory:        []float64{78.0, 80.0, 82.0, 85.0, 83.0, 84.0, 85.0},
 				MemoryHistory:     []float64{82.0, 85.0, 87.0, 90.0, 88.0, 89.0, 90.0},
+				IsAbnormal:        true,
 			},
 			{
 				ResourceType:      "intel_common",
@@ -454,6 +574,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 				PerNodeMemRequest: 30.4,
 				CPUHistory:        []float64{85.0, 87.0, 88.0, 90.0, 92.0, 91.0, 90.0},
 				MemoryHistory:     []float64{90.0, 92.0, 93.0, 94.0, 96.0, 95.0, 95.0},
+				IsAbnormal:        true,
 			},
 		},
 		NodesData: []resource_report.NodeResourceDetail{
@@ -480,6 +601,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 		TotalMemoryCapacity: 480.0,
 		TotalCPURequest:     168.0,
 		TotalMemoryRequest:  360.0,
+		IsAbnormal:          true,
 		ResourcePools: []resource_report.ResourcePool{
 			{
 				ResourceType:      "total",
@@ -509,6 +631,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 		TotalMemoryCapacity: 640.0,
 		TotalCPURequest:     160.0,
 		TotalMemoryRequest:  320.0,
+		IsAbnormal:          true,
 		ResourcePools: []resource_report.ResourcePool{
 			{
 				ResourceType:        "total",
@@ -594,6 +717,7 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 		TotalMemoryCapacity: 320.0,
 		TotalCPURequest:     40.0,
 		TotalMemoryRequest:  80.0,
+		IsAbnormal:          true,
 		ResourcePools: []resource_report.ResourcePool{
 			{
 				ResourceType:      "total",
@@ -696,4 +820,20 @@ func generatePreview(environment string) error {
 	fmt.Printf("预览HTML文件已生成: %s\n", absPath)
 
 	return nil
+}
+
+// 添加main函数
+func main() {
+	// 默认使用生产环境配置生成预览
+	env := "prd"
+	if len(os.Args) > 1 {
+		env = os.Args[1]
+	}
+
+	if err := generatePreview(env); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating preview: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Preview generated successfully!")
 }

@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -39,7 +40,7 @@
         }
         .health-summary {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
             border-bottom: 1px solid #e2e8f0;
         }
         .health-card {
@@ -67,11 +68,11 @@
         .health-good { color: #10b981; }
         .health-warning { color: #f59e0b; }
         .health-critical { color: #ef4444; }
-        
+
         .main-content {
             padding: 32px;
         }
-        
+
         .alert-box {
             border-radius: 10px;
             padding: 20px 24px;
@@ -124,7 +125,19 @@
         .alert-good .alert-title {
             color: #047857;
         }
-        
+
+        .alert-warning {
+            background-color: #fffbeb;
+            border-left: 6px solid #f59e0b;
+        }
+        .alert-warning .alert-icon {
+            background-color: #fef3c7;
+            color: #f59e0b;
+        }
+        .alert-warning .alert-title {
+            color: #b45309;
+        }
+
         .section {
             margin-bottom: 36px;
         }
@@ -155,7 +168,7 @@
             justify-content: center;
             font-size: 0.9em;
         }
-        
+
          
         .dashboard-grid {
             display: grid;
@@ -184,13 +197,13 @@
             align-items: center;
             justify-content: center;
         }
-        
+
          
         .chart-container {
             width: 100%;
             height: 220px;
         }
-        
+
          
         .data-table, .cluster-health-table {
             width: 100%;
@@ -198,7 +211,7 @@
             margin-bottom: 0;
             font-size: 0.95em;
         }
-        .data-table th, 
+        .data-table th,
         .data-table td,
         .cluster-health-table th,
         .cluster-health-table td {
@@ -230,7 +243,7 @@
         .cluster-row[data-is-healthy="false"] td:first-child {
             border-left: 3px solid #ef4444;
         }
-        
+
          
         .cluster-row[data-status="red"] td:first-child {
             border-left: 3px solid #ef4444;
@@ -238,7 +251,7 @@
         .cluster-row[data-status="green"] td:first-child {
             border-left: 3px solid #10b981;
         }
-        
+
          
         .status-indicator {
             display: flex;
@@ -263,7 +276,7 @@
         .status-text {
             font-weight: 500;
         }
-        
+
         .view-details-link {
             color: #3b82f6;
             text-decoration: none;
@@ -285,7 +298,7 @@
             display: inline-block;
             padding: 6px 12px;
         }
-        
+
          
         .issue-cards {
             display: grid;
@@ -346,7 +359,7 @@
             font-size: 0.9em;
             font-style: italic;
         }
-        
+
          
         .action-button {
             display: inline-block;
@@ -366,7 +379,7 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
         }
-        
+
          
         .footer {
             background: #f8fafc;
@@ -376,25 +389,25 @@
             text-align: center;
             border-top: 1px solid #e2e8f0;
         }
-        
+
          
-        .heat-level-high { 
-            color: #ef4444; 
-            font-weight: 600; 
+        .heat-level-high {
+            color: #ef4444;
+            font-weight: 600;
         }
-        .heat-level-2 { 
-            color: #f59e0b; 
-            font-weight: 500; 
+        .heat-level-2 {
+            color: #f59e0b;
+            font-weight: 500;
         }
-        .heat-level-1 { 
-            color: #f97316; 
+        .heat-level-1 {
+            color: #f97316;
          }
-        
+
          
         .hidden-node {
-            display: none;
+            display: block !important;
         }
-        
+
          
         .hidden-cluster {
             display: none;
@@ -433,15 +446,230 @@
         .arrow.up {
             transform: rotate(-135deg);
         }
+
+         
+        .count-link {
+            display: inline-block;
+            color: #3b82f6;
+            font-weight: 600;
+            text-decoration: none;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background-color: #eff6ff;
+            transition: all 0.2s;
+        }
+        .count-link:hover {
+            background-color: #dbeafe;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+        }
+
+         
+        .missing-cluster-section {
+            margin-bottom: 24px;
+        }
+        .cluster-title {
+            color: #334155;
+            font-size: 1.1em;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+         
+        .cluster-header {
+            cursor: pointer;
+        }
+        .cluster-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .cluster-content.hidden {
+            display: block !important;
+        }
+        .toggle-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            cursor: pointer;
+            position: relative;
+            top: 2px;
+         }
+
+         
+        .hidden, .hidden-node {
+            display: block !important;
+        }
+        .cluster-content.hidden {
+            display: block !important;
+        }
+
+         
+        @media (max-width: 768px) {
+             
+            .container {
+                margin: 0;
+                border-radius: 0;
+                width: 100%;
+                max-width: 100%;
+                box-shadow: none;
+            }
+
+             
+            .header {
+                padding: 20px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .header-title {
+                font-size: 1.3em;
+                margin-bottom: 8px;
+            }
+
+             
+            .health-summary {
+                grid-template-columns: 1fr 1fr;
+            }
+            .health-card {
+                padding: 15px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .health-card:nth-child(odd) {
+                border-right: 1px solid #e2e8f0;
+            }
+            .health-card:nth-child(even) {
+                border-right: none;
+            }
+            .health-card:nth-child(3),
+            .health-card:nth-child(4) {
+                border-bottom: none;
+            }
+            .health-score {
+                font-size: 2em;
+            }
+
+             
+            .main-content {
+                padding: 20px 15px;
+            }
+
+             
+            .alert-box {
+                padding: 15px;
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+            .alert-icon {
+                width: 50px;
+                height: 50px;
+                margin: 0 auto;
+            }
+            .alert-title {
+                font-size: 1.1em;
+            }
+
+             
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+             
+            .cluster-health-table {
+                display: block;
+                overflow-x: auto;
+                width: 100%;
+                -webkit-overflow-scrolling: touch;
+                font-size: 0.85em;
+            }
+            .cluster-health-table th,
+            .cluster-health-table td {
+                padding: 10px 12px;
+                white-space: nowrap;
+            }
+             
+            .cluster-row[data-is-healthy="true"] td:first-child,
+            .cluster-row[data-is-healthy="false"] td:first-child,
+            .cluster-row[data-status="red"] td:first-child,
+            .cluster-row[data-status="green"] td:first-child {
+                border-left-width: 3px;
+            }
+
+             
+            .issue-cards {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            .issue-card {
+                margin-bottom: 0;
+            }
+
+             
+            .missing-cluster-section {
+                margin-bottom: 15px;
+            }
+
+             
+            .data-table {
+                display: block;
+                overflow-x: auto;
+                width: 100%;
+                -webkit-overflow-scrolling: touch;
+                font-size: 0.85em;
+            }
+
+             
+            .cluster-title {
+                font-size: 1em;
+                word-break: break-word;
+            }
+
+             
+            .count-link {
+                padding: 2px 6px;
+                font-size: 0.9em;
+            }
+
+             
+            .section-title {
+                font-size: 1.1em;
+                flex-wrap: wrap;
+            }
+            .section-icon {
+                width: 24px;
+                height: 24px;
+            }
+        }
+
+         
+        @media (max-width: 375px) {
+            .health-card {
+                padding: 10px;
+            }
+            .health-score {
+                font-size: 1.8em;
+            }
+            .main-content {
+                padding: 15px 10px;
+            }
+            .issue-card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .issue-location {
+                margin-top: 4px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="header-title">节点安全基线巡检报告</div>
-            <div class="header-date">生成时间: 2025-04-21 14:32:17</div>
+            <div class="header-date">生成时间: 2025-04-29 08:58:28</div>
                 </div>
-        
+
         
         
         <div class="health-summary">
@@ -452,29 +680,39 @@
             <div class="health-card">
                 <span class="health-score health-good">1</span>
                 <span class="health-label">正常集群</span>
-            </div>
+                </div>
             <div class="health-card">
                 <span class="health-score health-good">0</span>
                 <span class="health-label">未巡检集群</span>
             </div>
         </div>
-        
+
         
         <div class="health-summary" style="border-top: none;">
             <div class="health-card">
                 <span class="health-score">12</span>
                 <span class="health-label">总节点数</span>
-            </div>
+                    </div>
             <div class="health-card">
                 <span class="health-score health-good">9</span>
                 <span class="health-label">健康节点</span>
             </div>
             <div class="health-card">
-                <span class="health-score health-critical">3</span>
-                <span class="health-label">异常节点</span>
+                
+                <a href="#异常节点" style="text-decoration: none;">
+                    <span class="health-score health-critical">3</span>
+                    <span class="health-label">异常节点</span>
+                </a>
+                
+            </div>
+            <div class="health-card">
+                
+                <span class="health-score health-good"></span>
+                <span class="health-label">未巡检节点</span>
+                
             </div>
         </div>
-        
+
         <div class="main-content">
             
             
@@ -483,141 +721,127 @@
                 <div class="alert-content">
                     <div class="alert-title">发现 3 个异常节点需要紧急处理</div>
                     <p class="alert-message">存在潜在安全风险，请尽快修复以下异常节点以确保系统安全。系统健康度: <strong>75%</strong></p>
-                    <button onclick="scrollToAbnormalNodes()" class="action-button" style="margin-left: 0; margin-top: 15px;">查看异常节点详情</button>
                 </div>
             </div>
             
+
             
+
+            
+
             
             <div class="dashboard-grid">
                 
-                <div class="dashboard-card" style="grid-column: span 2;">
+                <div class="dashboard-card" style="grid-column: span 2;" id="异常分布">
                     <div class="dashboard-card-header">异常类型分布</div>
                     <div class="dashboard-card-body">
                         <div class="chart-container">
-                            <svg width="100%" height="100%" viewBox="0 0 600 200">
+                            
+                            <div style="max-width:700px; margin:0 auto; padding:10px 0;">
+                                <h3 style="text-align:center; font-size:14px; color:#334155; margin-bottom:20px; font-weight:500;">按安全问题类型</h3>
+
                                 
-                                <g transform="translate(100, 20)">
-                                    
-                                    <text x="200" y="0" font-size="14" fill="#334155" text-anchor="middle" font-weight="500">按安全问题类型</text>
-                                    
-                                    
                                     
                                     
                                     
                                         
-                                        
-                                        
-                                        
-                                        
-                                        
-                                            
-                                                
                                             
                                         
-                                            
+                                    
                                         
-                                            
+                                    
                                         
-                                            
+                                    
                                         
-                                        
-                                        
-                                        
+                                    
+
+                                    
+                                    
+                                        <div style="display:flex; align-items:center; margin-bottom:10px;">
                                             
-                                            
-                                            
-                                            
-                                            
-                                            <rect x="100" y="30" height="30" width="300"
-                                                  fill="#ef4444"
-                                                  opacity="0.85" rx="2"/>
-                                            
-                                            
-                                            <text x="95" y="45" 
-                                                  font-size="12" fill="#334155" text-anchor="end" dominant-baseline="middle">
+                                            <div style="width:45%; text-align:right; padding-right:10px; font-size:12px; color:#334155; overflow:hidden; text-overflow:ellipsis;">
                                                 未授权访问风险
-                                            </text>
+                                            </div>
+
                                             
                                             
-                                            <text x="405" y="45"
-                                                  font-size="12" fill="#334155" dominant-baseline="middle">
+                                            <div style="width:40%; padding:0 5px;">
+                                                <div style="background-color:#ef4444;
+                                                            height:18px; width:100%; min-width:5px; border-radius:3px; opacity:0.85;"></div>
+                                            </div>
+
+                                            
+                                            <div style="width:15%; font-weight:500; font-size:12px; color:#334155;">
                                                 3
-                                            </text>
-                                        
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            <rect x="100" y="65" height="30" width="200"
-                                                  fill="#ef4444"
-                                                  opacity="0.85" rx="2"/>
-                                            
-                                            
-                                            <text x="95" y="80" 
-                                                  font-size="12" fill="#334155" text-anchor="end" dominant-baseline="middle">
-                                                密码强度不足
-                                            </text>
-                                            
-                                            
-                                            <text x="305" y="80"
-                                                  font-size="12" fill="#334155" dominant-baseline="middle">
-                                                2
-                                            </text>
-                                        
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            <rect x="100" y="100" height="30" width="100"
-                                                  fill="#ef4444"
-                                                  opacity="0.85" rx="2"/>
-                                            
-                                            
-                                            <text x="95" y="115" 
-                                                  font-size="12" fill="#334155" text-anchor="end" dominant-baseline="middle">
-                                                防火墙配置不当
-                                            </text>
-                                            
-                                            
-                                            <text x="205" y="115"
-                                                  font-size="12" fill="#334155" dominant-baseline="middle">
-                                                1
-                                            </text>
-                                        
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            <rect x="100" y="135" height="30" width="100"
-                                                  fill="#ef4444"
-                                                  opacity="0.85" rx="2"/>
-                                            
-                                            
-                                            <text x="95" y="150" 
-                                                  font-size="12" fill="#334155" text-anchor="end" dominant-baseline="middle">
-                                                日志审计缺失
-                                            </text>
-                                            
-                                            
-                                            <text x="205" y="150"
-                                                  font-size="12" fill="#334155" dominant-baseline="middle">
-                                                1
-                                            </text>
-                                        
+                                            </div>
+                                        </div>
                                     
-                                </g>
-                            </svg>
+                                        <div style="display:flex; align-items:center; margin-bottom:10px;">
+                                            
+                                            <div style="width:45%; text-align:right; padding-right:10px; font-size:12px; color:#334155; overflow:hidden; text-overflow:ellipsis;">
+                                                密码强度不足
+                                            </div>
+
+                                            
+                                            
+                                            <div style="width:40%; padding:0 5px;">
+                                                <div style="background-color:#ef4444;
+                                                            height:18px; width:66.66666666666667%; min-width:5px; border-radius:3px; opacity:0.85;"></div>
+                                            </div>
+
+                                            
+                                            <div style="width:15%; font-weight:500; font-size:12px; color:#334155;">
+                                                2
+                                            </div>
+                                        </div>
+                                    
+                                        <div style="display:flex; align-items:center; margin-bottom:10px;">
+                                            
+                                            <div style="width:45%; text-align:right; padding-right:10px; font-size:12px; color:#334155; overflow:hidden; text-overflow:ellipsis;">
+                                                防火墙配置不当
+                                            </div>
+
+                                            
+                                            
+                                            <div style="width:40%; padding:0 5px;">
+                                                <div style="background-color:#ef4444;
+                                                            height:18px; width:33.333333333333336%; min-width:5px; border-radius:3px; opacity:0.85;"></div>
+                                            </div>
+
+                                            
+                                            <div style="width:15%; font-weight:500; font-size:12px; color:#334155;">
+                                                1
+                                            </div>
+                                        </div>
+                                    
+                                        <div style="display:flex; align-items:center; margin-bottom:10px;">
+                                            
+                                            <div style="width:45%; text-align:right; padding-right:10px; font-size:12px; color:#334155; overflow:hidden; text-overflow:ellipsis;">
+                                                日志审计缺失
+                                            </div>
+
+                                            
+                                            
+                                            <div style="width:40%; padding:0 5px;">
+                                                <div style="background-color:#ef4444;
+                                                            height:18px; width:33.333333333333336%; min-width:5px; border-radius:3px; opacity:0.85;"></div>
+                                            </div>
+
+                                            
+                                            <div style="width:15%; font-weight:500; font-size:12px; color:#334155;">
+                                                1
+                                            </div>
+                                        </div>
+                                    
+                                
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             
-            <div class="section">
+            <div class="section" id="集群健康">
                 <div class="section-header">
                     <div class="section-title">
                         <div class="section-icon">🔍</div>
@@ -628,20 +852,20 @@
                 <div class="dashboard-card" style="margin-bottom: 30px;">
                     <div class="dashboard-card-header">集群健康状态列表</div>
                     <table class="cluster-health-table">
-                        <thead>
-                            <tr>
-                                <th>集群名称</th>
-                                <th>健康状态</th>
-                                <th>异常节点数</th>
+                <thead>
+                    <tr>
+                        <th>集群名称</th>
+                        <th>健康状态</th>
+                        <th>异常节点数</th>
                                 <th>正常节点数</th>
-                                <th>失败检查项数</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                                <th>未巡检节点数</th>
+                        <th>失败检查项数</th>
+                    </tr>
+                </thead>
+                <tbody>
                             
-                            <tr class="cluster-row" 
-                                data-cluster="集群A" 
+                            <tr class="cluster-row"
+                                data-cluster="集群A"
                                 data-status="red"
                                 data-is-healthy="false">
                                 <td>集群A</td>
@@ -650,22 +874,23 @@
                                         <span class="status-dot red"></span>
                                         <span class="status-text">异常</span>
                                     </div>
+                        </td>
+                        <td>
+                                    
+                                    <a href="#abnormal-%e9%9b%86%e7%be%a4A" class="count-link">1</a>
+                                    
                                 </td>
-                                <td>1</td>
-                                <td>3</td>
-                                <td>2</td>
+                                <td></td>
                                 <td>
                                     
-                                        
-                                        
-                                        <a href="#abnormal-%e9%9b%86%e7%be%a4A" class="view-details-link">查看详情</a>
-                                        
                                     
-                                </td>
-                            </tr>
+                                    
+                        </td>
+                                <td>2</td>
+                    </tr>
                             
-                            <tr class="cluster-row" 
-                                data-cluster="集群B" 
+                            <tr class="cluster-row"
+                                data-cluster="集群B"
                                 data-status="red"
                                 data-is-healthy="false">
                                 <td>集群B</td>
@@ -674,22 +899,23 @@
                                         <span class="status-dot red"></span>
                                         <span class="status-text">异常</span>
                                     </div>
+                        </td>
+                        <td>
+                                    
+                                    <a href="#abnormal-%e9%9b%86%e7%be%a4B" class="count-link">2</a>
+                                    
                                 </td>
-                                <td>2</td>
-                                <td>3</td>
-                                <td>2</td>
+                                <td></td>
                                 <td>
                                     
-                                        
-                                        
-                                        <a href="#abnormal-%e9%9b%86%e7%be%a4B" class="view-details-link">查看详情</a>
-                                        
                                     
-                                </td>
-                            </tr>
+                                    
+                        </td>
+                                <td>2</td>
+                    </tr>
                             
-                            <tr class="cluster-row" 
-                                data-cluster="集群C" 
+                            <tr class="cluster-row"
+                                data-cluster="集群C"
                                 data-status="green"
                                 data-is-healthy="true">
                                 <td>集群C</td>
@@ -698,89 +924,140 @@
                                         <span class="status-dot green"></span>
                                         <span class="status-text">正常</span>
                                     </div>
+                        </td>
+                        <td>
+                                    
+                                    0
+                                    
                                 </td>
-                                <td>0</td>
-                                <td>3</td>
-                                <td>0</td>
+                                <td></td>
                                 <td>
                                     
-                                        
-                                        
-                                        <span class="no-details">无异常</span>
-                                        
                                     
-                                </td>
-                            </tr>
+                                    
+                        </td>
+                                <td>0</td>
+                    </tr>
                             
-                        </tbody>
-                    </table>
+                </tbody>
+            </table>
                 </div>
-            </div>
-            
+        </div>
+        
 
             
-            <div class="section">
+            <div class="section" id="未巡检节点">
                     <div class="section-header">
                         <div class="section-title">
                             <div class="section-icon">⚠️</div>
-                            巡检失败节点
+                            巡检失败节点 <span class="count-badge">个</span>
                         </div>
                     </div>
-                    
+
                     <div class="alert-box alert-critical" style="margin-top:0">
                         <div class="alert-content">
-                            <p class="alert-message">以下节点未能完成巡检，请检查节点网络连接或配置是否正确。</p>
+                            <p class="alert-message">以下节点未能完成巡检，请检查节点网络连接或配置是否正确。未巡检节点会导致集群状态被标记为异常（红色）。</p>
                         </div>
                     </div>
-                    
-                    <table class="data-table">
-                        <thead>
-                    <tr>
-                        <th>集群名称</th>
-                        <th>节点类型</th>
-                        <th>节点名称</th>
-                    </tr>
-                        </thead>
-                        <tbody>
-                    
-                    <tr>
-                        <td>集群A</td>
-                        <td>数据库节点</td>
-                                <td style="color: #ef4444; font-weight:500;">db-slave-02</td>
-                    </tr>
-                    
-                        </tbody>
-                </table>
-            </div>
-            
 
-            
-            <div class="section" id="abnormal-nodes-section">
+                    
+                    
+                    
+                        
+                            
+                            <div id="missing-集群A" class="missing-cluster-section">
+                                <div class="cluster-header">
+                                    <h3 class="cluster-title">
+                                        <span class="toggle-icon">
+                                            <span class="arrow up"></span>
+                                        </span>
+                                        集群: 集群A
+                                    </h3>
+                                </div>
+                                <div id="missing-content-集群A" class="cluster-content">
+                                    <table class="data-table">
+                <thead>
+                    <tr>
+                                                <th>节点类型</th>
+                                                <th>节点名称</th>
+                    </tr>
+                </thead>
+                <tbody>
+                            
+                        
+                    <tr>
+                            <td>数据库节点</td>
+                            <td style="color: #ef4444; font-weight:500;">db-slave-02</td>
+                    </tr>
+                    
+                    </tbody></table></div>
+        </div>
+        </div>
+        
+
+        
+            <div class="section" id="异常节点">
                     <div class="section-header">
                         <div class="section-title">
                             <div class="section-icon">🚨</div>
-                            高优先级异常详情
+                            高优先级异常详情 <span class="count-badge">3个</span>
                         </div>
                     </div>
+
+                    <div class="alert-box alert-critical" style="margin-top:0">
+                        <div class="alert-content">
+                            <p class="alert-message">以下节点存在安全基线异常，请及时修复以确保集群安全。</p>
+                        </div>
+                    </div>
+
                     
-                    <div class="issue-cards" id="abnormal-nodes-container">
+                    
+                    
                         
+                            
+                            <div id="abnormal-集群A" class="abnormal-cluster-section">
+                                <div class="cluster-header">
+                                    <h3 class="cluster-title">
+                                        <span class="toggle-icon">
+                                            <span class="arrow up"></span>
+                                        </span>
+                                        集群: 集群A
+                                        <span style="color:#ef4444; font-size:0.9em;">
+                                            
+                                            (
+                                            
+                                            
+                                                
+                                                    
+                                                
+                                            
+                                                
+                                                    
+                                                
+                                            
+                                                
+                                                    
+                                                
+                                            
+                                            3个异常节点)
+                                        </span>
+                                    </h3>
+                                </div>
+                                <div id="abnormal-content-集群A" class="cluster-content">
+                                    <div class="issue-cards">
+                            
                         
-                        <div class="issue-card " id="abnormal-集群A">
+                        <div class="issue-card" id="abnormal-node-集群A-app-server-01">
                             <div class="issue-card-header">
                                 <span class="issue-title">异常节点</span>
-                                <span class="issue-location">集群A</span>
+                                <span class="issue-location">app-server-01</span>
                             </div>
                             <div class="issue-card-body">
                                 <div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed #f1f5f9;">
                                     <div style="color:#64748b; font-size:0.9em; margin-bottom:4px;">节点类型</div>
                                     <div style="font-weight:500;">应用服务器</div>
                                 </div>
-                                <div style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px dashed #f1f5f9;">
-                                    <div style="color:#64748b; font-size:0.9em; margin-bottom:4px;">节点名称</div>
-                                    <div style="font-weight:500;">app-server-01</div>
-                                </div>
-                                
+
                                 
                                 <div class="issue-detail">
                                     <div class="issue-name">未授权访问风险</div>
@@ -800,22 +1077,52 @@
                                 
                             </div>
                         </div>
+                    
                         
-                        <div class="issue-card " id="abnormal-集群B">
+                            </div></div></div>
+                            <div id="abnormal-集群B" class="abnormal-cluster-section">
+                                <div class="cluster-header">
+                                    <h3 class="cluster-title">
+                                        <span class="toggle-icon">
+                                            <span class="arrow up"></span>
+                                        </span>
+                                        集群: 集群B
+                                        <span style="color:#ef4444; font-size:0.9em;">
+                                            
+                                            (
+                                            
+                                            
+                                                
+                                                    
+                                                
+                                            
+                                                
+                                                    
+                                                
+                                            
+                                                
+                                                    
+                                                
+                                            
+                                            3个异常节点)
+                                        </span>
+                                    </h3>
+                                </div>
+                                <div id="abnormal-content-集群B" class="cluster-content">
+                                    <div class="issue-cards">
+                            
+                        
+                        <div class="issue-card" id="abnormal-node-集群B-lb-master-01">
                             <div class="issue-card-header">
                                 <span class="issue-title">异常节点</span>
-                                <span class="issue-location">集群B</span>
+                                <span class="issue-location">lb-master-01</span>
                             </div>
                             <div class="issue-card-body">
                                 <div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed #f1f5f9;">
                                     <div style="color:#64748b; font-size:0.9em; margin-bottom:4px;">节点类型</div>
                                     <div style="font-weight:500;">负载均衡器</div>
                                 </div>
-                                <div style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px dashed #f1f5f9;">
-                                    <div style="color:#64748b; font-size:0.9em; margin-bottom:4px;">节点名称</div>
-                                    <div style="font-weight:500;">lb-master-01</div>
-                                </div>
-                                
+
                                 
                                 <div class="issue-detail">
                                     <div class="issue-name">防火墙配置不当</div>
@@ -827,22 +1134,19 @@
                                 
                             </div>
                         </div>
+                    
                         
-                        <div class="issue-card " id="abnormal-集群B">
+                        <div class="issue-card" id="abnormal-node-集群B-app-server-03">
                             <div class="issue-card-header">
                                 <span class="issue-title">异常节点</span>
-                                <span class="issue-location">集群B</span>
+                                <span class="issue-location">app-server-03</span>
                             </div>
                             <div class="issue-card-body">
                                 <div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed #f1f5f9;">
                                     <div style="color:#64748b; font-size:0.9em; margin-bottom:4px;">节点类型</div>
                                     <div style="font-weight:500;">应用服务器</div>
                                 </div>
-                                <div style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px dashed #f1f5f9;">
-                                    <div style="color:#64748b; font-size:0.9em; margin-bottom:4px;">节点名称</div>
-                                    <div style="font-weight:500;">app-server-03</div>
-                                </div>
-                                
+
                                 
                                 <div class="issue-detail">
                                     <div class="issue-name">日志审计缺失</div>
@@ -854,100 +1158,10 @@
                                 
                             </div>
                         </div>
-                        
-                    </div>
                     
-                    
-                    
+                    </div></div></div>
                 </div>
-                
             
-            
-            <script>
-                
-                function checkAnchorAndShowNode() {
-                    let hash = window.location.hash;
-                    if (hash) {
-                        
-                        let targetId = hash.substring(1);
-                        
-                        
-                        if (targetId.startsWith('abnormal-')) {
-                            scrollToClusterDetails(targetId);
-                        } else {
-                            
-                            let nodes = document.querySelectorAll('.issue-card');
-                            for (let node of nodes) {
-                                if (node.id.includes(targetId)) {
-                                    node.classList.remove('hidden-node');
-                                    node.scrollIntoView({behavior: 'smooth'});
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                
-                function scrollToClusterDetails(targetId) {
-                    let clusterName = targetId.replace('abnormal-', '');
-                    let targetCard = document.getElementById(targetId);
-                    
-                    if (targetCard) {
-                        
-                        targetCard.classList.remove('hidden-node');
-                        targetCard.scrollIntoView({behavior: 'smooth'});
-                    } else {
-                        
-                        scrollToAbnormalNodes();
-                    }
-                }
-                
-                
-                function showAllNodes() {
-                    let hiddenNodes = document.querySelectorAll('.hidden-node');
-                    for (let node of hiddenNodes) {
-                        node.classList.remove('hidden-node');
-                    }
-                    
-                    
-                    document.getElementById('show-more-container').style.display = 'none';
-                }
-                
-                
-                function scrollToAbnormalNodes() {
-                    const section = document.getElementById('abnormal-nodes-section');
-                    if (section) {
-                        section.scrollIntoView({behavior: 'smooth'});
-                    }
-                }
-                
-                
-                window.onload = function() {
-                    checkAnchorAndShowNode();
-                    
-                    
-                    document.querySelectorAll('.view-details-link').forEach(link => {
-                        link.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            let targetId = this.getAttribute('href').substring(1);
-                            console.log('Clicked link to: ' + targetId);
-                            
-                            let targetElement = document.getElementById(targetId);
-                            if (targetElement) {
-                                
-                                targetElement.classList.remove('hidden-node');
-                                
-                                targetElement.scrollIntoView({behavior: 'smooth'});
-                            } else {
-                                console.log('Target element not found: ' + targetId);
-                                
-                                scrollToAbnormalNodes();
-                            }
-                        });
-                    });
-                }
-            </script>
         </div>
 
         <div class="footer">
