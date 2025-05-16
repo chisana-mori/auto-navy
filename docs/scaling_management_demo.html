@@ -1,0 +1,1882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K8s集群资源弹性伸缩管理</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/antd/4.24.10/antd.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/antd/4.24.10/antd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ant-design/icons@4.7.0/dist/index.umd.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #1890ff;
+            --primary-hover: #40a9ff;
+            --success-color: #52c41a;
+            --warning-color: #faad14;
+            --error-color: #f5222d;
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-color: #000000d9;
+            --text-secondary: #00000073;
+            --border-color: #f0f0f0;
+            --shadow-1: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-2: 0 4px 16px rgba(0,0,0,0.12);
+            --radius: 8px;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        #root {
+            margin: 0;
+        }
+
+        /* 布局样式 */
+        .app-layout {
+            min-height: 100vh;
+            display: flex;
+        }
+
+        .main-content {
+            flex: 1;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .main-layout {
+            min-height: 100vh;
+        }
+
+        .side-menu {
+            height: 100%;
+            border-right: 1px solid var(--border-color);
+            box-shadow: var(--shadow-1);
+        }
+
+        /* 导航栏样式 */
+        .app-header {
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            background: white;
+            box-shadow: 0 1px 4px rgba(0,21,41,.08);
+        }
+
+        .header-logo {
+            height: 32px;
+            margin-right: 24px;
+            display: flex;
+            align-items: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .header-logo-icon {
+            margin-right: 8px;
+        }
+
+        .header-nav {
+            flex: 1;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+        }
+
+        /* 内容区域样式 */
+        .site-layout-content {
+            padding: 24px;
+            background-color: var(--bg-color);
+        }
+
+        /* 卡片样式 */
+        .dashboard-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-1);
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .dashboard-card:hover {
+            box-shadow: var(--shadow-2);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .card-content {
+            padding: 24px;
+        }
+
+        /* 统计卡片 */
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-2);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--primary-color);
+        }
+
+        .stat-card.warning::before {
+            background-color: var(--warning-color);
+        }
+
+        .stat-card.success::before {
+            background-color: var(--success-color);
+        }
+
+        .stat-card.error::before {
+            background-color: var(--error-color);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .stat-trend {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .trend-up {
+            color: var(--error-color);
+        }
+
+        .trend-down {
+            color: var(--success-color);
+        }
+
+        /* 资源图表区域 */
+        .chart-container {
+            width: 100%;
+            height: 350px;
+        }
+
+        /* 策略卡片 */
+        .strategy-card {
+            border-radius: var(--radius);
+            background-color: var(--card-bg);
+            margin-bottom: 16px;
+            border-left: 4px solid var(--primary-color);
+            box-shadow: var(--shadow-1);
+            transition: all 0.3s;
+        }
+
+        .strategy-card:hover {
+            box-shadow: var(--shadow-2);
+        }
+
+        .strategy-card-header {
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .strategy-card-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .strategy-card-body {
+            padding: 16px 24px;
+        }
+
+        .strategy-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .strategy-metric {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .strategy-metric-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .strategy-metric-value {
+            font-weight: 600;
+        }
+
+        /* 订单卡片 */
+        .order-card {
+            border-radius: var(--radius);
+            background-color: var(--card-bg);
+            margin-bottom: 16px;
+            border-left: 4px solid var(--primary-color);
+            box-shadow: var(--shadow-1);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .order-card.pool-in {
+            border-left-color: var(--primary-color);
+        }
+
+        .order-card.pool-out {
+            border-left-color: var(--warning-color);
+        }
+
+        .order-card:hover {
+            box-shadow: var(--shadow-2);
+        }
+
+        .order-card-header {
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .order-card-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .order-card-body {
+            padding: 16px 24px;
+        }
+
+        .order-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            margin-bottom: 16px;
+        }
+
+        .order-meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .order-meta-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .order-meta-value {
+            font-weight: 600;
+        }
+
+        .order-card-footer {
+            padding: 12px 24px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background-color: #fafafa;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* 设备列表 */
+        .device-list {
+            margin-top: 20px;
+        }
+
+        .device-item {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background-color 0.3s ease;
+        }
+
+        .device-item:last-child {
+            border-bottom: none;
+        }
+
+        .device-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .device-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .device-name {
+            font-weight: 600;
+        }
+
+        .device-meta {
+            display: flex;
+            gap: 16px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .device-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-special {
+            background-color: #fff7e6;
+            color: #d46b08;
+        }
+
+        .status-in-cluster {
+            background-color: #f6ffed;
+            color: #389e0d;
+        }
+
+        .status-available {
+            background-color: #e6f7ff;
+            color: #096dd9;
+        }
+
+        /* 详情抽屉 */
+        .detail-drawer .ant-drawer-body {
+            padding: 0;
+        }
+
+        .detail-drawer-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-drawer-content {
+            padding: 24px;
+        }
+
+        .detail-section {
+            margin-bottom: 24px;
+        }
+
+        .detail-section-title {
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-left: 10px;
+            border-left: 3px solid var(--primary-color);
+        }
+
+        /* 表单样式 */
+        .strategy-form .ant-form-item-label {
+            font-weight: 500;
+        }
+
+        /* 标签样式 */
+        .ant-tag {
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-weight: 500;
+        }
+
+        /* 按钮样式 */
+        .ant-btn {
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        /* 表格样式 */
+        .ant-table-thead > tr > th {
+            background-color: #fafafa;
+            font-weight: 600;
+        }
+
+        /* 分页样式 */
+        .ant-pagination-item-active {
+            border-color: var(--primary-color);
+        }
+
+        /* 订单标签页样式 */
+        .order-tabs .ant-tabs-nav {
+            margin-bottom: 16px;
+            background: #fafafa;
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+
+        .order-tabs .ant-tabs-tab {
+            padding: 12px 16px;
+            margin: 0 8px 0 0;
+            transition: all 0.3s;
+            border-radius: 4px;
+        }
+
+        .order-tabs .ant-tabs-tab:hover {
+            background: #f0f0f0;
+        }
+
+        .order-tabs .ant-tabs-tab-active {
+            background: white !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .order-tabs .ant-tabs-content {
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .order-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .order-cards-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .order-cards-grid::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+
+        .order-cards-grid::-webkit-scrollbar-thumb {
+            background: #d9d9d9;
+            border-radius: 4px;
+        }
+
+        .order-cards-grid::-webkit-scrollbar-thumb:hover {
+            background: #bfbfbf;
+        }
+
+        .order-status-summary {
+            display: flex;
+            justify-content: space-around;
+            padding: 16px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .order-status-item {
+            text-align: center;
+        }
+
+        .order-status-value {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .order-status-label {
+            color: rgba(0, 0, 0, 0.45);
+            font-size: 14px;
+        }
+
+        .order-status-pending {
+            color: #f5222d;
+        }
+
+        .order-status-processing {
+            color: #1890ff;
+        }
+
+        .order-status-done {
+            color: #52c41a;
+        }
+
+        .order-count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            font-size: 12px;
+            line-height: 20px;
+            white-space: nowrap;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin-left: 8px;
+            transition: all 0.3s;
+        }
+
+        .order-count-badge.processing {
+            background: #e6f7ff;
+            color: #1890ff;
+        }
+
+        .order-count-badge.done {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .order-count-badge.all {
+            background: #f5f5f5;
+            color: #8c8c8c;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 导入必要的组件
+        const { 
+            Layout, Menu, Card, Table, Button, Tag, Modal, Form, Input, Select, Space, 
+            Typography, Drawer, Tabs, Badge, Tooltip, Dropdown, Avatar, Alert,
+            Divider, Progress, DatePicker, Radio, Switch, Spin, Empty, Statistic,
+            notification, message
+        } = antd;
+        const { Header, Content, Footer, Sider } = Layout;
+        const { Option } = Select;
+        const { Title, Text, Paragraph } = Typography;
+        const { TabPane } = Tabs;
+
+        // 导入图标
+        const { 
+            DashboardOutlined, SettingOutlined, BarChartOutlined, 
+            CloudServerOutlined, ClusterOutlined, HistoryOutlined,
+            BellOutlined, UserOutlined, LogoutOutlined, PlusOutlined,
+            ArrowUpOutlined, ArrowDownOutlined, CheckCircleOutlined,
+            CloseCircleOutlined, ExclamationCircleOutlined, SearchOutlined,
+            CloudUploadOutlined, CloudDownloadOutlined, ReloadOutlined,
+            EditOutlined, DeleteOutlined, EyeOutlined, FilterOutlined,
+            InfoCircleOutlined, DownOutlined, RightOutlined, LeftOutlined,
+            MenuFoldOutlined, MenuUnfoldOutlined, AppstoreOutlined
+        } = window.icons;
+
+        // 模拟数据
+        const strategies = [
+            { id: 1, name: 'CPU高负载入池策略', description: '当集群CPU分配率超过80%时，触发入池', dimension: '集群', cluster: 'k8s-prod-01', cpuThreshold: 80, memoryThreshold: null, condition: 'AND', action: '入池', status: '启用', runInterval: 'daily', lastRun: '2023-10-26 10:00', nextRun: '2023-10-27 10:00' },
+            { id: 2, name: '内存低使用率退池策略', description: '当资源池内存分配率低于30%时，触发退池', dimension: '资源池', resourcePool: 'pool-01', cpuThreshold: null, memoryThreshold: 30, condition: 'OR', action: '退池', status: '启用', runInterval: 'daily', lastRun: '2023-10-26 10:00', nextRun: '2023-10-27 10:00' },
+        ];
+
+        const orders = [
+            { id: 101, strategyId: 1, type: '入池', status: '待处理', triggerTime: '2023-10-26 10:05', handler: '值班人 A', deviceList: [], matchedDeviceList: [{ id: 1, ciCode: 'DEV-001', ip: '192.168.1.101', isSpecial: false, cluster: '' }, { id: 2, ciCode: 'DEV-002', ip: '192.168.1.102', isSpecial: false, cluster: '' }] },
+            { id: 102, strategyId: 2, type: '退池', status: '已完成', triggerTime: '2023-10-26 10:05', handler: '值班人 B', deviceList: [{ id: 3, ciCode: 'DEV-003', ip: '192.168.1.103', isSpecial: false, cluster: 'k8s-prod-01' }, { id: 4, ciCode: 'DEV-004', ip: '192.168.1.104', isSpecial: true, cluster: 'k8s-prod-01' }], matchedDeviceList: [] },
+             { id: 103, strategyId: 1, type: '入池', status: '处理中', triggerTime: '2023-10-26 11:00', handler: '值班人 C', deviceList: [], matchedDeviceList: [{ id: 5, ciCode: 'DEV-005', ip: '192.168.1.105', isSpecial: false, cluster: '' }, { id: 6, ciCode: 'DEV-006', ip: '192.168.1.106', isSpecial: false, cluster: '' }, { id: 7, ciCode: 'DEV-007', ip: '192.168.1.107', isSpecial: false, cluster: '' }, { id: 8, ciCode: 'DEV-008', ip: '192.168.1.108', isSpecial: false, cluster: '' }, { id: 9, ciCode: 'DEV-009', ip: '192.168.1.109', isSpecial: false, cluster: '' }, { id: 10, ciCode: 'DEV-010', ip: '192.168.1.110', isSpecial: false, cluster: '' }] },
+        ];
+
+        const App = () => {
+            const [isModalVisible, setIsModalVisible] = React.useState(false);
+            const [selectedOrder, setSelectedOrder] = React.useState(null);
+            const [collapsed, setCollapsed] = React.useState(false);
+            const [drawerVisible, setDrawerVisible] = React.useState(false);
+            const [selectedStrategy, setSelectedStrategy] = React.useState(null);
+            const [form] = Form.useForm();
+            const [strategyNameFilter, setStrategyNameFilter] = React.useState('');
+            const [strategyStatusFilter, setStrategyStatusFilter] = React.useState(null);
+            const [strategyActionFilter, setStrategyActionFilter] = React.useState(null);
+            
+            // 资源使用率图表初始化
+            React.useEffect(() => {
+                // CPU使用率图表
+                const cpuChartDom = document.getElementById('cpuUsageChart');
+                if (cpuChartDom) {
+                    const cpuChart = echarts.init(cpuChartDom);
+                    const cpuOption = {
+                        title: {
+                            text: 'CPU使用率趋势',
+                            left: 'center'
+                        },
+                        tooltip: {
+                            trigger: 'axis'
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '00:00']
+                        },
+                        yAxis: {
+                            type: 'value',
+                            axisLabel: {
+                                formatter: '{value} %'
+                            },
+                            max: 100
+                        },
+                        series: [
+                            {
+                                name: 'CPU使用率',
+                                type: 'line',
+                                smooth: true,
+                                data: [30, 32, 45, 65, 78, 65, 55],
+                                areaStyle: {
+                                    color: {
+                                        type: 'linear',
+                                        x: 0,
+                                        y: 0,
+                                        x2: 0,
+                                        y2: 1,
+                                        colorStops: [{
+                                            offset: 0, color: 'rgba(24, 144, 255, 0.3)'
+                                        }, {
+                                            offset: 1, color: 'rgba(24, 144, 255, 0.1)'
+                                        }]
+                                    }
+                                },
+                                itemStyle: {
+                                    color: '#1890ff'
+                                },
+                                markLine: {
+                                    silent: true,
+                                    data: [
+                                        {
+                                            yAxis: 80,
+                                            lineStyle: {
+                                                color: '#f5222d'
+                                            },
+                                            label: {
+                                                formatter: '报警阈值: 80%',
+                                                position: 'middle'
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    };
+                    cpuChart.setOption(cpuOption);
+                    
+                    // 响应窗口大小变化
+                    window.addEventListener('resize', () => {
+                        cpuChart.resize();
+                    });
+                }
+                
+                // 内存使用率图表
+                const memChartDom = document.getElementById('memoryUsageChart');
+                if (memChartDom) {
+                    const memChart = echarts.init(memChartDom);
+                    const memOption = {
+                        title: {
+                            text: '内存使用率趋势',
+                            left: 'center'
+                        },
+                        tooltip: {
+                            trigger: 'axis'
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '00:00']
+                        },
+                        yAxis: {
+                            type: 'value',
+                            axisLabel: {
+                                formatter: '{value} %'
+                            },
+                            max: 100
+                        },
+                        series: [
+                            {
+                                name: '内存使用率',
+                                type: 'line',
+                                smooth: true,
+                                data: [40, 42, 50, 60, 55, 45, 38],
+                                areaStyle: {
+                                    color: {
+                                        type: 'linear',
+                                        x: 0,
+                                        y: 0,
+                                        x2: 0,
+                                        y2: 1,
+                                        colorStops: [{
+                                            offset: 0, color: 'rgba(82, 196, 26, 0.3)'
+                                        }, {
+                                            offset: 1, color: 'rgba(82, 196, 26, 0.1)'
+                                        }]
+                                    }
+                                },
+                                itemStyle: {
+                                    color: '#52c41a'
+                                },
+                                markLine: {
+                                    silent: true,
+                                    data: [
+                                        {
+                                            yAxis: 30,
+                                            lineStyle: {
+                                                color: '#faad14'
+                                            },
+                                            label: {
+                                                formatter: '退池阈值: 30%',
+                                                position: 'middle'
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    };
+                    memChart.setOption(memOption);
+                    
+                    // 响应窗口大小变化
+                    window.addEventListener('resize', () => {
+                        memChart.resize();
+                    });
+                }
+            }, []);
+
+            const showModal = () => {
+                setIsModalVisible(true);
+            };
+
+            const handleOk = () => {
+                form.validateFields().then(values => {
+                    console.log('新建策略:', values);
+                    setIsModalVisible(false);
+                    form.resetFields();
+                    // 在实际应用中，这里会调用后端接口创建策略并刷新列表
+                }).catch(info => {
+                    console.log('Validate Failed:', info);
+                });
+            };
+
+            const handleCancel = () => {
+                setIsModalVisible(false);
+                form.resetFields();
+            };
+
+            const handleViewOrderDetails = (order) => {
+                setSelectedOrder(order);
+                setDrawerVisible(true);
+            };
+
+            const handleViewStrategyDetails = (strategy) => {
+                setSelectedStrategy(strategy);
+                setDrawerVisible(true);
+            };
+
+            const handleCloseDrawer = () => {
+                setDrawerVisible(false);
+                setSelectedOrder(null);
+                setSelectedStrategy(null);
+            };
+
+            // 策略表格列
+            const strategyColumns = [
+                { 
+                    title: '策略名称', 
+                    dataIndex: 'name', 
+                    key: 'name',
+                    render: (text, record) => (
+                        <Button type="link" onClick={() => handleViewStrategyDetails(record)} style={{ padding: 0 }}>
+                            {text}
+                        </Button>
+                    )
+                },
+                { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
+                { 
+                    title: '维度', 
+                    dataIndex: 'dimension', 
+                    key: 'dimension', 
+                    render: (text, record) => (
+                        <span>
+                            {text === '集群' ? <ClusterOutlined style={{ marginRight: 8 }} /> : <AppstoreOutlined style={{ marginRight: 8 }} />}
+                            {text} - {text === '集群' ? record.cluster : record.resourcePool}
+                        </span>
+                    )
+                },
+                { 
+                    title: '阈值', 
+                    dataIndex: 'threshold', 
+                    key: 'threshold', 
+                    render: (text, record) => (
+                        <Space direction="vertical" size={0}>
+                            {record.cpuThreshold && (
+                                <Tooltip title={`CPU分配率 ${record.cpuThreshold}%`}>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <span style={{ width: 60, color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>CPU:</span>
+                                        <Progress 
+                                            percent={record.cpuThreshold} 
+                                            size="small" 
+                                            status={record.cpuThreshold > 70 ? "exception" : "normal"}
+                                            style={{ width: 100 }}
+                                        />
+                                    </div>
+                                </Tooltip>
+                            )}
+                            {record.memoryThreshold && (
+                                <Tooltip title={`内存分配率 ${record.memoryThreshold}%`}>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <span style={{ width: 60, color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>内存:</span>
+                                        <Progress 
+                                            percent={record.memoryThreshold} 
+                                            size="small"
+                                            status={record.memoryThreshold < 40 ? "exception" : "normal"}
+                                            strokeColor={record.memoryThreshold < 40 ? "#faad14" : "#52c41a"}
+                                            strokeWidth={8}
+                                        />
+                                    </div>
+                                </Tooltip>
+                            )}
+                        </Space>
+                    )
+                },
+                { 
+                    title: '动作', 
+                    dataIndex: 'action', 
+                    key: 'action',
+                    render: (text) => (
+                        <Tag color={text === '入池' ? 'blue' : 'orange'}>
+                            {text === '入池' ? <CloudUploadOutlined /> : <CloudDownloadOutlined />} {text}
+                        </Tag>
+                    )
+                },
+                { 
+                    title: '状态', 
+                    dataIndex: 'status', 
+                    key: 'status', 
+                    render: status => (
+                        <Badge 
+                            status={status === '启用' ? 'success' : 'default'} 
+                            text={status} 
+                        />
+                    )
+                },
+                { 
+                    title: '运行时间', 
+                    key: 'runTime',
+                    render: (text, record) => (
+                        <Space direction="vertical" size={0}>
+                            <div style={{ fontSize: 13 }}>
+                                <span style={{ color: 'rgba(0, 0, 0, 0.45)', marginRight: 8 }}>上次:</span>
+                                {record.lastRun}
+                            </div>
+                            <div style={{ fontSize: 13 }}>
+                                <span style={{ color: 'rgba(0, 0, 0, 0.45)', marginRight: 8 }}>下次:</span>
+                                {record.nextRun}
+                            </div>
+                        </Space>
+                    )
+                },
+                {
+                    title: '操作',
+                    key: 'action',
+                    render: (text, record) => (
+                        <Space size="small">
+                            <Tooltip title="编辑">
+                                <Button type="text" icon={<EditOutlined />} />
+                            </Tooltip>
+                            <Tooltip title={record.status === '启用' ? '禁用' : '启用'}>
+                                <Button 
+                                    type="text" 
+                                    icon={record.status === '启用' ? <CloseCircleOutlined /> : <CheckCircleOutlined />}
+                                    danger={record.status === '启用'}
+                                />
+                            </Tooltip>
+                            <Tooltip title="删除">
+                                <Button type="text" danger icon={<DeleteOutlined />} />
+                            </Tooltip>
+                        </Space>
+                    ),
+                },
+            ];
+
+            // 根据筛选条件过滤策略列表
+            const filteredStrategies = React.useMemo(() => {
+                return strategies.filter(strategy => {
+                    // 按名称筛选
+                    if (strategyNameFilter && !strategy.name.toLowerCase().includes(strategyNameFilter.toLowerCase())) {
+                        return false;
+                    }
+                    
+                    // 按状态筛选
+                    if (strategyStatusFilter && strategy.status !== strategyStatusFilter) {
+                        return false;
+                    }
+                    
+                    // 按动作筛选
+                    if (strategyActionFilter && strategy.action !== strategyActionFilter) {
+                        return false;
+                    }
+                    
+                    return true;
+                });
+            }, [strategies, strategyNameFilter, strategyStatusFilter, strategyActionFilter]);
+
+            const filteredOrders = orders;
+
+            // 订单卡片渲染函数 - 增强版，包含资源利用率信息
+            const renderOrderCardWithResourceInfo = (order) => {
+                const strategy = strategies.find(s => s.id === order.strategyId) || {};
+                const deviceCount = order.type === '入池' 
+                    ? order.matchedDeviceList.length 
+                    : order.deviceList.length;
+                
+                // 假设数据 - 实际应用中这应该从后端获取
+                const clusterInfo = {
+                    'k8s-prod-01': { cpuUsage: 85, memoryUsage: 65, cpuTrend: '+5%', memoryTrend: '-2%' },
+                    'pool-01': { cpuUsage: 45, memoryUsage: 28, cpuTrend: '+2%', memoryTrend: '-4%' }
+                };
+                
+                // 根据策略确定集群信息
+                const cluster = strategy.cluster || strategy.resourcePool || 'k8s-prod-01';
+                const resourceInfo = clusterInfo[cluster] || { cpuUsage: 50, memoryUsage: 40, cpuTrend: '0%', memoryTrend: '0%' };
+
+            return (
+                    <div 
+                        key={order.id} 
+                        className={`order-card ${order.type === '入池' ? 'pool-in' : 'pool-out'}`}
+                        onClick={() => handleViewOrderDetails(order)}
+                    >
+                        <div className="order-card-header">
+                            <div className="order-card-title">
+                                {order.type === '入池' ? (
+                                    <CloudUploadOutlined style={{ color: '#1890ff' }} />
+                                ) : (
+                                    <CloudDownloadOutlined style={{ color: '#faad14' }} />
+                                )}
+                                订单 #{order.id} - {strategy.name || '未知策略'}
+                            </div>
+                            <Tag color={
+                                order.status === '待处理' ? 'error' : 
+                                (order.status === '处理中' ? 'processing' : 'success')
+                            }>
+                                {order.status}
+                            </Tag>
+                        </div>
+                        <div className="order-card-body">
+                            <div className="order-meta">
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">类型</div>
+                                    <div className="order-meta-value">{order.type}</div>
+                                </div>
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">触发时间</div>
+                                    <div className="order-meta-value">{order.triggerTime}</div>
+                                </div>
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">处理人</div>
+                                    <div className="order-meta-value">{order.handler}</div>
+                                </div>
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">设备数量</div>
+                                    <div className="order-meta-value">{deviceCount} 台</div>
+                                </div>
+                            </div>
+                            
+                            {/* 资源利用率信息 */}
+                            <div style={{ marginTop: 16, border: '1px solid #f0f0f0', borderRadius: 8, padding: 16, backgroundColor: '#fafafa' }}>
+                                <div style={{ marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                                    <ClusterOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                                    {strategy.dimension === '集群' ? '集群' : '资源池'}: {cluster}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                            <span>CPU使用率</span>
+                                            <span style={{ color: resourceInfo.cpuUsage > 70 ? '#f5222d' : '#1890ff', fontWeight: 'bold' }}>
+                                                {resourceInfo.cpuUsage}% <ArrowUpOutlined style={{ fontSize: 12 }} />
+                                            </span>
+                                        </div>
+                                        <Progress 
+                                            percent={resourceInfo.cpuUsage} 
+                                            size="small" 
+                                            status={resourceInfo.cpuUsage > 70 ? "exception" : "normal"}
+                                            strokeWidth={8}
+                                        />
+                                    </div>
+                                    <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                            <span>内存使用率</span>
+                                            <span style={{ color: resourceInfo.memoryUsage < 30 ? '#faad14' : '#52c41a', fontWeight: 'bold' }}>
+                                                {resourceInfo.memoryUsage}% <ArrowDownOutlined style={{ fontSize: 12 }} />
+                                            </span>
+                                        </div>
+                                        <Progress 
+                                            percent={resourceInfo.memoryUsage} 
+                                            size="small"
+                                            status={resourceInfo.memoryUsage < 30 ? "exception" : "normal"}
+                                            strokeColor={resourceInfo.memoryUsage < 30 ? "#faad14" : "#52c41a"}
+                                            strokeWidth={8}
+                                        />
+                                    </div>
+                                </div>
+                                <Alert 
+                                    message={
+                                        order.type === '入池' ? 
+                                            `CPU使用率已超过阈值(80%)，需添加节点提升集群容量` : 
+                                            `内存使用率低于阈值(30%)，可回收闲置节点`
+                                    } 
+                                    type={order.type === '入池' ? "error" : "warning"} 
+                                    showIcon 
+                                    style={{ marginTop: 12 }} 
+                                    banner
+                                />
+                            </div>
+                        </div>
+                        <div className="order-card-footer">
+                            <Button type="link" icon={<EyeOutlined />} onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewOrderDetails(order);
+                            }}>
+                                查看详情
+                            </Button>
+                            {order.status === '待处理' && (
+                                <Button 
+                                    type="primary" 
+                                    icon={order.type === '入池' ? <CloudUploadOutlined /> : <CloudDownloadOutlined />}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        // 执行操作逻辑
+                                        message.success(`开始执行${order.type}操作`);
+                                    }}
+                                >
+                                    执行{order.type}
+                                </Button>
+                            )}
+                                </div>
+                                    </div>
+                );
+            };
+            
+            // 订单卡片渲染函数 - 基础版，不含资源信息，用于历史记录区域
+            const renderOrderCard = (order) => {
+                const strategy = strategies.find(s => s.id === order.strategyId) || {};
+                const deviceCount = order.type === '入池' 
+                    ? order.matchedDeviceList.length 
+                    : order.deviceList.length;
+                
+                return (
+                    <div 
+                        key={order.id} 
+                        className={`order-card ${order.type === '入池' ? 'pool-in' : 'pool-out'}`}
+                        onClick={() => handleViewOrderDetails(order)}
+                    >
+                        <div className="order-card-header">
+                            <div className="order-card-title">
+                                {order.type === '入池' ? (
+                                    <CloudUploadOutlined style={{ color: '#1890ff' }} />
+                                ) : (
+                                    <CloudDownloadOutlined style={{ color: '#faad14' }} />
+                                )}
+                                订单 #{order.id} - {strategy.name || '未知策略'}
+                            </div>
+                            <Tag color={
+                                order.status === '待处理' ? 'error' : 
+                                (order.status === '处理中' ? 'processing' : 'success')
+                            }>
+                                {order.status}
+                            </Tag>
+                        </div>
+                        <div className="order-card-body">
+                            <div className="order-meta">
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">类型</div>
+                                    <div className="order-meta-value">{order.type}</div>
+                                </div>
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">触发时间</div>
+                                    <div className="order-meta-value">{order.triggerTime}</div>
+                                </div>
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">处理人</div>
+                                    <div className="order-meta-value">{order.handler}</div>
+                                </div>
+                                <div className="order-meta-item">
+                                    <div className="order-meta-label">设备数量</div>
+                                    <div className="order-meta-value">{deviceCount} 台</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="order-card-footer">
+                            <Button type="link" icon={<EyeOutlined />} onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewOrderDetails(order);
+                            }}>
+                                查看详情
+                                        </Button>
+                            {order.status === '待处理' && (
+                                <Button 
+                                    type="primary" 
+                                    icon={order.type === '入池' ? <CloudUploadOutlined /> : <CloudDownloadOutlined />}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        // 执行操作逻辑
+                                        message.success(`开始执行${order.type}操作`);
+                                    }}
+                                >
+                                    执行{order.type}
+                                </Button>
+                            )}
+                                    </div>
+                    </div>
+                );
+            };
+
+            // 设备项渲染函数
+            const renderDeviceItem = (device) => {
+                return (
+                    <div key={device.id} className="device-item">
+                        <div className="device-info">
+                            <div className="device-name">{device.ciCode}</div>
+                            <div className="device-meta">
+                                <span>IP: {device.ip}</span>
+                                <span>IDC: {device.idc || '未知'}</span>
+                                <span>机房: {device.room || '未知'}</span>
+                                <span>集群: {device.cluster || '未分配'}</span>
+                            </div>
+                        </div>
+                        <span className={`device-status ${device.isSpecial ? 'status-special' : (device.cluster ? 'status-in-cluster' : 'status-available')}`}>
+                            {device.isSpecial ? '特殊设备' : (device.cluster ? '已入池' : '可入池')}
+                    </span>
+                    </div>
+                );
+            };
+
+            // 饼图初始化
+            React.useEffect(() => {
+                const orderStatusChartDom = document.getElementById('orderStatusChart');
+                if (orderStatusChartDom) {
+                    const chart = echarts.init(orderStatusChartDom);
+                    const option = {
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: '{a} <br/>{b}: {c} ({d}%)'
+                        },
+                        legend: {
+                            top: '5%',
+                            left: 'center'
+                        },
+                        series: [
+                            {
+                                name: '订单状态',
+                                type: 'pie',
+                                radius: ['50%', '70%'],
+                                avoidLabelOverlap: false,
+                                itemStyle: {
+                                    borderRadius: 10,
+                                    borderWidth: 2
+                                },
+                                label: {
+                                    show: false,
+                                    position: 'center'
+                                },
+                                emphasis: {
+                                    label: {
+                                        show: true,
+                                        fontSize: '16',
+                                        fontWeight: 'bold'
+                                    }
+                                },
+                                labelLine: {
+                                    show: false
+                                },
+                                data: [
+                                    { 
+                                        value: orders.filter(o => o.status === '待处理').length, 
+                                        name: '待处理',
+                                        itemStyle: { color: '#f5222d' }
+                                    },
+                                    { 
+                                        value: orders.filter(o => o.status === '处理中').length, 
+                                        name: '处理中',
+                                        itemStyle: { color: '#faad14' }
+                                    },
+                                    { 
+                                        value: orders.filter(o => o.status === '已完成').length, 
+                                        name: '已完成',
+                                        itemStyle: { color: '#52c41a' }
+                                    }
+                                ]
+                            }
+                        ]
+                    };
+                    chart.setOption(option);
+                    
+                    // 响应窗口大小变化
+                    window.addEventListener('resize', () => {
+                        chart.resize();
+                    });
+                }
+            }, []);
+
+            return (
+                <Layout className="app-layout">
+                    <Sider 
+                        className="side-menu" 
+                        collapsible 
+                        collapsed={collapsed} 
+                        onCollapse={setCollapsed}
+                        theme="light"
+                        width={220}
+                    >
+                        <div style={{ padding: "20px 16px", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start" }}>
+                            <CloudServerOutlined style={{ fontSize: 20, color: "#1890ff", marginRight: collapsed ? 0 : 10 }} />
+                            {!collapsed && <span style={{ fontSize: 16, fontWeight: 600 }}>K8s资源弹性管理</span>}
+                        </div>
+                        <Menu 
+                            mode="inline" 
+                            defaultSelectedKeys={['dashboard']}
+                        >
+                            <Menu.Item key="dashboard" icon={<DashboardOutlined />}>
+                                工作台
+                            </Menu.Item>
+                        </Menu>
+                    </Sider>
+                    <Layout className="main-layout">
+                        <Header className="app-header">
+                            <div className="header-logo">
+                                <Button 
+                                    type="text" 
+                                    icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} 
+                                    onClick={() => setCollapsed(!collapsed)}
+                                    style={{ fontSize: '16px', marginRight: 24 }}
+                                />
+                                资源弹性管理工作台
+                            </div>
+                            <div className="header-actions">
+                                <Space size="large">
+                                    <Tooltip title="通知">
+                                        <Badge count={2} size="small">
+                                            <Button type="text" icon={<BellOutlined />} />
+                                        </Badge>
+                                    </Tooltip>
+                                    <Dropdown overlay={
+                                        <Menu>
+                                            <Menu.Item key="profile" icon={<UserOutlined />}>
+                                                个人信息
+                                            </Menu.Item>
+                                            <Menu.Item key="settings" icon={<SettingOutlined />}>
+                                                系统设置
+                                            </Menu.Item>
+                                            <Menu.Divider />
+                                            <Menu.Item key="logout" icon={<LogoutOutlined />}>
+                                                退出登录
+                                            </Menu.Item>
+                                        </Menu>
+                                    }>
+                                        <Space style={{ cursor: 'pointer' }}>
+                                            <Avatar icon={<UserOutlined />} />
+                                            <span>管理员</span>
+                                            <DownOutlined style={{ fontSize: 12 }} />
+                                        </Space>
+                                    </Dropdown>
+                                    </Space>
+                                </div>
+                        </Header>
+                        <Content className="site-layout-content">
+                            {/* 统计卡片 */}
+                            <div className="stats-cards">
+                                <div className="stat-card success">
+                                    <div>
+                                        <div className="stat-value">8/10</div>
+                                        <div className="stat-label">今日已巡检/总策略</div>
+                                    </div>
+                                    <div className="stat-trend">
+                                        <Progress percent={80} size="small" style={{ marginTop: 5 }} />
+                                    </div>
+                                </div>
+                                <div className="stat-card">
+                                    <div>
+                                        <div className="stat-value">7/8</div>
+                                        <div className="stat-label">巡检成功/已巡检策略</div>
+                                    </div>
+                                    <div className="stat-trend">
+                                        较昨日 <ArrowUpOutlined style={{ color: "#52c41a" }} /> <span style={{ color: "#52c41a" }}>2</span> 个成功策略
+                                    </div>
+                                </div>
+                                <div className="stat-card warning">
+                                    <div>
+                                        <div className="stat-value">5/6</div>
+                                        <div className="stat-label">正常集群/总集群数</div>
+                                    </div>
+                                    <div className="stat-trend">
+                                        <div style={{ color: "#faad14" }}>1个集群需要处理</div>
+                                    </div>
+                                </div>
+                                <div className="stat-card error">
+                                    <div>
+                                        <div className="stat-value">{orders.filter(o => o.status === '待处理').length}</div>
+                                        <div className="stat-label">待处理资源伸缩任务</div>
+                                    </div>
+                                    <div className="stat-trend">
+                                        需立即处理的集群变更任务
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 订单处理模块 */}
+                            <div className="dashboard-card" style={{ marginBottom: 24 }}>
+                                <div className="card-header">
+                                    <div className="card-title">待处理弹性伸缩订单</div>
+                                            <Space>
+                                                <Select
+                                            allowClear
+                                            placeholder="订单类型"
+                                            style={{ width: 120 }}
+                                        >
+                                            <Option value="入池">入池</Option>
+                                            <Option value="退池">退池</Option>
+                                                </Select>
+                                        <Button icon={<SearchOutlined />}>搜索</Button>
+                                            </Space>
+                                        </div>
+                                <div className="card-content">
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+                                        {orders.filter(o => o.status === '待处理').length > 0 ? (
+                                            orders
+                                                .filter(o => o.status === '待处理')
+                                                .map(renderOrderCardWithResourceInfo)
+                                        ) : (
+                                            <Empty description="暂无待处理订单" />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 资源用量图表 */}
+                            <div className="dashboard-card" style={{ marginBottom: 24 }}>
+                                <div className="card-header">
+                                    <div className="card-title">资源用量趋势</div>
+                                    <Space>
+                                        <Select defaultValue="k8s-prod-01" style={{ width: 150 }}>
+                                            <Option value="k8s-prod-01">k8s-prod-01</Option>
+                                            <Option value="k8s-dev-01">k8s-dev-01</Option>
+                                        </Select>
+                                        <Select defaultValue="pool-01" style={{ width: 120 }}>
+                                            <Option value="pool-01">资源池-01</Option>
+                                            <Option value="pool-02">资源池-02</Option>
+                                            <Option value="pool-03">资源池-03</Option>
+                                        </Select>
+                                        <Select defaultValue="7d" style={{ width: 100 }}>
+                                            <Option value="24h">24小时</Option>
+                                            <Option value="7d">7天</Option>
+                                            <Option value="30d">30天</Option>
+                                        </Select>
+                                        <Button icon={<ReloadOutlined />} />
+                                    </Space>
+                                </div>
+                                <div className="card-content">
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                                        <div id="cpuUsageChart" className="chart-container"></div>
+                                        <div id="memoryUsageChart" className="chart-container"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 策略管理模块 */}
+                            <div className="dashboard-card" style={{ marginBottom: 24 }}>
+                                <div className="card-header">
+                                    <div className="card-title">监控策略管理</div>
+                                    <Button 
+                                        type="primary" 
+                                        icon={<PlusOutlined />} 
+                                        onClick={showModal}
+                                    >
+                                        新建策略
+                                    </Button>
+                                </div>
+                                <div className="card-content">
+                                    <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+                                        <div style={{ display: 'flex', gap: 8 }}>
+                                            <Input 
+                                                placeholder="搜索策略名称" 
+                                                style={{ width: 200 }} 
+                                                allowClear
+                                                prefix={<SearchOutlined />}
+                                                onChange={(e) => setStrategyNameFilter(e.target.value)}
+                                            />
+                                            <Select
+                                                placeholder="策略状态"
+                                                style={{ width: 120 }}
+                                                allowClear
+                                                onChange={(value) => setStrategyStatusFilter(value)}
+                                            >
+                                                <Option value="启用">启用</Option>
+                                                <Option value="禁用">禁用</Option>
+                                            </Select>
+                                            <Select
+                                                placeholder="触发动作"
+                                                style={{ width: 120 }}
+                                                allowClear
+                                                onChange={(value) => setStrategyActionFilter(value)}
+                                            >
+                                                <Option value="入池">入池</Option>
+                                                <Option value="退池">退池</Option>
+                                            </Select>
+                                        </div>
+                                        <Button 
+                                            icon={<ReloadOutlined />} 
+                                            onClick={() => {
+                                                setStrategyNameFilter('');
+                                                setStrategyStatusFilter(null);
+                                                setStrategyActionFilter(null);
+                                            }}
+                                        >
+                                            重置筛选
+                                        </Button>
+                                        </div>
+                                        <Table
+                                        columns={strategyColumns} 
+                                        dataSource={filteredStrategies} 
+                                            rowKey="id"
+                                        pagination={{ 
+                                            pageSize: 5,
+                                            showTotal: (total) => `共 ${total} 条策略`,
+                                            showSizeChanger: true,
+                                            pageSizeOptions: ['5', '10', '20']
+                                        }}
+                                        />
+                                    </div>
+                            </div>
+
+                            {/* 历史记录统计 */}
+                            <div className="dashboard-card">
+                                <div className="card-header">
+                                    <div className="card-title">全部订单与统计</div>
+                                    <Select defaultValue="30d" style={{ width: 120 }}>
+                                        <Option value="7d">最近7天</Option>
+                                        <Option value="30d">最近30天</Option>
+                                        <Option value="90d">最近90天</Option>
+                                    </Select>
+                                </div>
+                                <div className="card-content">
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
+                                        <div>
+                                            <div id="orderStatusChart" style={{ height: 300 }}></div>
+                                        </div>
+                                        <div>
+                                            {/* 订单状态摘要 */}
+                                            <div className="order-status-summary">
+                                                <div className="order-status-item">
+                                                    <div className="order-status-value order-status-pending">
+                                                        {orders.filter(o => o.status === '待处理').length}
+                                                    </div>
+                                                    <div className="order-status-label">待处理</div>
+                                                </div>
+                                                <div className="order-status-item">
+                                                    <div className="order-status-value order-status-processing">
+                                                        {orders.filter(o => o.status === '处理中').length}
+                                                    </div>
+                                                    <div className="order-status-label">处理中</div>
+                                                </div>
+                                                <div className="order-status-item">
+                                                    <div className="order-status-value order-status-done">
+                                                        {orders.filter(o => o.status === '已完成').length}
+                                                    </div>
+                                                    <div className="order-status-label">已完成</div>
+                                                </div>
+                                                <div className="order-status-item">
+                                                    <div className="order-status-value">
+                                                        {orders.length}
+                                                    </div>
+                                                    <div className="order-status-label">总订单</div>
+                                                </div>
+                                            </div>
+                                    
+                                            <Tabs defaultActiveKey="processing" className="order-tabs">
+                                                <TabPane 
+                                                    tab={
+                                                        <span>
+                                                            <Badge status="processing" />
+                                                            处理中订单
+                                                            <span className="order-count-badge processing">
+                                                                {orders.filter(o => o.status === '处理中').length}
+                                                            </span>
+                                                        </span>
+                                                    } 
+                                                    key="processing"
+                                                >
+                                                    <div className="order-cards-grid">
+                                                        {orders.filter(o => o.status === '处理中').length > 0 ? (
+                                                            orders
+                                                                .filter(o => o.status === '处理中')
+                                                                .map(renderOrderCard)
+                                                        ) : (
+                                                            <Empty description="暂无处理中订单" />
+                                                        )}
+                                                    </div>
+                                                </TabPane>
+                                                <TabPane 
+                                                    tab={
+                                                        <span>
+                                                            <Badge status="success" />
+                                                            已完成订单
+                                                            <span className="order-count-badge done">
+                                                                {orders.filter(o => o.status === '已完成').length}
+                                                            </span>
+                                                        </span>
+                                                    } 
+                                                    key="recent"
+                                                >
+                                                    <div className="order-cards-grid">
+                                                        {orders.filter(o => o.status === '已完成').length > 0 ? (
+                                                            orders
+                                                                .filter(o => o.status === '已完成')
+                                                                .map(renderOrderCard)
+                                                        ) : (
+                                                            <Empty description="暂无完成订单" />
+                                                        )}
+                                                    </div>
+                                                </TabPane>
+                                                <TabPane 
+                                                    tab={
+                                                        <span>
+                                                            <Badge status="default" />
+                                                            全部订单
+                                                            <span className="order-count-badge all">
+                                                                {orders.length}
+                                                            </span>
+                                                        </span>
+                                                    } 
+                                                    key="all"
+                                                >
+                                                    <div className="order-cards-grid">
+                                                        {orders.length > 0 ? (
+                                                            orders.map(renderOrderCard)
+                                                        ) : (
+                                                            <Empty description="暂无订单数据" />
+                                                        )}
+                                                    </div>
+                                                </TabPane>
+                                            </Tabs>
+                                        </div>
+                                    </div>
+                                </div>
+                        </div>
+                    </Content>
+                        <Footer style={{ textAlign: 'center' }}>
+                            K8s集群资源弹性伸缩管理系统 ©{new Date().getFullYear()}
+                    </Footer>
+                    </Layout>
+
+                    {/* 订单详情抽屉 */}
+                    <Drawer
+                        title={selectedOrder ? `订单详情 #${selectedOrder.id}` : (selectedStrategy ? `策略详情: ${selectedStrategy.name}` : '')}
+                        placement="right"
+                        width={600}
+                        onClose={handleCloseDrawer}
+                        visible={drawerVisible}
+                        className="detail-drawer"
+                        extra={
+                            selectedOrder && selectedOrder.status === '待处理' ? (
+                                <Button 
+                                    type="primary"
+                                    icon={selectedOrder.type === '入池' ? <CloudUploadOutlined /> : <CloudDownloadOutlined />}
+                                >
+                                    执行{selectedOrder.type}
+                                </Button>
+                            ) : null
+                        }
+                    >
+                        {selectedOrder && (
+                            <div className="detail-drawer-content">
+                                <div className="detail-section">
+                                    <Descriptions bordered size="small" column={2}>
+                                        <Descriptions.Item label="订单类型" span={2}>
+                                            <Tag color={selectedOrder.type === '入池' ? 'blue' : 'orange'}>
+                                                {selectedOrder.type === '入池' ? <CloudUploadOutlined /> : <CloudDownloadOutlined />} {selectedOrder.type}
+                                            </Tag>
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="订单状态">
+                                            <Badge 
+                                                status={
+                                                    selectedOrder.status === '待处理' ? 'error' : 
+                                                    (selectedOrder.status === '处理中' ? 'processing' : 'success')
+                                                } 
+                                                text={selectedOrder.status} 
+                                            />
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="触发时间">
+                                            {selectedOrder.triggerTime}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="关联策略">
+                                            {(() => {
+                                                const strategy = strategies.find(s => s.id === selectedOrder.strategyId);
+                                                return strategy ? strategy.name : '未知策略';
+                                            })()}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="处理人">
+                                            {selectedOrder.handler}
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </div>
+                                
+                                <div className="detail-section">
+                                    <div className="detail-section-title">
+                                        {selectedOrder.type === '入池' ? '匹配设备列表' : '关联设备列表'}
+                                    </div>
+                                    <div className="device-list">
+                                        {selectedOrder.type === '入池' 
+                                            ? selectedOrder.matchedDeviceList.map(renderDeviceItem)
+                                            : selectedOrder.deviceList.map(renderDeviceItem)
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedStrategy && (
+                            <div className="detail-drawer-content">
+                                <div className="detail-section">
+                                    <Descriptions bordered size="small" column={2}>
+                                        <Descriptions.Item label="策略状态">
+                                            <Badge 
+                                                status={selectedStrategy.status === '启用' ? 'success' : 'default'} 
+                                                text={selectedStrategy.status} 
+                                            />
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="监控维度">
+                                            {selectedStrategy.dimension === '集群' 
+                                                ? `集群 - ${selectedStrategy.cluster}` 
+                                                : `资源池 - ${selectedStrategy.resourcePool}`
+                                            }
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="触发动作">
+                                            <Tag color={selectedStrategy.action === '入池' ? 'blue' : 'orange'}>
+                                                {selectedStrategy.action === '入池' ? <CloudUploadOutlined /> : <CloudDownloadOutlined />} {selectedStrategy.action}
+                                            </Tag>
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="运行间隔">
+                                            {selectedStrategy.runInterval === 'daily' ? '每日' : '每小时'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="CPU阈值" span={selectedStrategy.cpuThreshold ? 1 : 2}>
+                                            {selectedStrategy.cpuThreshold ? `${selectedStrategy.cpuThreshold}%` : '未设置'}
+                                        </Descriptions.Item>
+                                        {selectedStrategy.cpuThreshold && (
+                                            <Descriptions.Item label="内存阈值">
+                                                {selectedStrategy.memoryThreshold ? `${selectedStrategy.memoryThreshold}%` : '未设置'}
+                                            </Descriptions.Item>
+                                        )}
+                                        <Descriptions.Item label="上次运行时间">
+                                            {selectedStrategy.lastRun}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="下次运行时间">
+                                            {selectedStrategy.nextRun}
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </div>
+                                
+                                <div className="detail-section">
+                                    <div className="detail-section-title">策略描述</div>
+                                    <Paragraph>{selectedStrategy.description}</Paragraph>
+                                </div>
+                                
+                                <div className="detail-section">
+                                    <div className="detail-section-title">相关订单</div>
+                                    <div>
+                                        {orders.filter(o => o.strategyId === selectedStrategy.id).length > 0 ? (
+                                            orders
+                                                .filter(o => o.strategyId === selectedStrategy.id)
+                                                .map(renderOrderCard)
+                                        ) : (
+                                            <Empty description="暂无相关订单" />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Drawer>
+
+                    {/* 新建策略Modal */}
+                    <Modal
+                        title="新建监控策略"
+                        visible={isModalVisible}
+                        onOk={handleOk}
+                        onCancel={handleCancel}
+                        okText="创建"
+                        cancelText="取消"
+                        width={600}
+                    >
+                        <Form
+                            form={form}
+                            layout="vertical"
+                            className="strategy-form"
+                        >
+                            <Form.Item
+                                name="name"
+                                label="策略名称"
+                                rules={[{ required: true, message: '请输入策略名称!' }]}
+                            >
+                                <Input placeholder="例如: CPU高负载入池策略" />
+                            </Form.Item>
+                            <Form.Item
+                                name="description"
+                                label="策略描述"
+                            >
+                                <Input.TextArea rows={3} placeholder="请输入策略描述" />
+                            </Form.Item>
+                            
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <Form.Item
+                                name="dimension"
+                                label="监控维度"
+                                rules={[{ required: true, message: '请选择监控维度!' }]}
+                            >
+                                <Select placeholder="请选择维度">
+                                    <Option value="集群">集群</Option>
+                                    <Option value="资源池">资源池</Option>
+                                </Select>
+                            </Form.Item>
+                                <Form.Item
+                                    name="action"
+                                    label="触发动作"
+                                    rules={[{ required: true, message: '请选择触发动作!' }]}
+                                >
+                                    <Select placeholder="请选择动作">
+                                        <Option value="入池">入池</Option>
+                                        <Option value="退池">退池</Option>
+                                    </Select>
+                                </Form.Item>
+                            </div>
+                            
+                            {/* 根据维度动态显示集群或资源池选择 */}
+                            <Form.Item
+                                noStyle
+                                shouldUpdate={(prevValues, currentValues) => prevValues.dimension !== currentValues.dimension}
+                            >
+                                {({ getFieldValue }) => {
+                                    const dimension = getFieldValue('dimension');
+                                    if (dimension === '集群') {
+                                        return (
+                                            <Form.Item
+                                                name="cluster"
+                                                label="选择集群"
+                                                rules={[{ required: true, message: '请选择集群!' }]}
+                                            >
+                                                <Select placeholder="请选择集群">
+                                                    <Option value="k8s-prod-01">k8s-prod-01</Option>
+                                                    <Option value="k8s-dev-01">k8s-dev-01</Option>
+                                                </Select>
+                                            </Form.Item>
+                                        );
+                                    }
+                                    if (dimension === '资源池') {
+                                        return (
+                                            <Form.Item
+                                                name="resourcePool"
+                                                label="选择资源池"
+                                                rules={[{ required: true, message: '请选择资源池!' }]}
+                                            >
+                                                <Select placeholder="请选择资源池">
+                                                    <Option value="pool-01">pool-01</Option>
+                                                    <Option value="pool-02">pool-02</Option>
+                                                </Select>
+                                            </Form.Item>
+                                        );
+                                    }
+                                    return null;
+                                }}
+                            </Form.Item>
+                            
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontWeight: 600, marginBottom: 12 }}>资源阈值</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <Form.Item
+                                name="cpuThreshold"
+                                label="CPU分配率阈值 (%)"
+                            >
+                                        <Input type="number" min={0} max={100} />
+                            </Form.Item>
+                            <Form.Item
+                                name="memoryThreshold"
+                                label="内存分配率阈值 (%)"
+                            >
+                                        <Input type="number" min={0} max={100} />
+                            </Form.Item>
+                                </div>
+                            </div>
+                            
+                             <Form.Item
+                                name="condition"
+                                label="阈值满足条件"
+                                rules={[{ required: true, message: '请选择阈值满足条件!' }]}
+                            >
+                                <Radio.Group>
+                                    <Radio value="AND">同时满足</Radio>
+                                    <Radio value="OR">满足其一</Radio>
+                                </Radio.Group>
+                            </Form.Item>
+                            
+                             <Form.Item
+                                name="runInterval"
+                                label="运行间隔"
+                                rules={[{ required: true, message: '请选择运行间隔!' }]}
+                            >
+                                <Radio.Group>
+                                    <Radio value="hourly">每小时</Radio>
+                                    <Radio value="daily">每日</Radio>
+                                </Radio.Group>
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+                </Layout>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

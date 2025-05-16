@@ -32,3 +32,8 @@ node_modules/
 # Debug logs
 *.log
 *.db
+*.xlsx
+*.xls
+*.csv
+*.json
+*.toml  

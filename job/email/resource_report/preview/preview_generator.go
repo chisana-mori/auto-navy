@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"navy-ng/job/email/resource_report"
@@ -14,8 +13,9 @@ import (
 	"github.com/Masterminds/sprig/v3"
 )
 
-// ResourcePool 资源池详情 - Preview generator's local version with additional fields
+// ResourcePool 资源池结构 - Preview generator local version with additional fields
 type ResourcePool struct {
+	// Core fields
 	ResourceType       string
 	NodeType           string
 	Nodes              int
@@ -34,6 +34,13 @@ type ResourcePool struct {
 	PodCount           int     // 新增Pod数量字段
 	PerNodeCpuRequest  float64 // 新增节点平均CPU分配
 	PerNodeMemRequest  float64 // 新增节点平均内存分配
+
+	// Formatted display fields
+	CPURequestFormatted     string // 格式化的CPU请求量
+	CPUCapacityFormatted    string // 格式化的CPU容量
+	MemoryRequestFormatted  string // 格式化的内存请求量
+	MemoryCapacityFormatted string // 格式化的内存容量
+
 	// 7天资源波动历史数据
 	CPUHistory    []float64 // CPU使用率历史数据
 	MemoryHistory []float64 // 内存使用率历史数据
@@ -48,6 +55,47 @@ type ResourcePool struct {
 	MaxMemoryUsageRatio float64 // 平均内存最大使用率，存储为小数，如0.36代表百分之36
 	Desc                string  // 资源池描述字段
 	IsAbnormal          bool    // 添加IsAbnormal字段，标识资源池是否异常
+
+	// Template specific fields
+	ShowPoolDetails bool   // 是否显示资源池详情
+	HeaderClass     string // 资源池头部CSS类
+
+	// Resource Display fields - these would be populated by backend logic
+	CPUDisplay    CPUDisplay    // CPU显示相关信息
+	MemoryDisplay MemoryDisplay // 内存显示相关信息
+	HasCPUStats   bool          // 是否有CPU统计信息
+
+	// CPU和内存波动历史样式类
+	CPUHistoryTrendClasses    []string // 历史CPU趋势样式类
+	MemoryHistoryTrendClasses []string // 历史内存趋势样式类
+}
+
+// CPUDisplay holds all display info for CPU
+type CPUDisplay struct {
+	Class         string       // CSS class
+	UsageText     string       // Formatted usage text
+	TooltipText   string       // Text for tooltip
+	BarClass      string       // CSS class for usage bar
+	BarWidthClass string       // CSS class for bar width
+	History       []TrendPoint // Historical trend points
+}
+
+// MemoryDisplay holds all display info for Memory
+type MemoryDisplay struct {
+	Class         string       // CSS class
+	UsageText     string       // Formatted usage text
+	TooltipText   string       // Text for tooltip
+	BarClass      string       // CSS class for usage bar
+	BarWidthClass string       // CSS class for bar width
+	History       []TrendPoint // Historical trend points
+}
+
+// TrendPoint represents a single point in the trend history
+type TrendPoint struct {
+	Value     float64 // Actual usage value
+	ValueText string  // Formatted value text
+	Class     string  // CSS class for styling
+	Label     string  // Day label (e.g., "Today", "Yesterday")
 }
 
 // ClusterResourceSummary 集群资源摘要 - Preview generator's local version with additional fields
@@ -69,6 +117,34 @@ type ClusterResourceSummary struct {
 	ResourcePools       []ResourcePool
 	ResourcePoolsByType map[string]*ResourcePool // 根据资源池类型快速查找资源池
 	IsAbnormal          bool                     // 添加IsAbnormal字段，标识集群是否异常
+	IsAbnormalOverall   bool                     // 标识集群是否异常（可能来自于API或外部指标）
+	ShowDetails         bool                     // 是否在报告中显示详情部分
+	OverviewPools       []OverviewPool           // 用于概览表格的资源池数据
+}
+
+// OverviewPool 用于概览表格的简化资源池结构
+type OverviewPool struct {
+	ResourceType            string
+	NodeType                string
+	HasData                 bool
+	Nodes                   int
+	BMCount                 int
+	VMCount                 int
+	CPUCapacity             float64
+	CPURequest              float64
+	CPUUsagePercent         float64
+	CPUUsageText            string
+	CPUIndicatorClass       string
+	CPURequestFormatted     string
+	CPUCapacityFormatted    string
+	MemoryCapacity          float64
+	MemoryRequest           float64
+	MemoryUsagePercent      float64
+	MemoryUsageText         string
+	MemoryIndicatorClass    string
+	MemoryRequestFormatted  string
+	MemoryCapacityFormatted string
+	Desc                    string
 }
 
 // ClusterStats 集群统计信息 - Preview generator's local version
@@ -85,12 +161,12 @@ type ReportTemplateData struct {
 	Clusters             []ClusterResourceSummary
 	Stats                ClusterStats // 添加集群统计信息
 	HasHighUsageClusters bool         // 是否存在高使用率集群（CPU或内存使用率>=70%）
-	Environment          string       // 环境类型："prd" 或 "test"
+	Environment          string       // 环境类型："test" 或 "test"
 	ShowResourcePoolDesc bool         // 是否显示资源池描述
 }
 
 // 将资源报告的标准ResourcePool转换为预览本地的ResourcePool
-func convertResourcePool(pool resource_report.ResourcePool) ResourcePool {
+func convertResourcePool(pool resource_report.ResourcePool, environment string) ResourcePool {
 	// 计算CPU和内存使用率
 	cpuUsage := 0.0
 	if pool.CPUCapacity > 0 {
@@ -101,94 +177,146 @@ func convertResourcePool(pool resource_report.ResourcePool) ResourcePool {
 		memUsage = pool.MemoryRequest / pool.MemoryCapacity * 100
 	}
 
-	// 根据资源池类型设置tooltip文本
-	var tooltipText string
-	switch pool.ResourceType {
-	case "total":
-		tooltipText = "集群所有物理机资源总和，包含集群中所有类型的节点。"
-	case "total_intel":
-		tooltipText = "Intel架构物理机节点资源，使用Intel CPU的所有节点。"
-	case "intel_common":
-		tooltipText = "Intel物理机通用应用节点资源，没有特殊标记或污点的Intel节点。"
-	case "intel_gpu":
-		tooltipText = "Intel架构GPU物理机节点，配备了GPU的Intel节点。"
-	case "intel_taint":
-		tooltipText = "Intel架构带污点物理机节点，带有特殊污点标记的Intel节点。"
-	case "intel_non_gpu":
-		tooltipText = "Intel架构无GPU物理机节点，不包含GPU的Intel节点。"
-	case "total_arm":
-		tooltipText = "ARM架构物理机节点资源，使用ARM CPU的所有节点。"
-	case "arm_common":
-		tooltipText = "ARM物理机节点通用应用资源，没有特殊标记或污点的ARM节点。"
-	case "arm_gpu":
-		tooltipText = "ARM架构GPU物理机节点，配备了GPU的ARM节点。"
-	case "arm_taint":
-		tooltipText = "ARM架构带污点物理机节点，带有特殊污点标记的ARM节点。"
-	case "total_hg":
-		tooltipText = "海光架构物理机节点资源，使用海光CPU的所有节点。"
-	case "hg_common":
-		tooltipText = "海光物理机通用应用节点资源，没有特殊标记或污点的海光节点。"
-	case "hg_taint":
-		tooltipText = "海光架构带污点物理机节点，带有特殊污点标记的海光节点。"
-	case "total_taint":
-		tooltipText = "带污点的物理机节点资源，所有带有特殊污点标记的节点。"
-	case "total_common":
-		tooltipText = "物理机节点通用应用资源总和，所有没有特殊标记或污点的普通节点。"
-	case "total_gpu":
-		tooltipText = "包含GPU的物理机节点资源，所有配备了GPU的节点。"
-	case "aplus_total":
-		tooltipText = "A+物理机资源总和，所有高性能计算节点。"
-	case "aplus_intel":
-		tooltipText = "A+Intel架构物理机节点，高性能计算的Intel节点。"
-	case "aplus_arm":
-		tooltipText = "A+ARM架构物理机节点，高性能计算的ARM节点。"
-	case "aplus_hg":
-		tooltipText = "A+海光架构物理机节点，高性能计算的海光节点。"
-	case "dplus_total":
-		tooltipText = "D+物理机资源总和，所有高存储容量节点。"
-	case "dplus_intel":
-		tooltipText = "D+Intel架构物理机节点，高存储容量的Intel节点。"
-	case "dplus_arm":
-		tooltipText = "D+ARM架构物理机节点，高存储容量的ARM节点。"
-	case "dplus_hg":
-		tooltipText = "D+海光架构物理机节点，高存储容量的海光节点。"
-	default:
-		tooltipText = pool.NodeType + "资源池，类型: " + pool.ResourceType
+	// Format request and capacity values
+	cpuRequestFormatted := fmt.Sprintf("%.1f", pool.CPURequest)
+	cpuCapacityFormatted := fmt.Sprintf("%.1f", pool.CPUCapacity)
+	memoryRequestFormatted := fmt.Sprintf("%.1f", pool.MemoryRequest)
+	memoryCapacityFormatted := fmt.Sprintf("%.1f", pool.MemoryCapacity)
+
+	// For preview, we'll show details for most pools
+	// In real implementation, this would be set based on some criteria
+	showPoolDetails := pool.IsAbnormal // Only show details for abnormal pools
+
+	// Set appropriate header class based on resource type
+	headerClass := resource_report.GetPoolHeaderClassName(pool.ResourceType)
+	hasCPUStats := pool.CPUCapacity > 0
+
+	// Create CPU trend history for preview
+	cpuHistory := make([]TrendPoint, 0)
+	for i, value := range pool.CPUHistory {
+		dayLabel := "今天"
+		if i < len(pool.CPUHistory)-1 {
+			daysAgo := len(pool.CPUHistory) - i - 1
+			if daysAgo == 1 {
+				dayLabel = "昨天"
+			} else {
+				dayLabel = fmt.Sprintf("%d天前", daysAgo)
+			}
+		}
+
+		// Get appropriate CPU style class for this historical point
+		cpuStyleClass := resource_report.GetCPUTrendStyleClass(value, pool.BMCount, environment)
+
+		cpuHistory = append(cpuHistory, TrendPoint{
+			Value:     value,
+			ValueText: fmt.Sprintf("%.1f%%", value),
+			Class:     cpuStyleClass,
+			Label:     dayLabel,
+		})
+	}
+
+	// Create memory trend history for preview
+	memHistory := make([]TrendPoint, 0)
+	for i, value := range pool.MemoryHistory {
+		dayLabel := "今天"
+		if i < len(pool.MemoryHistory)-1 {
+			daysAgo := len(pool.MemoryHistory) - i - 1
+			if daysAgo == 1 {
+				dayLabel = "昨天"
+			} else {
+				dayLabel = fmt.Sprintf("%d天前", daysAgo)
+			}
+		}
+
+		// Get appropriate memory style class for this historical point
+		memStyleClass := resource_report.GetMemTrendStyleClass(value, pool.BMCount, environment)
+
+		memHistory = append(memHistory, TrendPoint{
+			Value:     value,
+			ValueText: fmt.Sprintf("%.1f%%", value),
+			Class:     memStyleClass,
+			Label:     dayLabel,
+		})
+	}
+
+	// For preview version, all styles are computed with proper environment
+	cpuClass := string(resource_report.GetCPUStyle(pool.BMCount, cpuUsage, environment))
+	memClass := string(resource_report.GetMemoryStyle(pool.BMCount, memUsage, environment))
+
+	// Get tooltip text using the environment parameter
+	cpuTooltip := resource_report.GetCPUTooltipMessage(cpuUsage, pool.BMCount, environment, pool.CPURequest, pool.CPUCapacity)
+	memTooltip := resource_report.GetMemTooltipMessage(memUsage, pool.BMCount, environment, pool.MemoryRequest, pool.MemoryCapacity)
+
+	// Get bar styles using the environment parameter
+	cpuBarClass := resource_report.GetBarClassName(resource_report.GetCPUStyle(pool.BMCount, cpuUsage, environment))
+	memBarClass := resource_report.GetBarClassName(resource_report.GetMemoryStyle(pool.BMCount, memUsage, environment))
+
+	// Create basic CPU display info with appropriate styling
+	cpuDisplay := CPUDisplay{
+		Class:         cpuClass,
+		UsageText:     fmt.Sprintf("%.1f%%", cpuUsage),
+		TooltipText:   cpuTooltip,
+		BarClass:      cpuBarClass,
+		BarWidthClass: resource_report.GetBarWidthClassName(cpuUsage),
+		History:       cpuHistory,
+	}
+
+	// Create memory display info with appropriate styling
+	memDisplay := MemoryDisplay{
+		Class:         memClass,
+		UsageText:     fmt.Sprintf("%.1f%%", memUsage),
+		TooltipText:   memTooltip,
+		BarClass:      memBarClass,
+		BarWidthClass: resource_report.GetBarWidthClassName(memUsage),
+		History:       memHistory,
 	}
 
 	return ResourcePool{
-		ResourceType:        pool.ResourceType,
-		NodeType:            pool.NodeType,
-		Nodes:               pool.Nodes,
-		NodeCount:           pool.Nodes,
-		Type:                pool.ResourceType,
-		CPUCapacity:         pool.CPUCapacity,
-		MemoryCapacity:      pool.MemoryCapacity,
-		CPURequest:          pool.CPURequest,
-		MemoryRequest:       pool.MemoryRequest,
-		CPUUsagePercent:     cpuUsage,
-		MemoryUsagePercent:  memUsage,
-		BMCount:             pool.BMCount,
-		VMCount:             pool.VMCount,
-		PodCount:            pool.PodCount,
-		PerNodeCpuRequest:   pool.PerNodeCpuRequest,
-		PerNodeMemRequest:   pool.PerNodeMemRequest,
-		CPUHistory:          pool.CPUHistory,
-		MemoryHistory:       pool.MemoryHistory,
-		TotalCPU:            pool.CPUCapacity,
-		TotalMemory:         pool.MemoryCapacity,
-		RequestedCPU:        pool.CPURequest,
-		RequestedMemory:     pool.MemoryRequest,
-		TooltipText:         tooltipText,
-		MaxCpuUsageRatio:    pool.MaxCpuUsageRatio,
-		MaxMemoryUsageRatio: pool.MaxMemoryUsageRatio,
-		Desc:                "", // 资源池描述默认为空字符串
-		IsAbnormal:          pool.IsAbnormal,
+		ResourceType:              pool.ResourceType,
+		NodeType:                  pool.NodeType,
+		Nodes:                     pool.Nodes,
+		NodeCount:                 pool.Nodes,
+		Type:                      pool.ResourceType,
+		CPUCapacity:               pool.CPUCapacity,
+		MemoryCapacity:            pool.MemoryCapacity,
+		CPURequest:                pool.CPURequest,
+		MemoryRequest:             pool.MemoryRequest,
+		CPUUsagePercent:           cpuUsage,
+		MemoryUsagePercent:        memUsage,
+		PhysicalNodes:             pool.BMCount,
+		VirtualNodes:              pool.VMCount,
+		BMCount:                   pool.BMCount,
+		VMCount:                   pool.VMCount,
+		PodCount:                  pool.PodCount,
+		PerNodeCpuRequest:         pool.PerNodeCpuRequest,
+		PerNodeMemRequest:         pool.PerNodeMemRequest,
+		CPURequestFormatted:       cpuRequestFormatted,
+		CPUCapacityFormatted:      cpuCapacityFormatted,
+		MemoryRequestFormatted:    memoryRequestFormatted,
+		MemoryCapacityFormatted:   memoryCapacityFormatted,
+		CPUHistory:                pool.CPUHistory,
+		MemoryHistory:             pool.MemoryHistory,
+		TotalCPU:                  pool.CPUCapacity,
+		TotalMemory:               pool.MemoryCapacity,
+		RequestedCPU:              pool.CPURequest,
+		RequestedMemory:           pool.MemoryRequest,
+		TooltipText:               pool.TooltipText,
+		MaxCpuUsageRatio:          pool.MaxCpuUsageRatio,
+		MaxMemoryUsageRatio:       pool.MaxMemoryUsageRatio,
+		Desc:                      "", // 资源池描述默认为空字符串
+		IsAbnormal:                pool.IsAbnormal,
+		ShowPoolDetails:           showPoolDetails,
+		HeaderClass:               headerClass,
+		CPUDisplay:                cpuDisplay,
+		MemoryDisplay:             memDisplay,
+		HasCPUStats:               hasCPUStats,
+		CPUHistoryTrendClasses:    pool.CPUHistoryTrendClasses,
+		MemoryHistoryTrendClasses: pool.MemoryHistoryTrendClasses,
 	}
 }
 
 // 将资源报告的标准ClusterResourceSummary转换为预览本地的ClusterResourceSummary
-func convertClusterSummary(cluster resource_report.ClusterResourceSummary) ClusterResourceSummary {
+func convertClusterSummary(cluster resource_report.ClusterResourceSummary, environment string) ClusterResourceSummary {
 	// 计算物理和虚拟节点数量
 	physicalNodes := 0
 	virtualNodes := 0
@@ -214,8 +342,58 @@ func convertClusterSummary(cluster resource_report.ClusterResourceSummary) Clust
 	localPools := make([]ResourcePool, len(cluster.ResourcePools))
 	poolsByType := make(map[string]*ResourcePool)
 	for i, pool := range cluster.ResourcePools {
-		localPools[i] = convertResourcePool(pool)
+		localPools[i] = convertResourcePool(pool, environment)
 		poolsByType[pool.ResourceType] = &localPools[i]
+	}
+
+	// Make sure isAbnormalOverall and showDetails are set correctly
+	isAbnormalOverall := cluster.IsAbnormal
+	showDetails := cluster.IsAbnormal
+
+	// Create simple overview pools for the preview
+	overviewPoolsMap := map[string]OverviewPool{
+		"total_common": {ResourceType: "total_common", NodeType: "通用资源", HasData: false},
+		"intel_common": {ResourceType: "intel_common", NodeType: "Intel通用", HasData: false},
+		"hg_common":    {ResourceType: "hg_common", NodeType: "海光通用", HasData: false},
+		"arm_common":   {ResourceType: "arm_common", NodeType: "ARM通用", HasData: false},
+	}
+
+	// Fill in data for each pool type if available
+	for _, pool := range localPools {
+		if op, exists := overviewPoolsMap[pool.ResourceType]; exists {
+			// Get appropriate style classes based on usage percentages
+			cpuClass := string(resource_report.GetCPUStyle(pool.BMCount, pool.CPUUsagePercent, environment))
+			memClass := string(resource_report.GetMemoryStyle(pool.BMCount, pool.MemoryUsagePercent, environment))
+
+			op.HasData = true
+			op.Nodes = pool.Nodes
+			op.BMCount = pool.BMCount
+			op.VMCount = pool.VMCount
+			op.CPUCapacity = pool.CPUCapacity
+			op.CPURequest = pool.CPURequest
+			op.CPUUsagePercent = pool.CPUUsagePercent
+			op.CPUUsageText = fmt.Sprintf("%.1f%%", pool.CPUUsagePercent)
+			op.CPUIndicatorClass = cpuClass
+			op.CPURequestFormatted = fmt.Sprintf("%.1f", pool.CPURequest)
+			op.CPUCapacityFormatted = fmt.Sprintf("%.1f", pool.CPUCapacity)
+			op.MemoryCapacity = pool.MemoryCapacity
+			op.MemoryRequest = pool.MemoryRequest
+			op.MemoryUsagePercent = pool.MemoryUsagePercent
+			op.MemoryUsageText = fmt.Sprintf("%.1f%%", pool.MemoryUsagePercent)
+			op.MemoryIndicatorClass = memClass
+			op.MemoryRequestFormatted = fmt.Sprintf("%.1f", pool.MemoryRequest)
+			op.MemoryCapacityFormatted = fmt.Sprintf("%.1f", pool.MemoryCapacity)
+			op.Desc = pool.Desc
+			overviewPoolsMap[pool.ResourceType] = op
+		}
+	}
+
+	// Convert map to slice in the expected order
+	overviewPools := []OverviewPool{
+		overviewPoolsMap["total_common"],
+		overviewPoolsMap["intel_common"],
+		overviewPoolsMap["hg_common"],
+		overviewPoolsMap["arm_common"],
 	}
 
 	return ClusterResourceSummary{
@@ -236,6 +414,9 @@ func convertClusterSummary(cluster resource_report.ClusterResourceSummary) Clust
 		ResourcePools:       localPools,
 		ResourcePoolsByType: poolsByType,
 		IsAbnormal:          cluster.IsAbnormal,
+		IsAbnormalOverall:   isAbnormalOverall,
+		ShowDetails:         showDetails,
+		OverviewPools:       overviewPools,
 	}
 }
 
@@ -244,7 +425,7 @@ func convertTemplateData(data resource_report.ReportTemplateData) ReportTemplate
 	// 转换集群列表
 	localClusters := make([]ClusterResourceSummary, len(data.Clusters))
 	for i, cluster := range data.Clusters {
-		localClusters[i] = convertClusterSummary(cluster)
+		localClusters[i] = convertClusterSummary(cluster, data.Environment)
 	}
 
 	return ReportTemplateData{
@@ -262,275 +443,9 @@ func convertTemplateData(data resource_report.ReportTemplateData) ReportTemplate
 	}
 }
 
-// 辅助函数，用于将接口转换为浮点数
-func toFloat(val interface{}) float64 {
-	switch v := val.(type) {
-	case float64:
-		return v
-	case float32:
-		return float64(v)
-	case int:
-		return float64(v)
-	case int64:
-		return float64(v)
-	case string:
-		f, _ := strconv.ParseFloat(v, 64)
-		return f
-	default:
-		return 0
-	}
-}
-
-// 添加自定义模板函数
-func customTemplateFuncs() template.FuncMap {
-	return template.FuncMap{
-		"toFloat": func(val interface{}) float64 {
-			return toFloat(val)
-		},
-		"mul": func(a, b interface{}) float64 {
-			af := toFloat(a)
-			bf := toFloat(b)
-			return af * bf
-		},
-		"div": func(a, b interface{}) float64 {
-			af := toFloat(a)
-			bf := toFloat(b)
-			if bf == 0 {
-				return 0
-			}
-			return af / bf
-		},
-		"ge": func(a, b interface{}) bool {
-			af := toFloat(a)
-			bf := toFloat(b)
-			return af >= bf
-		},
-		"gt": func(a, b interface{}) bool {
-			af := toFloat(a)
-			bf := toFloat(b)
-			return af > bf
-		},
-		"lt": func(a, b interface{}) bool {
-			af := toFloat(a)
-			bf := toFloat(b)
-			return af < bf
-		},
-		"eq": func(a, b interface{}) bool {
-			af := toFloat(a)
-			bf := toFloat(b)
-			return af == bf
-		},
-		"add": func(a, b interface{}) int {
-			af := int(toFloat(a))
-			bf := int(toFloat(b))
-			return af + bf
-		},
-		"sub": func(a, b interface{}) int {
-			af := int(toFloat(a))
-			bf := int(toFloat(b))
-			return af - bf
-		},
-		"len": func(a interface{}) int {
-			switch v := a.(type) {
-			case []interface{}:
-				return len(v)
-			case []string:
-				return len(v)
-			case []float64:
-				return len(v)
-			case []int:
-				return len(v)
-			case string:
-				return len(v)
-			default:
-				return 0
-			}
-		},
-		"formatFloat": func(f float64, precision int) string {
-			format := "%." + strconv.Itoa(precision) + "f"
-			return fmt.Sprintf(format, f)
-		},
-		"formatBytes": func(bytes float64) string {
-			// 输入已经是GB单位，直接格式化输出
-			if bytes >= 1024 {
-				return fmt.Sprintf("%.2f TB", bytes/1024)
-			} else {
-				return fmt.Sprintf("%.2f GB", bytes)
-			}
-		},
-		// 获取CPU样式类的函数
-		"getCpuStyleClass": func(bmCount int, cpuUsage float64, environment string) string {
-			return string(resource_report.GetCPUStyle(bmCount, cpuUsage, environment))
-		},
-		// 获取内存样式类的函数
-		"getMemStyleClass": func(bmCount int, memUsage float64, environment string) string {
-			return string(resource_report.GetMemoryStyle(bmCount, memUsage, environment))
-		},
-		// 判断资源池是否应该显示的函数
-		"shouldShowResourcePool": func(bmCount int, cpuUsage, memUsage float64, environment string) bool {
-			status := resource_report.GetResourcePoolStatus(bmCount, cpuUsage, memUsage, environment)
-			return status.ShouldDisplay
-		},
-		// 判断资源池是否异常的函数
-		"isResourcePoolAbnormal": func(bmCount int, cpuUsage, memUsage float64, environment string) bool {
-			return resource_report.IsResourcePoolAbnormal(bmCount, cpuUsage, memUsage, environment)
-		},
-		// 新增函数，用于判断资源池是否需要显示
-		"shouldShowPool": func(cpuUsage, memoryUsage float64, bmCount int, environment string) bool {
-			// 使用统一样式库判断资源池是否应显示
-			return resource_report.GetResourcePoolStatus(bmCount, cpuUsage, memoryUsage, environment).ShouldDisplay
-		},
-		// 获取CPU颜色类的函数 - 使用统一样式库
-		"getCpuColorClass": func(pool *ResourcePool, environment string) string {
-			if pool == nil {
-				return ""
-			}
-			return string(resource_report.GetCPUStyle(pool.BMCount, pool.CPUUsagePercent, environment))
-		},
-		// 获取内存颜色类的函数 - 使用统一样式库
-		"getMemColorClass": func(pool *ResourcePool, environment string) string {
-			if pool == nil {
-				return ""
-			}
-			return string(resource_report.GetMemoryStyle(pool.BMCount, pool.MemoryUsagePercent, environment))
-		},
-		// 获取资源使用率对应的颜色类
-		"getResourceUsageColorClass": func(usage float64, isLargePool bool, environment string) string {
-			if environment == "test" {
-				// 测试环境规则
-				if isLargePool {
-					if usage >= 95.0 {
-						return "emergency-usage"
-					} else if usage >= 90.0 {
-						return "critical-usage"
-					} else if usage >= 85.0 {
-						return "warning-usage"
-					}
-					return "normal"
-				} else {
-					if usage >= 90.0 {
-						return "emergency-usage"
-					} else if usage >= 80.0 {
-						return "critical-usage"
-					} else if usage >= 75.0 {
-						return "warning-usage"
-					}
-					return "normal"
-				}
-			} else {
-				// 生产环境规则
-				if isLargePool {
-					if usage >= 95.0 {
-						return "emergency-usage"
-					} else if usage >= 85.0 {
-						return "critical-usage"
-					} else if usage >= 80.0 {
-						return "warning-usage"
-					} else if usage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				} else {
-					if usage >= 90.0 {
-						return "emergency-usage"
-					} else if usage >= 75.0 {
-						return "critical-usage"
-					} else if usage >= 70.0 {
-						return "warning-usage"
-					} else if usage < 55.0 {
-						return "underutilized"
-					}
-					return "normal"
-				}
-			}
-		},
-		// 获取波动图颜色类的函数
-		"getTrendColorClass": func(usage float64, isLargePool bool, resourceType, environment string) string {
-			baseClass := ""
-			if resourceType == "cpu" {
-				baseClass = "cpu-trend-"
-			} else if resourceType == "memory" {
-				baseClass = "memory-trend-"
-			} else {
-				return "" // Unknown resource type
-			}
-
-			if environment == "test" {
-				// 测试环境规则
-				if isLargePool {
-					if usage >= 95.0 {
-						return baseClass + "emergency"
-					} else if usage >= 90.0 {
-						return baseClass + "critical"
-					} else if usage >= 85.0 {
-						return baseClass + "high"
-					}
-					return baseClass + "normal"
-				} else {
-					if usage >= 90.0 {
-						return baseClass + "emergency"
-					} else if usage >= 80.0 {
-						return baseClass + "critical"
-					} else if usage >= 75.0 {
-						return baseClass + "high"
-					}
-					return baseClass + "normal"
-				}
-			} else {
-				// 生产环境规则
-				if isLargePool {
-					if usage >= 95.0 {
-						return baseClass + "emergency"
-					} else if usage >= 85.0 {
-						return baseClass + "critical"
-					} else if usage >= 80.0 {
-						return baseClass + "high"
-					} else if usage < 55.0 {
-						return baseClass + "underutilized"
-					}
-					return baseClass + "normal"
-				} else {
-					if usage >= 90.0 {
-						return baseClass + "emergency"
-					} else if usage >= 75.0 {
-						return baseClass + "critical"
-					} else if usage >= 70.0 {
-						return baseClass + "high"
-					} else if usage < 55.0 {
-						return baseClass + "underutilized"
-					}
-					return baseClass + "normal"
-				}
-			}
-		},
-		// 新增函数，用于获取资源池类型的颜色
-		"getPoolTypeColor": func(poolType string) string {
-			switch poolType {
-			case "total":
-				return "#00188F" // 深蓝色
-			case "intel_common":
-				return "#0078D7" // 蓝色
-			case "intel_gpu":
-				return "#2B579A" // 深蓝色
-			case "amd_common":
-				return "#D83B01" // 红色
-			case "arm_common":
-				return "#107C10" // 绿色
-			case "hg_common":
-				return "#5C2D91" // 紫色
-			default:
-				return "#000000" // 黑色
-			}
-		},
-		// 创建字符串切片函数
-		"slice": func(args ...interface{}) []interface{} {
-			return args
-		},
-	}
-}
-
-// 创建示例数据
-func createMockData(reportDate string, environment string) ReportTemplateData {
+// Create示例数据
+// Change return type to resource_report.ReportTemplateData
+func createMockData(reportDate string, environment string) resource_report.ReportTemplateData {
 	// 创建生产环境集群（高负载）
 	cluster1 := resource_report.ClusterResourceSummary{
 		ClusterName:         "production-cluster",
@@ -756,8 +671,8 @@ func createMockData(reportDate string, environment string) ReportTemplateData {
 		ShowResourcePoolDesc: true,        // 设置ShowResourcePoolDesc为true
 	}
 
-	// 转换为本地格式
-	return convertTemplateData(standardData)
+	// Return the resource_report.ReportTemplateData directly
+	return standardData
 }
 
 // GeneratePreview 生成预览文件
@@ -774,8 +689,13 @@ func generatePreview(environment string) error {
 
 	// 创建模板，合并sprig和自定义函数
 	funcMap := sprig.FuncMap()
-	for k, v := range customTemplateFuncs() {
+	for k, v := range resource_report.CustomTemplateFuncs() {
 		funcMap[k] = v
+	}
+
+	// Add safeHTML function to allow HTML in tooltips
+	funcMap["safeHTML"] = func(s interface{}) template.HTML {
+		return template.HTML(fmt.Sprint(s))
 	}
 
 	tmpl, err := template.New("resourceReport").Funcs(funcMap).Parse(string(templateContent))
@@ -783,13 +703,15 @@ func generatePreview(environment string) error {
 		return fmt.Errorf("解析模板失败: %v", err)
 	}
 
-	// 创建模拟数据
-	// 这里我们创建一个简单的模拟数据集
-	data := createMockData(reportDate, environment)
+	// createMockData now returns resource_report.ReportTemplateData
+	reportPackageData := createMockData(reportDate, environment)
+
+	// For HTML template, convert to local ReportTemplateData
+	htmlPreviewData := convertTemplateData(reportPackageData)
 
 	// 渲染模板
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := tmpl.Execute(&buf, htmlPreviewData); err != nil { // Use converted data for HTML
 		return fmt.Errorf("渲染模板失败: %v", err)
 	}
 
@@ -802,7 +724,8 @@ func generatePreview(environment string) error {
 	}
 
 	// 生成Excel报告
-	excelFilePath, err := generateExcelReport(data, reportDate)
+	// GenerateExcelReport expects resource_report.ReportTemplateData
+	excelFilePath, err := resource_report.GenerateExcelReport(reportPackageData, reportDate) // Use original data for Excel
 	if err != nil {
 		fmt.Printf("生成Excel报告失败: %v\n", err)
 	} else {
@@ -825,7 +748,7 @@ func generatePreview(environment string) error {
 // 添加main函数
 func main() {
 	// 默认使用生产环境配置生成预览
-	env := "prd"
+	env := "test"
 	if len(os.Args) > 1 {
 		env = os.Args[1]
 	}

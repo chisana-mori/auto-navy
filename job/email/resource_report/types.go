@@ -11,6 +11,7 @@ const DateFormat = "2006-01-02"
 type snapshotQueryResult struct {
 	portal.ResourceSnapshot        // Embed ResourceSnapshot fields
 	ClusterName             string `gorm:"column:cluster_name"` // Explicitly map the joined cluster name
+	Desc                    string `gorm:"column:desc"`         // Explicitly map the joined cluster name
 	ResourceType            string // Type of resource (total, intel_common, arm_common, etc.)
 	NodeType                string // Type of node
 }
@@ -65,6 +66,23 @@ type ResourcePool struct {
 	MaxCpuUsageRatio    float64 // 平均CPU最大使用率，存储为小数，如0.36代表百分之36
 	MaxMemoryUsageRatio float64 // 平均内存最大使用率，存储为小数，如0.36代表百分之36
 	IsAbnormal          bool    // 添加标志位，表示此资源池是否异常
+
+	// New fields for pre-calculated styles and classes
+	CPUStyleName         string // e.g., "emergency", "critical"
+	MemStyleName         string // e.g., "emergency", "critical"
+	CPUBarClassName      string // e.g., "emergency-usage"
+	MemBarClassName      string // e.g., "emergency-usage"
+	CPUBarWidthClassName string // e.g., "width-95"
+	MemBarWidthClassName string // e.g., "width-95"
+	CPUTooltipMessage    string // Tooltip message for CPU status
+	MemTooltipMessage    string // Tooltip message for Memory status
+
+	// New fields for pre-calculated 7-day trend CSS classes
+	CPUHistoryTrendClasses    []string // CSS classes for each day in CPU history
+	MemoryHistoryTrendClasses []string // CSS classes for each day in Memory history
+
+	// New field for pre-calculated pool header class
+	PoolHeaderClassName string // e.g., "resource-header-intel"
 }
 
 // NodeResourceDetail holds resource data for a single node.
@@ -110,6 +128,10 @@ type TrendDay struct {
 	// 新增字段
 	TrendCPUClass    string // 例如 "cpu-trend-high"
 	TrendMemoryClass string // 例如 "memory-trend-critical"
+
+	// New fields for pre-calculated trend styles
+	CPUComputedTrendStyleClass string // e.g., "cpu-trend-emergency"
+	MemComputedTrendStyleClass string // e.g., "memory-trend-emergency"
 }
 
 type UsageStat struct {

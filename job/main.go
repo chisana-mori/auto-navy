@@ -208,12 +208,6 @@ var (
 			// 创建并运行资源报告发送器
 			sender := resource_report.NewResourceReportSender(
 				db,
-				smtpHost,
-				smtpPort,
-				smtpUser,
-				smtpPassword,
-				fromEmail,
-				recipients,
 				generalClusterList,
 				environment, // 传入环境类型
 				logger,      // Pass the logger instance

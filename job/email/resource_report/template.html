@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Kubernetes 集群资源报告 - {{ .ReportDate }}</title>
+    <title>K8S 集群资源报告 - {{ .ReportDate }}</title>
     <style type="text/css">
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 
@@ -116,6 +116,11 @@
         .usage-bar.emergency-usage {
             background-color: #ef4444; /* 紧急 - 深红色 */
         }
+        
+        /* Add normal-usage class if not already defined */
+        .usage-bar.normal-usage {
+            background-color: #4ade80; /* 正常 - 绿色 */
+        }
 
         /* 添加简略波动图样式 */
         .trend-container {
@@ -140,7 +145,25 @@
             margin-top: 2px;
             display: block;
         }
-        /* CPU分配率颜色 */
+        
+        /* 趋势波动图新样式 - 使用和主图表相同的颜色 */
+        .trend-day.bar-underutilized {
+            background-color: #93c5fd; /* 低分配率 - 浅蓝色 */
+        }
+        .trend-day.bar-normal {
+            background-color: #4ade80; /* 正常 - 绿色 */
+        }
+        .trend-day.bar-warning {
+            background-color: #facc15; /* 警告 - 黄色 */
+        }
+        .trend-day.bar-critical {
+            background-color: #f87171; /* 危险 - 红色 */
+        }
+        .trend-day.bar-emergency {
+            background-color: #ef4444; /* 紧急 - 深红色 */
+        }
+        
+        /* 保留旧的样式类以兼容 */
         .cpu-trend-underutilized {
             background-color: rgba(147, 197, 253, 0.5); /* 低分配率 - 浅蓝色 */
         }
@@ -1240,7 +1263,7 @@
     <div class="container">
         
         <div class="header">
-            <h1 class="header-title">Kubernetes 集群资源报告</h1>
+            <h1 class="header-title">K8S 集群资源报告</h1>
             <p class="header-date">报告日期: {{ .ReportDate }}</p>
         </div>
         <div class="content">
@@ -1275,7 +1298,7 @@
                     {{ else }}
                     <p style="margin: 0 0 8px 0; font-size: 0.9em;">此报告显示<strong>生产环境</strong>资源分配率异常（低于55%或高于阈值）的集群与资源池，以便重点关注潜在风险区域。完整数据已附加在邮件中的Excel文件。</p>
                     {{ end }}
-                    <p style="margin: 0; font-size: 0.9em;">资源数据仅计算物理机节点，虚拟机节点仅计算节点数量。</p>
+                    <p style="margin: 0; font-size: 0.9em;">资源数据仅计算物理机节点，虚拟机节点仅计算节点数量，无物理节点集群，不纳入统计。</p>
 
                     <div class="threshold-indicators">
                         <span class="threshold-title">资源分配率说明：</span>
@@ -1285,20 +1308,20 @@
                         <div class="threshold-group">
                             <div class="threshold-group-title">物理机节点数 ≤ 150台（测试环境）：</div>
                             <div class="threshold-legend">
-                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 75%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (75% - 80%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (80% - 95%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 95%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< {{ getThresholdWarning "test" "small" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 ({{ getThresholdWarning "test" "small" }}% - {{ getThresholdCritical "test" "small" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 ({{ getThresholdCritical "test" "small" }}% - {{ getThresholdEmergency }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> {{ getThresholdEmergency }}%)</span></div>
                             </div>
                         </div>
 
                         <div class="threshold-group">
                             <div class="threshold-group-title">物理机节点数 > 150台（测试环境）：</div>
                             <div class="threshold-legend">
-                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< 85%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (85% - 90%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (90% - 95%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 95%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (< {{ getThresholdWarning "test" "large" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 ({{ getThresholdWarning "test" "large" }}% - {{ getThresholdCritical "test" "large" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 ({{ getThresholdCritical "test" "large" }}% - {{ getThresholdEmergency }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> {{ getThresholdEmergency }}%)</span></div>
                             </div>
                         </div>
                         {{ else }}
@@ -1306,22 +1329,22 @@
                         <div class="threshold-group">
                             <div class="threshold-group-title">物理机节点数 ≤ 150台（生产环境）：</div>
                             <div class="threshold-legend">
-                                <div class="threshold-item"><div class="threshold-color underutilized"></div> <span>低分配率 (< 55%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (55% - 70%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (70% - 75%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (75% - 90%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 90%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color underutilized"></div> <span>低分配率 (< {{ getThresholdLow }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 ({{ getThresholdLow }}% - {{ getThresholdWarning "prd" "small" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 ({{ getThresholdWarning "prd" "small" }}% - {{ getThresholdCritical "prd" "small" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 ({{ getThresholdCritical "prd" "small" }}% - {{ getThresholdEmergency }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> {{ getThresholdEmergency }}%)</span></div>
                             </div>
                         </div>
 
                         <div class="threshold-group">
                             <div class="threshold-group-title">物理机节点数 > 150台（生产环境）：</div>
                             <div class="threshold-legend">
-                                <div class="threshold-item"><div class="threshold-color underutilized"></div> <span>低分配率 (< 55%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (55% - 80%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (80% - 85%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (85% - 95%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 95%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color underutilized"></div> <span>低分配率 (< {{ getThresholdLow }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 ({{ getThresholdLow }}% - {{ getThresholdWarning "prd" "large" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 ({{ getThresholdWarning "prd" "large" }}% - {{ getThresholdCritical "prd" "large" }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 ({{ getThresholdCritical "prd" "large" }}% - {{ getThresholdEmergency }}%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> {{ getThresholdEmergency }}%)</span></div>
                             </div>
                         </div>
                         {{ end }}
@@ -1367,56 +1390,33 @@
                             
                             <tr class="cluster-row">
                                 <td>
-                                    {{ if eq $.Environment "test" }}
-                                        <!-- 测试环境：低利用率不计算为异常，高利用率阈值上调5% -->
-                                        {{ if or (ge .CPUUsagePercent 75.0) (ge .MemoryUsagePercent 75.0) }}
-                                            <a href="#cluster-{{ .ClusterName }}" class="abnormal-cluster-link">
-                                                <span class="abnormal-cluster-icon">⚠️</span>{{ .ClusterName }}
-                                            </a>
-                                        {{ else }}
-                                            {{ .ClusterName }}
-                                        {{ end }}
+                                    {{ if .IsAbnormalOverall }}
+                                        <a href="#cluster-{{ .ClusterName }}" class="abnormal-cluster-link">
+                                            <span class="abnormal-cluster-icon">⚠️</span>{{ .ClusterName }}
+                                        </a>
                                     {{ else }}
-                                        <!-- 生产环境：使用当前规则 -->
-                                        {{ if or (ge .CPUUsagePercent 70.0) (ge .MemoryUsagePercent 70.0) (lt .CPUUsagePercent 55.0) (lt .MemoryUsagePercent 55.0) }}
-                                            <a href="#cluster-{{ .ClusterName }}" class="abnormal-cluster-link">
-                                                <span class="abnormal-cluster-icon">⚠️</span>{{ .ClusterName }}
-                                            </a>
-                                        {{ else }}
-                                            {{ .ClusterName }}
-                                        {{ end }}
+                                        {{ .ClusterName }}
                                     {{ end }}
                                 </td>
                                 <!-- 为每种资源池类型创建单元格 -->
-                                {{ $poolTypes := slice "total_common" "intel_common" "hg_common" "arm_common" }}
-                                {{ range $poolTypes }}
-                                    {{ $poolType := . }}
+                                {{ range .OverviewPools }} {{/* Iterate over pre-filtered and structured pools for the overview */}}
                                     <td>
-                                        {{ $foundPool := false }}
-                                        {{ range $cluster.ResourcePools }}
-                                            {{ if and (eq .ResourceType $poolType) (not $foundPool) }}
-                                                {{ $foundPool = true }}
-                                                <!-- 创建单行资源指示器 -->
-                                                <div class="resource-indicators">
-                                                    {{ $env := $.Environment }}
-                                                    <!-- CPU指示器 -->
-                                                    <div class="resource-indicator {{ if gt .CPUUsagePercent 0.0 }}{{ $isLargeCluster := gt .BMCount 150 }}{{ if eq $env "test" }}{{ if $isLargeCluster }}{{ if ge .CPUUsagePercent 95.0 }}emergency{{ else if ge .CPUUsagePercent 90.0 }}critical{{ else if ge .CPUUsagePercent 85.0 }}warning{{ else }}normal{{ end }}{{ else }}{{ if ge .CPUUsagePercent 90.0 }}emergency{{ else if ge .CPUUsagePercent 80.0 }}critical{{ else if ge .CPUUsagePercent 75.0 }}warning{{ else }}normal{{ end }}{{ end }}{{ else }}{{ if $isLargeCluster }}{{ if ge .CPUUsagePercent 95.0 }}emergency{{ else if ge .CPUUsagePercent 85.0 }}critical{{ else if ge .CPUUsagePercent 80.0 }}warning{{ else if lt .CPUUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}{{ else }}{{ if ge .CPUUsagePercent 90.0 }}emergency{{ else if ge .CPUUsagePercent 75.0 }}critical{{ else if ge .CPUUsagePercent 70.0 }}warning{{ else if lt .CPUUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}{{ end }}{{ end }}{{ end }}">CPU:{{ printf "%.1f%%" .CPUUsagePercent }}</div><!-- 内存指示器 --><div class="resource-indicator {{ if gt .MemoryUsagePercent 0.0 }}{{ $isLargeCluster := gt .BMCount 150 }}{{ if eq $env "test" }}{{ if $isLargeCluster }}{{ if ge .MemoryUsagePercent 95.0 }}emergency{{ else if ge .MemoryUsagePercent 90.0 }}critical{{ else if ge .MemoryUsagePercent 85.0 }}warning{{ else }}normal{{ end }}{{ else }}{{ if ge .MemoryUsagePercent 90.0 }}emergency{{ else if ge .MemoryUsagePercent 80.0 }}critical{{ else if ge .MemoryUsagePercent 75.0 }}warning{{ else }}normal{{ end }}{{ end }}{{ else }}{{ if $isLargeCluster }}{{ if ge .MemoryUsagePercent 95.0 }}emergency{{ else if ge .MemoryUsagePercent 85.0 }}critical{{ else if ge .MemoryUsagePercent 80.0 }}warning{{ else if lt .MemoryUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}{{ else }}{{ if ge .MemoryUsagePercent 90.0 }}emergency{{ else if ge .MemoryUsagePercent 75.0 }}critical{{ else if ge .MemoryUsagePercent 70.0 }}warning{{ else if lt .MemoryUsagePercent 55.0 }}underutilized{{ else }}normal{{ end }}{{ end }}{{ end }}{{ end }}">内存:{{ printf "%.1f%%" .MemoryUsagePercent }}</div>
-                                                    
-                                                    <!-- 简化的悬停卡片 -->
-                                                    <div class="resource-card-popup">
-                                                        <h4>{{ .NodeType }} ({{ .ResourceType }})</h4>
-                                                        <p><strong>CPU分配率:</strong> {{ printf "%.1f%%" .CPUUsagePercent }} ({{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核)</p>
-                                                        <p><strong>内存分配率:</strong> {{ printf "%.1f%%" .MemoryUsagePercent }} ({{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB)</p>
-                                                        <p><strong>节点数:</strong> {{ .Nodes }} 个 ({{ .BMCount }} 物理机)</p>
-                                                        {{ if and ($.ShowResourcePoolDesc) (.Desc) }}
-                                                        <p class="resource-description"><strong>描述:</strong> {{ .Desc }}</p>
-                                                        {{ end }}
-                                                    </div>
+                                        {{ if .HasData }}
+                                            <div class="resource-indicators">
+                                                <div class="resource-indicator {{ .CPUIndicatorClass }}">{{ .CPUUsageText }}</div>
+                                                <div class="resource-indicator {{ .MemoryIndicatorClass }}">{{ .MemoryUsageText }}</div>
+                                                <div class="resource-card-popup">
+                                                    <h4>{{ .NodeType }} ({{ .ResourceType }})</h4>
+                                                    <p><strong>CPU分配率:</strong> {{ .CPUUsageText }} ({{ .CPURequestFormatted }}/{{ .CPUCapacityFormatted }} 核)</p>
+                                                    <p><strong>内存分配率:</strong> {{ .MemoryUsageText }} ({{ .MemoryRequestFormatted }}/{{ .MemoryCapacityFormatted }} GiB)</p>
+                                                    <p><strong>节点数:</strong> {{ .Nodes }} 个 ({{ .BMCount }} 物理机)</p>
+                                                    {{ if and ($.ShowResourcePoolDesc) (.Desc) }}
+                                                    <p class="resource-description"><strong>描述:</strong> {{ .Desc }}</p>
+                                                    {{ end }}
                                                 </div>
-                                            {{ end }}
-                                        {{ end }}
-                                        {{ if not $foundPool }}
-                                            <div class="no-data">无数据</div>
+                                            </div>
+                                        {{ else }}
+                                            <div class="no-data">无资源</div>
                                         {{ end }}
                                     </td>
                                 {{ end }}
@@ -1427,21 +1427,8 @@
                 </div>
 
                 {{ range .Clusters }}
-                    {{ $clusterHasAbnormalUsage := false }}
-
-                    {{ if eq $.Environment "test" }}
-                        <!-- 测试环境：低利用率不计算为异常，高利用率阈值上调5% -->
-                        {{ if or (ge .CPUUsagePercent 75.0) (ge .MemoryUsagePercent 75.0) }}
-                            {{ $clusterHasAbnormalUsage = true }}
-                        {{ end }}
-                    {{ else }}
-                        <!-- 生产环境：使用当前规则 -->
-                        {{ if or (ge .CPUUsagePercent 70.0) (ge .MemoryUsagePercent 70.0) (lt .CPUUsagePercent 55.0) (lt .MemoryUsagePercent 55.0) }}
-                            {{ $clusterHasAbnormalUsage = true }}
-                        {{ end }}
-                    {{ end }}
-
-                    {{ if $clusterHasAbnormalUsage }}
+                    {{/* $clusterHasAbnormalUsage is now .ShowDetails in Go backend */}}
+                    {{ if .ShowDetails }}
                     <div class="cluster-section">
                         <a id="cluster-{{ .ClusterName }}" class="cluster-anchor"></a>
                         <div class="cluster-header">
@@ -1450,66 +1437,9 @@
 
                         <div class="resource-pools">
                             {{ range .ResourcePools }}
-                                {{ $headerClass := "resource-header-total" }}
-                                {{ if or (eq .ResourceType "total") }}
-                                    {{ $headerClass = "resource-header-total" }}
-                                {{ else if or (eq .ResourceType "total_intel") (eq .ResourceType "intel_common") (eq .ResourceType "intel_gpu") (eq .ResourceType "intel_taint") (eq .ResourceType "intel_non_gpu") (eq .ResourceType "aplus_intel") (eq .ResourceType "dplus_intel") }}
-                                    {{ $headerClass = "resource-header-intel" }}
-                                {{ else if or (eq .ResourceType "total_arm") (eq .ResourceType "arm_common") (eq .ResourceType "arm_gpu") (eq .ResourceType "arm_taint") (eq .ResourceType "aplus_arm") (eq .ResourceType "dplus_arm") }}
-                                    {{ $headerClass = "resource-header-arm" }}
-                                {{ else if or (eq .ResourceType "total_hg") (eq .ResourceType "hg_common") (eq .ResourceType "hg_taint") (eq .ResourceType "aplus_hg") (eq .ResourceType "dplus_hg") }}
-                                    {{ $headerClass = "resource-header-hg" }}
-                                {{ else if or (eq .ResourceType "total_taint") (eq .ResourceType "intel_taint") (eq .ResourceType "arm_taint") (eq .ResourceType "hg_taint") }}
-                                    {{ $headerClass = "resource-header-taint" }}
-                                {{ else if or (eq .ResourceType "total_common") (eq .ResourceType "intel_common") (eq .ResourceType "arm_common") (eq .ResourceType "hg_common") }}
-                                    {{ $headerClass = "resource-header-common" }}
-                                {{ else if or (eq .ResourceType "total_gpu") (eq .ResourceType "intel_gpu") (eq .ResourceType "arm_gpu") }}
-                                    {{ $headerClass = "resource-header-gpu" }}
-                                {{ else if or (eq .ResourceType "aplus_total") (eq .ResourceType "aplus_intel") (eq .ResourceType "aplus_arm") (eq .ResourceType "aplus_hg") }}
-                                    {{ $headerClass = "resource-header-aplus" }}
-                                {{ else if or (eq .ResourceType "dplus_total") (eq .ResourceType "dplus_intel") (eq .ResourceType "dplus_arm") (eq .ResourceType "dplus_hg") }}
-                                    {{ $headerClass = "resource-header-dplus" }}
-                                {{ end }}
-
-                                {{ $cpuUsagePerc := 0.0 }}
-                                {{ if gt .CPUCapacity 0.0 }}
-                                    {{ $cpuUsagePerc = div .CPURequest .CPUCapacity | mul 100.0 }}
-                                {{ end }}
-
-                                {{ $memUsagePerc := 0.0 }}
-                                {{ if gt .MemoryCapacity 0.0 }}
-                                    {{ $memUsagePerc = div .MemoryRequest .MemoryCapacity | mul 100.0 }}
-                                {{ end }}
-
-                                {{ $isLargePool := gt .BMCount 150 }}
-                                {{ $showPool := false }}
-
-                                {{ if eq $.Environment "test" }}
-                                    <!-- 测试环境：低利用率不计算为异常，高利用率阈值上调5% -->
-                                    {{ if $isLargePool }}
-                                        {{ if or (ge .CPUUsagePercent 85.0) (ge .MemoryUsagePercent 85.0) }}
-                                            {{ $showPool = true }}
-                                        {{ end }}
-                                    {{ else }}
-                                        {{ if or (ge .CPUUsagePercent 75.0) (ge .MemoryUsagePercent 75.0) }}
-                                            {{ $showPool = true }}
-                                        {{ end }}
-                                    {{ end }}
-                                {{ else }}
-                                    <!-- 生产环境：使用当前规则 -->
-                                    {{ if $isLargePool }}
-                                        {{ if or (lt .CPUUsagePercent 55.0) (lt .MemoryUsagePercent 55.0) (ge .CPUUsagePercent 80.0) (ge .MemoryUsagePercent 80.0) }}
-                                            {{ $showPool = true }}
-                                        {{ end }}
-                                    {{ else }}
-                                        {{ if or (lt .CPUUsagePercent 55.0) (lt .MemoryUsagePercent 55.0) (ge .CPUUsagePercent 70.0) (ge .MemoryUsagePercent 70.0) }}
-                                            {{ $showPool = true }}
-                                        {{ end }}
-                                    {{ end }}
-                                {{ end }}
-                                {{ if $showPool }}
+                                {{ if .ShowPoolDetails }}
                                 <div class="resource-pool">
-                                    <div class="resource-pool-header {{ $headerClass }}">
+                                    <div class="resource-pool-header {{ .HeaderClass }}">
                                         <div class="resource-pool-type">
                                             <span class="tooltip">
                                                 {{ .NodeType }} ({{ .ResourceType }})
@@ -1545,136 +1475,25 @@
                                                 Pod密度表示每台物理机上运行的Pod数量。计算方式：Pod总数 / 物理机数量。该指标可以反映集群的资源利用效率。
                                             </span>
                                         </div>
-                                        {{ if gt .CPUCapacity 0.0 }}
-                                            {{ $isLargeCluster := gt .BMCount 150 }}
-                                            {{ $cpuClass := "" }}
-                                            {{ if $isLargeCluster }}
-                                                {{ if ge $cpuUsagePerc 95.0 }}
-                                                    {{ $cpuClass = "emergency" }}
-                                                {{ else if ge $cpuUsagePerc 85.0 }}
-                                                    {{ $cpuClass = "critical" }}
-                                                {{ else if ge $cpuUsagePerc 80.0 }}
-                                                    {{ $cpuClass = "warning" }}
-                                                {{ else if lt $cpuUsagePerc 55.0 }}
-                                                    {{ $cpuClass = "underutilized" }}
-                                                {{ end }}
-                                            {{ else }}
-                                                {{ if ge $cpuUsagePerc 90.0 }}
-                                                    {{ $cpuClass = "emergency" }}
-                                                {{ else if ge $cpuUsagePerc 75.0 }}
-                                                    {{ $cpuClass = "critical" }}
-                                                {{ else if ge $cpuUsagePerc 70.0 }}
-                                                    {{ $cpuClass = "warning" }}
-                                                {{ else if lt $cpuUsagePerc 55.0 }}
-                                                    {{ $cpuClass = "underutilized" }}
-                                                {{ end }}
-                                            {{ end }}
-                                            <div class="summary-item tooltip {{ $cpuClass }}">
-                                                <span class="summary-label">CPU 分配率 ({{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核)</span>
-                                                <span class="summary-value {{ $cpuClass }}">
-                                                    {{ printf "%.1f%%" $cpuUsagePerc }}
+                                        {{ if .HasCPUStats }}
+                                            <div class="summary-item tooltip {{ .CPUDisplay.Class }}">
+                                                <span class="summary-label">CPU 分配率 ({{ .CPURequestFormatted }}/{{ .CPUCapacityFormatted }} 核)</span>
+                                                <span class="summary-value {{ .CPUDisplay.Class }}">
+                                                    {{ .CPUDisplay.UsageText }}
                                                 </span>
                                                 <span class="tooltip-text">
-                                                    CPU分配率表示已分配的CPU核心数与总可用CPU核心数的比率。计算方式：已分配核心数 / 总核心数 * 100%。
-                                                    <br><br>当前值：{{ printf "%.1f" .CPURequest }}/{{ printf "%.1f" .CPUCapacity }} 核 ({{ printf "%.1f%%" $cpuUsagePerc }})
-                                                    {{ if $isLargeCluster }}
-                                                        {{ if ge $cpuUsagePerc 95.0 }}<br><br>状态：<b>紧急</b> - 资源池CPU分配率超过95%，需要立即关注并采取措施。{{ else if ge $cpuUsagePerc 85.0 }}<br><br>状态：<b>危险</b> - 资源池CPU分配率在85%-95%之间，需要尽快关注。{{ else if ge $cpuUsagePerc 80.0 }}<br><br>状态：<b>警告</b> - 资源池CPU分配率在80%-85%之间，建议关注资源趋势。{{ else if lt $cpuUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池CPU分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池CPU分配率在安全范围内。{{ end }}
-                                                    {{ else }}
-                                                        {{ if ge $cpuUsagePerc 90.0 }}<br><br>状态：<b>紧急</b> - 资源池CPU分配率超过90%，需要立即关注并采取措施。{{ else if ge $cpuUsagePerc 75.0 }}<br><br>状态：<b>危险</b> - 资源池CPU分配率在75%-90%之间，需要尽快关注。{{ else if ge $cpuUsagePerc 70.0 }}<br><br>状态：<b>警告</b> - 资源池CPU分配率在70%-75%之间，建议关注资源趋势。{{ else if lt $cpuUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池CPU分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池CPU分配率在安全范围内。{{ end }}
-                                                    {{ end }}
+                                                    {{ .CPUDisplay.TooltipText | safeHTML }}
                                                 </span>
-                                                {{ $barClass := "" }}
-                                                {{ if $isLargeCluster }}
-                                                    {{ if ge $cpuUsagePerc 95.0 }}
-                                                        {{ $barClass = "emergency-usage" }}
-                                                    {{ else if ge $cpuUsagePerc 85.0 }}
-                                                        {{ $barClass = "danger-usage" }}
-                                                    {{ else if ge $cpuUsagePerc 80.0 }}
-                                                        {{ $barClass = "high-usage" }}
-                                                    {{ else if lt $cpuUsagePerc 55.0 }}
-                                                        {{ $barClass = "underutilized-usage" }}
-                                                    {{ end }}
-                                                {{ else }}
-                                                    {{ if ge $cpuUsagePerc 90.0 }}
-                                                        {{ $barClass = "emergency-usage" }}
-                                                    {{ else if ge $cpuUsagePerc 75.0 }}
-                                                        {{ $barClass = "danger-usage" }}
-                                                    {{ else if ge $cpuUsagePerc 70.0 }}
-                                                        {{ $barClass = "high-usage" }}
-                                                    {{ else if lt $cpuUsagePerc 55.0 }}
-                                                        {{ $barClass = "underutilized-usage" }}
-                                                    {{ end }}
-                                                {{ end }}
-                                                {{ $barWidth := "0%" }}
-                                                {{ $widthClass := "width-0" }}
-                                                {{ if gt $cpuUsagePerc 100.0 }}
-                                                    {{ $widthClass = "width-100" }}
-                                                {{ else if ge $cpuUsagePerc 95.0 }}
-                                                    {{ $widthClass = "width-95" }}
-                                                {{ else if ge $cpuUsagePerc 90.0 }}
-                                                    {{ $widthClass = "width-90" }}
-                                                {{ else if ge $cpuUsagePerc 85.0 }}
-                                                    {{ $widthClass = "width-85" }}
-                                                {{ else if ge $cpuUsagePerc 80.0 }}
-                                                    {{ $widthClass = "width-80" }}
-                                                {{ else if ge $cpuUsagePerc 75.0 }}
-                                                    {{ $widthClass = "width-75" }}
-                                                {{ else if ge $cpuUsagePerc 70.0 }}
-                                                    {{ $widthClass = "width-70" }}
-                                                {{ else if ge $cpuUsagePerc 65.0 }}
-                                                    {{ $widthClass = "width-65" }}
-                                                {{ else if ge $cpuUsagePerc 60.0 }}
-                                                    {{ $widthClass = "width-60" }}
-                                                {{ else if ge $cpuUsagePerc 55.0 }}
-                                                    {{ $widthClass = "width-55" }}
-                                                {{ else if ge $cpuUsagePerc 50.0 }}
-                                                    {{ $widthClass = "width-50" }}
-                                                {{ else if ge $cpuUsagePerc 45.0 }}
-                                                    {{ $widthClass = "width-45" }}
-                                                {{ else if ge $cpuUsagePerc 40.0 }}
-                                                    {{ $widthClass = "width-40" }}
-                                                {{ else if ge $cpuUsagePerc 35.0 }}
-                                                    {{ $widthClass = "width-35" }}
-                                                {{ else if ge $cpuUsagePerc 30.0 }}
-                                                    {{ $widthClass = "width-30" }}
-                                                {{ else if ge $cpuUsagePerc 25.0 }}
-                                                    {{ $widthClass = "width-25" }}
-                                                {{ else if ge $cpuUsagePerc 20.0 }}
-                                                    {{ $widthClass = "width-20" }}
-                                                {{ else if ge $cpuUsagePerc 15.0 }}
-                                                    {{ $widthClass = "width-15" }}
-                                                {{ else if ge $cpuUsagePerc 10.0 }}
-                                                    {{ $widthClass = "width-10" }}
-                                                {{ else if ge $cpuUsagePerc 5.0 }}
-                                                    {{ $widthClass = "width-5" }}
-                                                {{ else }}
-                                                    {{ $widthClass = "width-0" }}
-                                                {{ end }}
                                                 <div class="usage-bar-container">
-                                                    <div class="usage-bar {{ $barClass }} {{ $widthClass }}"></div>
+                                                    <div class="usage-bar {{ .CPUDisplay.BarClass }} {{ .CPUDisplay.BarWidthClass }}"></div>
                                                 </div>
 
                                                 <!-- CPU分配率波动图 -->
-                                                {{ if .CPUHistory }}
+                                                {{ if .CPUDisplay.History }}
                                                 <table class="trend-container" cellspacing="0" cellpadding="0">
                                                     <tr>
-                                                        {{ range $i, $value := .CPUHistory }}
-                                                            {{ $height := $value }}
-                                                            {{ if gt $height 100.0 }}{{ $height = 100.0 }}{{ end }}
-                                                            {{ $dayLabel := "" }}
-                                                            {{ if eq $i 6 }}
-                                                                {{ $dayLabel = "今天" }}
-                                                            {{ else if eq $i 5 }}
-                                                                {{ $dayLabel = "昨天" }}
-                                                            {{ else }}
-                                                                {{ $daysAgo := sub 6 $i }}
-                                                                {{ $dayLabel = printf "%d天前" $daysAgo }}
-                                                            {{ end }}
-                                                            <td class="trend-day {{ if $isLargeCluster }}
-                                                                {{ if ge $height 95.0 }}cpu-trend-emergency{{ else if ge $height 85.0 }}cpu-trend-critical{{ else if ge $height 80.0 }}cpu-trend-high{{ else if lt $height 55.0 }}cpu-trend-underutilized{{ else }}cpu-trend-normal{{ end }}
-                                                            {{ else }}
-                                                                {{ if ge $height 90.0 }}cpu-trend-emergency{{ else if ge $height 75.0 }}cpu-trend-critical{{ else if ge $height 70.0 }}cpu-trend-high{{ else if lt $height 55.0 }}cpu-trend-underutilized{{ else }}cpu-trend-normal{{ end }}
-                                                            {{ end }}" title="{{ $dayLabel }} CPU分配率: {{ printf "%.1f%%" $height }}"></td>
+                                                        {{ range .CPUDisplay.History }}
+                                                            <td class="trend-day {{ .Class }}" title="{{ .Label }} CPU分配率: {{ .ValueText }}"></td>
                                                         {{ end }}
                                                     </tr>
                                                 </table>
@@ -1684,109 +1503,27 @@
                                         {{ end }}
 
                                         {{ if gt .MemoryCapacity 0.0 }}
-                                            {{ $isLargeCluster := gt .BMCount 150 }}
-                                            {{ $memClass := "" }}
-                                            {{ if $isLargeCluster }}
-                                                {{ if ge $memUsagePerc 95.0 }}
-                                                    {{ $memClass = "emergency" }}
-                                                {{ else if ge $memUsagePerc 85.0 }}
-                                                    {{ $memClass = "critical" }}
-                                                {{ else if ge $memUsagePerc 80.0 }}
-                                                    {{ $memClass = "warning" }}
-                                                {{ else if lt $memUsagePerc 55.0 }}
-                                                    {{ $memClass = "underutilized" }}
-                                                {{ end }}
-                                            {{ else }}
-                                                {{ if ge $memUsagePerc 90.0 }}
-                                                    {{ $memClass = "emergency" }}
-                                                {{ else if ge $memUsagePerc 75.0 }}
-                                                    {{ $memClass = "critical" }}
-                                                {{ else if ge $memUsagePerc 70.0 }}
-                                                    {{ $memClass = "warning" }}
-                                                {{ else if lt $memUsagePerc 55.0 }}
-                                                    {{ $memClass = "underutilized" }}
-                                                {{ end }}
+                                            {{ $memUsagePerc := 0.0 }}
+                                            {{ if gt .MemoryCapacity 0.0 }}
+                                                {{ $memUsagePerc = div .MemoryRequest .MemoryCapacity | mul 100.0 }}
                                             {{ end }}
+                                            
+                                            <!-- 使用后端已实现的函数获取内存样式 -->
+                                            {{ $memClass := getMemStyleClass .BMCount $memUsagePerc $.Environment }}
+                                            
                                             <div class="summary-item tooltip {{ $memClass }}">
                                                 <span class="summary-label">内存分配率 ({{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB)</span>
                                                 <span class="summary-value {{ $memClass }}">
                                                     {{ printf "%.1f%%" $memUsagePerc }}
                                                 </span>
                                                 <span class="tooltip-text">
-                                                    内存分配率表示已分配的内存与总可用内存的比率。计算方式：已分配内存 / 总内存 * 100%。
-                                                    <br><br>当前值：{{ printf "%.1f" .MemoryRequest }}/{{ printf "%.1f" .MemoryCapacity }} GiB ({{ printf "%.1f%%" $memUsagePerc }})
-                                                    {{ if $isLargeCluster }}
-                                                        {{ if ge $memUsagePerc 95.0 }}<br><br>状态：<b>紧急</b> - 资源池内存分配率超过95%，需要立即关注并采取措施。{{ else if ge $memUsagePerc 85.0 }}<br><br>状态：<b>危险</b> - 资源池内存分配率在85%-95%之间，需要尽快关注。{{ else if ge $memUsagePerc 80.0 }}<br><br>状态：<b>警告</b> - 资源池内存分配率在80%-85%之间，建议关注资源趋势。{{ else if lt $memUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池内存分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池内存分配率在安全范围内。{{ end }}
-                                                    {{ else }}
-                                                        {{ if ge $memUsagePerc 90.0 }}<br><br>状态：<b>紧急</b> - 资源池内存分配率超过90%，需要立即关注并采取措施。{{ else if ge $memUsagePerc 75.0 }}<br><br>状态：<b>危险</b> - 资源池内存分配率在75%-90%之间，需要尽快关注。{{ else if ge $memUsagePerc 70.0 }}<br><br>状态：<b>警告</b> - 资源池内存分配率在70%-75%之间，建议关注资源趋势。{{ else if lt $memUsagePerc 55.0 }}<br><br>状态：<b>低分配率</b> - 资源池内存分配率低于55%，资源利用率不足，建议考虑资源整合。{{ else }}<br><br>状态：<b>正常</b> - 资源池内存分配率在安全范围内。{{ end }}
-                                                    {{ end }}
+                                                    {{ getMemTooltipMessage $memUsagePerc .BMCount $.Environment .MemoryRequest .MemoryCapacity | safeHTML }}
                                                 </span>
-                                                {{ $barClass := "" }}
-                                                {{ if $isLargeCluster }}
-                                                    {{ if ge $memUsagePerc 95.0 }}
-                                                        {{ $barClass = "emergency-usage" }}
-                                                    {{ else if ge $memUsagePerc 85.0 }}
-                                                        {{ $barClass = "danger-usage" }}
-                                                    {{ else if ge $memUsagePerc 80.0 }}
-                                                        {{ $barClass = "high-usage" }}
-                                                    {{ else if lt $memUsagePerc 55.0 }}
-                                                        {{ $barClass = "underutilized-usage" }}
-                                                    {{ end }}
-                                                {{ else }}
-                                                    {{ if ge $memUsagePerc 90.0 }}
-                                                        {{ $barClass = "emergency-usage" }}
-                                                    {{ else if ge $memUsagePerc 75.0 }}
-                                                        {{ $barClass = "danger-usage" }}
-                                                    {{ else if ge $memUsagePerc 70.0 }}
-                                                        {{ $barClass = "high-usage" }}
-                                                    {{ else if lt $memUsagePerc 55.0 }}
-                                                        {{ $barClass = "underutilized-usage" }}
-                                                    {{ end }}
-                                                {{ end }}
-                                                {{ $widthClass := "width-0" }}
-                                                {{ if gt $memUsagePerc 100.0 }}
-                                                    {{ $widthClass = "width-100" }}
-                                                {{ else if ge $memUsagePerc 95.0 }}
-                                                    {{ $widthClass = "width-95" }}
-                                                {{ else if ge $memUsagePerc 90.0 }}
-                                                    {{ $widthClass = "width-90" }}
-                                                {{ else if ge $memUsagePerc 85.0 }}
-                                                    {{ $widthClass = "width-85" }}
-                                                {{ else if ge $memUsagePerc 80.0 }}
-                                                    {{ $widthClass = "width-80" }}
-                                                {{ else if ge $memUsagePerc 75.0 }}
-                                                    {{ $widthClass = "width-75" }}
-                                                {{ else if ge $memUsagePerc 70.0 }}
-                                                    {{ $widthClass = "width-70" }}
-                                                {{ else if ge $memUsagePerc 65.0 }}
-                                                    {{ $widthClass = "width-65" }}
-                                                {{ else if ge $memUsagePerc 60.0 }}
-                                                    {{ $widthClass = "width-60" }}
-                                                {{ else if ge $memUsagePerc 55.0 }}
-                                                    {{ $widthClass = "width-55" }}
-                                                {{ else if ge $memUsagePerc 50.0 }}
-                                                    {{ $widthClass = "width-50" }}
-                                                {{ else if ge $memUsagePerc 45.0 }}
-                                                    {{ $widthClass = "width-45" }}
-                                                {{ else if ge $memUsagePerc 40.0 }}
-                                                    {{ $widthClass = "width-40" }}
-                                                {{ else if ge $memUsagePerc 35.0 }}
-                                                    {{ $widthClass = "width-35" }}
-                                                {{ else if ge $memUsagePerc 30.0 }}
-                                                    {{ $widthClass = "width-30" }}
-                                                {{ else if ge $memUsagePerc 25.0 }}
-                                                    {{ $widthClass = "width-25" }}
-                                                {{ else if ge $memUsagePerc 20.0 }}
-                                                    {{ $widthClass = "width-20" }}
-                                                {{ else if ge $memUsagePerc 15.0 }}
-                                                    {{ $widthClass = "width-15" }}
-                                                {{ else if ge $memUsagePerc 10.0 }}
-                                                    {{ $widthClass = "width-10" }}
-                                                {{ else if ge $memUsagePerc 5.0 }}
-                                                    {{ $widthClass = "width-5" }}
-                                                {{ else }}
-                                                    {{ $widthClass = "width-0" }}
-                                                {{ end }}
+                                                
+                                                <!-- 使用后端函数获取内存使用条的样式 -->
+                                                {{ $barClass := getBarClassName (getMemoryStyle .BMCount $memUsagePerc $.Environment) }}
+                                                {{ $widthClass := getBarWidthClassName $memUsagePerc }}
+                                                
                                                 <div class="usage-bar-container">
                                                     <div class="usage-bar {{ $barClass }} {{ $widthClass }}"></div>
                                                 </div>
@@ -1795,6 +1532,7 @@
                                                 {{ if .MemoryHistory }}
                                                 <table class="trend-container" cellspacing="0" cellpadding="0">
                                                     <tr>
+                                                        {{ $pool := . }}
                                                         {{ range $i, $value := .MemoryHistory }}
                                                             {{ $height := $value }}
                                                             {{ if gt $height 100.0 }}{{ $height = 100.0 }}{{ end }}
@@ -1807,11 +1545,11 @@
                                                                 {{ $daysAgo := sub 6 $i }}
                                                                 {{ $dayLabel = printf "%d天前" $daysAgo }}
                                                             {{ end }}
-                                                            <td class="trend-day {{ if $isLargeCluster }}
-                                                                {{ if ge $height 95.0 }}memory-trend-emergency{{ else if ge $height 85.0 }}memory-trend-critical{{ else if ge $height 80.0 }}memory-trend-high{{ else if lt $height 55.0 }}memory-trend-underutilized{{ else }}memory-trend-normal{{ end }}
-                                                            {{ else }}
-                                                                {{ if ge $height 90.0 }}memory-trend-emergency{{ else if ge $height 75.0 }}memory-trend-critical{{ else if ge $height 70.0 }}memory-trend-high{{ else if lt $height 55.0 }}memory-trend-underutilized{{ else }}memory-trend-normal{{ end }}
-                                                            {{ end }}" title="{{ $dayLabel }} 内存分配率: {{ printf "%.1f%%" $height }}"></td>
+                                                            
+                                                            <!-- 使用后端函数获取内存趋势样式类 -->
+                                                            {{ $memTrendClass := getMemTrendStyleClass $height $pool.BMCount $.Environment }}
+                                                            <td class="trend-day {{ $memTrendClass }}" 
+                                                                title="{{ $dayLabel }} 内存分配率: {{ printf "%.1f%%" $height }}"></td>
                                                         {{ end }}
                                                     </tr>
                                                 </table>

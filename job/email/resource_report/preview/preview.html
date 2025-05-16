@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Kubernetes 集群资源报告 - 2025-04-30</title>
+    <title>Kubernetes 集群资源报告 - 2025-05-12</title>
     <style type="text/css">
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 
@@ -116,6 +116,11 @@
         .usage-bar.emergency-usage {
             background-color: #ef4444;  
         }
+        
+         
+        .usage-bar.normal-usage {
+            background-color: #4ade80;  
+        }
 
          
         .trend-container {
@@ -140,6 +145,24 @@
             margin-top: 2px;
             display: block;
         }
+        
+         
+        .trend-day.bar-underutilized {
+            background-color: #93c5fd;  
+        }
+        .trend-day.bar-normal {
+            background-color: #4ade80;  
+        }
+        .trend-day.bar-warning {
+            background-color: #facc15;  
+        }
+        .trend-day.bar-critical {
+            background-color: #f87171;  
+        }
+        .trend-day.bar-emergency {
+            background-color: #ef4444;  
+        }
+        
          
         .cpu-trend-underutilized {
             background-color: rgba(147, 197, 253, 0.5);  
@@ -1241,7 +1264,7 @@
         
         <div class="header">
             <h1 class="header-title">Kubernetes 集群资源报告</h1>
-            <p class="header-date">报告日期: 2025-04-30</p>
+            <p class="header-date">报告日期: 2025-05-12</p>
         </div>
         <div class="content">
             
@@ -1281,9 +1304,9 @@
                         <div class="threshold-group">
                             <div class="threshold-group-title">物理机节点数 ≤ 150台（测试环境）：</div>
                             <div class="threshold-legend">
-                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (&lt; 75%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (75% - 80%)</span></div>
-                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (80% - 95%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color normal"></div> <span>正常 (&lt; 80%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color warning"></div> <span>警告 (80% - 90%)</span></div>
+                                <div class="threshold-item"><div class="threshold-color critical"></div> <span>危险 (90% - 95%)</span></div>
                                 <div class="threshold-item"><div class="threshold-color emergency"></div> <span>紧急 (> 95%)</span></div>
                             </div>
                         </div>
@@ -1341,126 +1364,44 @@
                             <tr class="cluster-row">
                                 <td>
                                     
-                                        
-                                        
-                                            <a href="#cluster-production-cluster" class="abnormal-cluster-link">
-                                                <span class="abnormal-cluster-icon">⚠️</span>production-cluster
-                                            </a>
-                                        
+                                        <a href="#cluster-production-cluster" class="abnormal-cluster-link">
+                                            <span class="abnormal-cluster-icon">⚠️</span>production-cluster
+                                        </a>
                                     
                                 </td>
                                 
-                                
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator critical">CPU:85.0%</div><div class="resource-indicator emergency">内存:90.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 85.0% (408.0/480.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 90.0% (864.0/960.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 30 个 (20 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
+                                            <div class="resource-indicators">
+                                                <div class="resource-indicator critical">90.0%</div>
+                                                <div class="resource-indicator emergency">95.0%</div>
+                                                <div class="resource-card-popup">
+                                                    <h4>Intel通用 (intel_common)</h4>
+                                                    <p><strong>CPU分配率:</strong> 90.0% (216.0/240.0 核)</p>
+                                                    <p><strong>内存分配率:</strong> 95.0% (456.0/480.0 GiB)</p>
+                                                    <p><strong>节点数:</strong> 15 个 (10 物理机)</p>
                                                     
-                                                    
-                                                    <div class="resource-indicator critical">CPU:85.0%</div><div class="resource-indicator emergency">内存:90.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 85.0% (408.0/480.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 90.0% (864.0/960.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 30 个 (20 物理机)</p>
-                                                        
-                                                    </div>
                                                 </div>
-                                            
-                                        
-                                            
-                                        
+                                            </div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator critical">CPU:85.0%</div><div class="resource-indicator emergency">内存:90.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 85.0% (408.0/480.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 90.0% (864.0/960.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 30 个 (20 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator critical">CPU:85.0%</div><div class="resource-indicator emergency">内存:90.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 85.0% (408.0/480.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 90.0% (864.0/960.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 30 个 (20 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
                                 
@@ -1478,118 +1419,34 @@
                             <tr class="cluster-row">
                                 <td>
                                     
-                                        
-                                        
-                                            <a href="#cluster-test-cluster" class="abnormal-cluster-link">
-                                                <span class="abnormal-cluster-icon">⚠️</span>test-cluster
-                                            </a>
-                                        
+                                        <a href="#cluster-test-cluster" class="abnormal-cluster-link">
+                                            <span class="abnormal-cluster-icon">⚠️</span>test-cluster
+                                        </a>
                                     
                                 </td>
                                 
-                                
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:70.0%</div><div class="resource-indicator warning">内存:75.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 70.0% (168.0/240.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 75.0% (360.0/480.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 15 个 (8 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:70.0%</div><div class="resource-indicator warning">内存:75.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 70.0% (168.0/240.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 75.0% (360.0/480.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 15 个 (8 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:70.0%</div><div class="resource-indicator warning">内存:75.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 70.0% (168.0/240.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 75.0% (360.0/480.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 15 个 (8 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:70.0%</div><div class="resource-indicator warning">内存:75.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 70.0% (168.0/240.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 75.0% (360.0/480.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 15 个 (8 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
                                 
@@ -1607,140 +1464,64 @@
                             <tr class="cluster-row">
                                 <td>
                                     
-                                        
-                                        
-                                            underutilized-cluster
-                                        
+                                        <a href="#cluster-underutilized-cluster" class="abnormal-cluster-link">
+                                            <span class="abnormal-cluster-icon">⚠️</span>underutilized-cluster
+                                        </a>
                                     
                                 </td>
                                 
-                                
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:50.0%</div><div class="resource-indicator normal">内存:50.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 50.0% (160.0/320.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 50.0% (320.0/640.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 20 个 (12 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
+                                            <div class="resource-indicators">
+                                                <div class="resource-indicator normal">50.0%</div>
+                                                <div class="resource-indicator normal">50.0%</div>
+                                                <div class="resource-card-popup">
+                                                    <h4>Intel通用 (intel_common)</h4>
+                                                    <p><strong>CPU分配率:</strong> 50.0% (80.0/160.0 核)</p>
+                                                    <p><strong>内存分配率:</strong> 50.0% (160.0/320.0 GiB)</p>
+                                                    <p><strong>节点数:</strong> 10 个 (6 物理机)</p>
                                                     
-                                                    
-                                                    <div class="resource-indicator normal">CPU:50.0%</div><div class="resource-indicator normal">内存:50.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 50.0% (160.0/320.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 50.0% (320.0/640.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 20 个 (12 物理机)</p>
-                                                        
-                                                    </div>
                                                 </div>
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
+                                            </div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
+                                            <div class="resource-indicators">
+                                                <div class="resource-indicator normal">50.0%</div>
+                                                <div class="resource-indicator normal">50.0%</div>
+                                                <div class="resource-card-popup">
+                                                    <h4>海光通用 (hg_common)</h4>
+                                                    <p><strong>CPU分配率:</strong> 50.0% (40.0/80.0 核)</p>
+                                                    <p><strong>内存分配率:</strong> 50.0% (80.0/160.0 GiB)</p>
+                                                    <p><strong>节点数:</strong> 5 个 (3 物理机)</p>
                                                     
-                                                    
-                                                    <div class="resource-indicator normal">CPU:50.0%</div><div class="resource-indicator normal">内存:50.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 50.0% (160.0/320.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 50.0% (320.0/640.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 20 个 (12 物理机)</p>
-                                                        
-                                                    </div>
                                                 </div>
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
+                                            </div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
+                                            <div class="resource-indicators">
+                                                <div class="resource-indicator normal">50.0%</div>
+                                                <div class="resource-indicator normal">50.0%</div>
+                                                <div class="resource-card-popup">
+                                                    <h4>ARM通用 (arm_common)</h4>
+                                                    <p><strong>CPU分配率:</strong> 50.0% (40.0/80.0 核)</p>
+                                                    <p><strong>内存分配率:</strong> 50.0% (80.0/160.0 GiB)</p>
+                                                    <p><strong>节点数:</strong> 5 个 (3 物理机)</p>
                                                     
-                                                    
-                                                    <div class="resource-indicator normal">CPU:50.0%</div><div class="resource-indicator normal">内存:50.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 50.0% (160.0/320.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 50.0% (320.0/640.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 20 个 (12 物理机)</p>
-                                                        
-                                                    </div>
                                                 </div>
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
-                                            
-                                        
+                                            </div>
                                         
                                     </td>
                                 
@@ -1758,116 +1539,34 @@
                             <tr class="cluster-row">
                                 <td>
                                     
-                                        
-                                        
-                                            very-underutilized-cluster
-                                        
+                                        <a href="#cluster-very-underutilized-cluster" class="abnormal-cluster-link">
+                                            <span class="abnormal-cluster-icon">⚠️</span>very-underutilized-cluster
+                                        </a>
                                     
                                 </td>
                                 
-                                
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:25.0%</div><div class="resource-indicator normal">内存:25.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 25.0% (40.0/160.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 25.0% (80.0/320.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 10 个 (6 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:25.0%</div><div class="resource-indicator normal">内存:25.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 25.0% (40.0/160.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 25.0% (80.0/320.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 10 个 (6 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:25.0%</div><div class="resource-indicator normal">内存:25.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 25.0% (40.0/160.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 25.0% (80.0/320.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 10 个 (6 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
-                                
-                                    
+                                 
                                     <td>
                                         
-                                        
-                                            
-                                                
-                                                
-                                                <div class="resource-indicators">
-                                                    
-                                                    
-                                                    <div class="resource-indicator normal">CPU:25.0%</div><div class="resource-indicator normal">内存:25.0%</div>
-                                                    
-                                                    
-                                                    <div class="resource-card-popup">
-                                                        <h4>总资源 (total)</h4>
-                                                        <p><strong>CPU分配率:</strong> 25.0% (40.0/160.0 核)</p>
-                                                        <p><strong>内存分配率:</strong> 25.0% (80.0/320.0 GiB)</p>
-                                                        <p><strong>节点数:</strong> 10 个 (6 物理机)</p>
-                                                        
-                                                    </div>
-                                                </div>
-                                            
-                                        
+                                            <div class="no-data">无资源</div>
                                         
                                     </td>
                                 
@@ -1879,14 +1578,6 @@
 
                 
                     
-
-                    
-                        
-                        
-                            
-                        
-                    
-
                     
                     <div class="cluster-section">
                         <a id="cluster-production-cluster" class="cluster-anchor"></a>
@@ -1896,32 +1587,6 @@
 
                         <div class="resource-pools">
                             
-                                
-                                
-                                    
-                                
-
-                                
-                                
-                                    
-                                
-
-                                
-                                
-                                    
-                                
-
-                                
-                                
-
-                                
-                                    
-                                    
-                                        
-                                            
-                                        
-                                    
-                                
                                 
                                 <div class="resource-pool">
                                     <div class="resource-pool-header resource-header-total">
@@ -1951,38 +1616,16 @@
                                             </span>
                                         </div>
                                         
-                                            
-                                            
-                                            
-                                                
-                                                    
-                                                
-                                            
-                                            <div class="summary-item tooltip critical">
+                                            <div class="summary-item tooltip warning">
                                                 <span class="summary-label">CPU 分配率 (408.0/480.0 核)</span>
-                                                <span class="summary-value critical">
+                                                <span class="summary-value warning">
                                                     85.0%
                                                 </span>
                                                 <span class="tooltip-text">
-                                                    CPU分配率表示已分配的CPU核心数与总可用CPU核心数的比率。计算方式：已分配核心数 / 总核心数 * 100%。
-                                                    <br><br>当前值：408.0/480.0 核 (85.0%)
-                                                    
-                                                        <br><br>状态：<b>危险</b> - 资源池CPU分配率在75%-90%之间，需要尽快关注。
-                                                    
+                                                    当前值：408.0/480.0 核 (85.0%)<br><br>状态：<b>警告</b> - 资源池CPU分配率在80%-90%之间，建议关注资源趋势。
                                                 </span>
-                                                
-                                                
-                                                    
-                                                        
-                                                    
-                                                
-                                                
-                                                
-                                                
-                                                    
-                                                
                                                 <div class="usage-bar-container">
-                                                    <div class="usage-bar danger-usage width-85"></div>
+                                                    <div class="usage-bar high-usage width-85"></div>
                                                 </div>
 
                                                 
@@ -1990,80 +1633,19 @@
                                                 <table class="trend-container" cellspacing="0" cellpadding="0">
                                                     <tr>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="6天前 CPU分配率: 78.0%"></td>
+                                                            <td class="trend-day bar-normal" title="6天前 CPU分配率: 78.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="5天前 CPU分配率: 80.0%"></td>
+                                                            <td class="trend-day bar-warning" title="5天前 CPU分配率: 80.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="4天前 CPU分配率: 82.0%"></td>
+                                                            <td class="trend-day bar-warning" title="4天前 CPU分配率: 82.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="3天前 CPU分配率: 85.0%"></td>
+                                                            <td class="trend-day bar-warning" title="3天前 CPU分配率: 85.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="2天前 CPU分配率: 83.0%"></td>
+                                                            <td class="trend-day bar-warning" title="2天前 CPU分配率: 83.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="昨天 CPU分配率: 84.0%"></td>
+                                                            <td class="trend-day bar-warning" title="昨天 CPU分配率: 84.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="今天 CPU分配率: 85.0%"></td>
+                                                            <td class="trend-day bar-warning" title="今天 CPU分配率: 85.0%"></td>
                                                         
                                                     </tr>
                                                 </table>
@@ -2075,35 +1657,27 @@
                                         
                                             
                                             
-                                            
-                                                
-                                                    
                                                 
                                             
-                                            <div class="summary-item tooltip emergency">
+                                            
+                                            
+                                            
+                                            
+                                            <div class="summary-item tooltip critical">
                                                 <span class="summary-label">内存分配率 (864.0/960.0 GiB)</span>
-                                                <span class="summary-value emergency">
+                                                <span class="summary-value critical">
                                                     90.0%
                                                 </span>
                                                 <span class="tooltip-text">
-                                                    内存分配率表示已分配的内存与总可用内存的比率。计算方式：已分配内存 / 总内存 * 100%。
-                                                    <br><br>当前值：864.0/960.0 GiB (90.0%)
-                                                    
-                                                        <br><br>状态：<b>紧急</b> - 资源池内存分配率超过90%，需要立即关注并采取措施。
-                                                    
+                                                    当前值：864.0/960.0 GiB (90.0%)<br/>状态：<b>危险</b> - 资源池内存分配率在90%-95%之间，需要尽快关注。
                                                 </span>
                                                 
                                                 
-                                                    
-                                                        
-                                                    
                                                 
                                                 
-                                                
-                                                    
                                                 
                                                 <div class="usage-bar-container">
-                                                    <div class="usage-bar emergency-usage width-90"></div>
+                                                    <div class="usage-bar danger-usage width-90"></div>
                                                 </div>
 
                                                 
@@ -2111,16 +1685,6 @@
                                                 <table class="trend-container" cellspacing="0" cellpadding="0">
                                                     <tr>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="6天前 内存分配率: 82.0%"></td>
                                                         
                                                             
                                                             
@@ -2129,9 +1693,11 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="5天前 内存分配率: 85.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-warning" 
+                                                                title="6天前 内存分配率: 82.0%"></td>
                                                         
                                                             
                                                             
@@ -2140,9 +1706,11 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="4天前 内存分配率: 87.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-warning" 
+                                                                title="5天前 内存分配率: 85.0%"></td>
                                                         
                                                             
                                                             
@@ -2151,9 +1719,11 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="3天前 内存分配率: 90.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-warning" 
+                                                                title="4天前 内存分配率: 87.0%"></td>
                                                         
                                                             
                                                             
@@ -2162,9 +1732,24 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="2天前 内存分配率: 88.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-critical" 
+                                                                title="3天前 内存分配率: 90.0%"></td>
+                                                        
+                                                            
+                                                            
+                                                            
+                                                            
+                                                                
+                                                                
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-warning" 
+                                                                title="2天前 内存分配率: 88.0%"></td>
                                                         
                                                             
                                                             
@@ -2172,9 +1757,11 @@
                                                             
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="昨天 内存分配率: 89.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-warning" 
+                                                                title="昨天 内存分配率: 89.0%"></td>
                                                         
                                                             
                                                             
@@ -2182,9 +1769,11 @@
                                                             
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="今天 内存分配率: 90.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-critical" 
+                                                                title="今天 内存分配率: 90.0%"></td>
                                                         
                                                     </tr>
                                                 </table>
@@ -2225,41 +1814,15 @@
                                 
                             
                                 
-                                
-                                    
-                                
-
-                                
-                                
-                                    
-                                
-
-                                
-                                
-                                    
-                                
-
-                                
-                                
-
-                                
-                                    
-                                    
-                                        
-                                            
-                                        
-                                    
-                                
-                                
                                 <div class="resource-pool">
-                                    <div class="resource-pool-header resource-header-total">
+                                    <div class="resource-pool-header resource-header-intel">
                                         <div class="resource-pool-type">
                                             <span class="tooltip">
                                                 Intel通用节点 (intel_common)
                                                 <span class="tooltip-icon">?</span>
                                                 <span class="tooltip-text">
                                                     
-                                                        Intel物理机通用应用节点资源，没有特殊标记或污点的Intel节点。
+                                                        集群所有物理机资源总和，包含集群中所有类型的节点。
                                                     
                                                 </span>
                                             </span>
@@ -2279,38 +1842,16 @@
                                             </span>
                                         </div>
                                         
-                                            
-                                            
-                                            
-                                                
-                                                    
-                                                
-                                            
-                                            <div class="summary-item tooltip emergency">
+                                            <div class="summary-item tooltip critical">
                                                 <span class="summary-label">CPU 分配率 (216.0/240.0 核)</span>
-                                                <span class="summary-value emergency">
+                                                <span class="summary-value critical">
                                                     90.0%
                                                 </span>
                                                 <span class="tooltip-text">
-                                                    CPU分配率表示已分配的CPU核心数与总可用CPU核心数的比率。计算方式：已分配核心数 / 总核心数 * 100%。
-                                                    <br><br>当前值：216.0/240.0 核 (90.0%)
-                                                    
-                                                        <br><br>状态：<b>紧急</b> - 资源池CPU分配率超过90%，需要立即关注并采取措施。
-                                                    
+                                                    当前值：216.0/240.0 核 (90.0%)<br><br>状态：<b>危险</b> - 资源池CPU分配率在90%-95%之间，需要尽快关注。
                                                 </span>
-                                                
-                                                
-                                                    
-                                                        
-                                                    
-                                                
-                                                
-                                                
-                                                
-                                                    
-                                                
                                                 <div class="usage-bar-container">
-                                                    <div class="usage-bar emergency-usage width-90"></div>
+                                                    <div class="usage-bar danger-usage width-90"></div>
                                                 </div>
 
                                                 
@@ -2318,80 +1859,19 @@
                                                 <table class="trend-container" cellspacing="0" cellpadding="0">
                                                     <tr>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="6天前 CPU分配率: 85.0%"></td>
+                                                            <td class="trend-day bar-warning" title="6天前 CPU分配率: 85.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="5天前 CPU分配率: 87.0%"></td>
+                                                            <td class="trend-day bar-warning" title="5天前 CPU分配率: 87.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-critical
-                                                            " title="4天前 CPU分配率: 88.0%"></td>
+                                                            <td class="trend-day bar-warning" title="4天前 CPU分配率: 88.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-emergency
-                                                            " title="3天前 CPU分配率: 90.0%"></td>
+                                                            <td class="trend-day bar-critical" title="3天前 CPU分配率: 90.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-emergency
-                                                            " title="2天前 CPU分配率: 92.0%"></td>
+                                                            <td class="trend-day bar-critical" title="2天前 CPU分配率: 92.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-emergency
-                                                            " title="昨天 CPU分配率: 91.0%"></td>
+                                                            <td class="trend-day bar-critical" title="昨天 CPU分配率: 91.0%"></td>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-emergency
-                                                            " title="今天 CPU分配率: 90.0%"></td>
+                                                            <td class="trend-day bar-critical" title="今天 CPU分配率: 90.0%"></td>
                                                         
                                                     </tr>
                                                 </table>
@@ -2403,10 +1883,11 @@
                                         
                                             
                                             
+                                                
                                             
-                                                
-                                                    
-                                                
+                                            
+                                            
+                                            
                                             
                                             <div class="summary-item tooltip emergency">
                                                 <span class="summary-label">内存分配率 (456.0/480.0 GiB)</span>
@@ -2414,21 +1895,12 @@
                                                     95.0%
                                                 </span>
                                                 <span class="tooltip-text">
-                                                    内存分配率表示已分配的内存与总可用内存的比率。计算方式：已分配内存 / 总内存 * 100%。
-                                                    <br><br>当前值：456.0/480.0 GiB (95.0%)
-                                                    
-                                                        <br><br>状态：<b>紧急</b> - 资源池内存分配率超过90%，需要立即关注并采取措施。
-                                                    
+                                                    当前值：456.0/480.0 GiB (95.0%)<br/>状态：<b>紧急</b> - 资源池内存分配率超过95%，需要立即关注并采取措施。
                                                 </span>
                                                 
                                                 
-                                                    
-                                                        
-                                                    
                                                 
                                                 
-                                                
-                                                    
                                                 
                                                 <div class="usage-bar-container">
                                                     <div class="usage-bar emergency-usage width-95"></div>
@@ -2439,16 +1911,6 @@
                                                 <table class="trend-container" cellspacing="0" cellpadding="0">
                                                     <tr>
                                                         
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="6天前 内存分配率: 90.0%"></td>
                                                         
                                                             
                                                             
@@ -2457,9 +1919,11 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="5天前 内存分配率: 92.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-critical" 
+                                                                title="6天前 内存分配率: 90.0%"></td>
                                                         
                                                             
                                                             
@@ -2468,9 +1932,11 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="4天前 内存分配率: 93.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-critical" 
+                                                                title="5天前 内存分配率: 92.0%"></td>
                                                         
                                                             
                                                             
@@ -2479,9 +1945,11 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="3天前 内存分配率: 94.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-critical" 
+                                                                title="4天前 内存分配率: 93.0%"></td>
                                                         
                                                             
                                                             
@@ -2490,9 +1958,24 @@
                                                                 
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="2天前 内存分配率: 96.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-critical" 
+                                                                title="3天前 内存分配率: 94.0%"></td>
+                                                        
+                                                            
+                                                            
+                                                            
+                                                            
+                                                                
+                                                                
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-emergency" 
+                                                                title="2天前 内存分配率: 96.0%"></td>
                                                         
                                                             
                                                             
@@ -2500,9 +1983,11 @@
                                                             
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="昨天 内存分配率: 95.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-emergency" 
+                                                                title="昨天 内存分配率: 95.0%"></td>
                                                         
                                                             
                                                             
@@ -2510,9 +1995,11 @@
                                                             
                                                                 
                                                             
-                                                            <td class="trend-day 
-                                                                memory-trend-emergency
-                                                            " title="今天 内存分配率: 95.0%"></td>
+                                                            
+                                                            
+                                                            
+                                                            <td class="trend-day bar-emergency" 
+                                                                title="今天 内存分配率: 95.0%"></td>
                                                         
                                                     </tr>
                                                 </table>
@@ -2557,14 +2044,6 @@
                     
                 
                     
-
-                    
-                        
-                        
-                            
-                        
-                    
-
                     
                     <div class="cluster-section">
                         <a id="cluster-test-cluster" class="cluster-anchor"></a>
@@ -2575,331 +2054,27 @@
                         <div class="resource-pools">
                             
                                 
-                                
-                                    
-                                
+                            
+                        </div>
+                    </div>
+                    
+                
+                    
+                    
+                    <div class="cluster-section">
+                        <a id="cluster-underutilized-cluster" class="cluster-anchor"></a>
+                        <div class="cluster-header">
+                            <span>集群: underutilized-cluster （低利用率集群）</span>
+                        </div>
 
+                        <div class="resource-pools">
+                            
                                 
+                            
                                 
-                                    
+                            
                                 
-
-                                
-                                
-                                    
-                                
-
-                                
-                                
-
-                                
-                                    
-                                    
-                                        
-                                            
-                                        
-                                    
-                                
-                                
-                                <div class="resource-pool">
-                                    <div class="resource-pool-header resource-header-total">
-                                        <div class="resource-pool-type">
-                                            <span class="tooltip">
-                                                总资源 (total)
-                                                <span class="tooltip-icon">?</span>
-                                                <span class="tooltip-text">
-                                                    
-                                                        集群所有物理机资源总和，包含集群中所有类型的节点。
-                                                    
-                                                </span>
-                                            </span>
-                                            <span class="node-count-badge">15 节点 <span class="node-detail">(物理机: 8, 虚拟机: 7)</span></span>
-                                        </div>
-                                    </div>
-                                    <div class="resource-grid">
-                                        <div class="health-card tooltip">
-                                            <span class="health-score">
-                                                
-                                                    15.0
-                                                
-                                            </span>
-                                            <span class="health-label">Pod密度</span>
-                                            <span class="tooltip-text">
-                                                Pod密度表示每台物理机上运行的Pod数量。计算方式：Pod总数 / 物理机数量。该指标可以反映集群的资源利用效率。
-                                            </span>
-                                        </div>
-                                        
-                                            
-                                            
-                                            
-                                                
-                                                    
-                                                
-                                            
-                                            <div class="summary-item tooltip warning">
-                                                <span class="summary-label">CPU 分配率 (168.0/240.0 核)</span>
-                                                <span class="summary-value warning">
-                                                    70.0%
-                                                </span>
-                                                <span class="tooltip-text">
-                                                    CPU分配率表示已分配的CPU核心数与总可用CPU核心数的比率。计算方式：已分配核心数 / 总核心数 * 100%。
-                                                    <br><br>当前值：168.0/240.0 核 (70.0%)
-                                                    
-                                                        <br><br>状态：<b>警告</b> - 资源池CPU分配率在70%-75%之间，建议关注资源趋势。
-                                                    
-                                                </span>
-                                                
-                                                
-                                                    
-                                                        
-                                                    
-                                                
-                                                
-                                                
-                                                
-                                                    
-                                                
-                                                <div class="usage-bar-container">
-                                                    <div class="usage-bar high-usage width-70"></div>
-                                                </div>
-
-                                                
-                                                
-                                                <table class="trend-container" cellspacing="0" cellpadding="0">
-                                                    <tr>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-normal
-                                                            " title="6天前 CPU分配率: 65.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-normal
-                                                            " title="5天前 CPU分配率: 67.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-normal
-                                                            " title="4天前 CPU分配率: 68.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-high
-                                                            " title="3天前 CPU分配率: 70.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-high
-                                                            " title="2天前 CPU分配率: 72.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-high
-                                                            " title="昨天 CPU分配率: 71.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                cpu-trend-high
-                                                            " title="今天 CPU分配率: 70.0%"></td>
-                                                        
-                                                    </tr>
-                                                </table>
-                                                <span class="trend-label">7天波动</span>
-                                                
-                                            </div>
-                                        
-
-                                        
-                                            
-                                            
-                                            
-                                                
-                                                    
-                                                
-                                            
-                                            <div class="summary-item tooltip critical">
-                                                <span class="summary-label">内存分配率 (360.0/480.0 GiB)</span>
-                                                <span class="summary-value critical">
-                                                    75.0%
-                                                </span>
-                                                <span class="tooltip-text">
-                                                    内存分配率表示已分配的内存与总可用内存的比率。计算方式：已分配内存 / 总内存 * 100%。
-                                                    <br><br>当前值：360.0/480.0 GiB (75.0%)
-                                                    
-                                                        <br><br>状态：<b>危险</b> - 资源池内存分配率在75%-90%之间，需要尽快关注。
-                                                    
-                                                </span>
-                                                
-                                                
-                                                    
-                                                        
-                                                    
-                                                
-                                                
-                                                
-                                                    
-                                                
-                                                <div class="usage-bar-container">
-                                                    <div class="usage-bar danger-usage width-75"></div>
-                                                </div>
-
-                                                
-                                                
-                                                <table class="trend-container" cellspacing="0" cellpadding="0">
-                                                    <tr>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-high
-                                                            " title="6天前 内存分配率: 70.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-high
-                                                            " title="5天前 内存分配率: 72.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-high
-                                                            " title="4天前 内存分配率: 73.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="3天前 内存分配率: 75.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="2天前 内存分配率: 76.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-high
-                                                            " title="昨天 内存分配率: 74.0%"></td>
-                                                        
-                                                            
-                                                            
-                                                            
-                                                            
-                                                                
-                                                            
-                                                            <td class="trend-day 
-                                                                memory-trend-critical
-                                                            " title="今天 内存分配率: 75.0%"></td>
-                                                        
-                                                    </tr>
-                                                </table>
-                                                <span class="trend-label">7天波动</span>
-                                                
-                                            </div>
-                                        
-                                    </div>
-
-                                    <div class="node-type-indicator">
-                                        <div class="node-type-badge tooltip">
-                                            <span>Pod数量:</span>
-                                            <span class="badge-label">120</span>
-                                            <span class="tooltip-text">按天分布取过去一个月中某天最大的已发布pod数（不区分在线状态）</span>
-                                        </div>
-                                        <div class="node-type-badge tooltip">
-                                            <span>平均CPU:</span>
-                                            <span class="badge-label">11.2核</span>
-                                            <span class="tooltip-text">已分配的cpu/物理机节点，即每节点平均分配cpu</span>
-                                        </div>
-                                        <div class="node-type-badge tooltip">
-                                            <span>平均内存:</span>
-                                            <span class="badge-label">24.0GiB</span>
-                                            <span class="tooltip-text">已分配的内存/物理机节点，即每节点平均分配内存</span>
-                                        </div>
-                                        <div class="node-type-badge tooltip">
-                                            <span>CPU最大使用率:</span>
-                                            <span class="badge-label">0.0%</span>
-                                            <span class="tooltip-text">过去24小时内CPU平均最大使用率</span>
-                                        </div>
-                                        <div class="node-type-badge tooltip">
-                                            <span>内存最大使用率:</span>
-                                            <span class="badge-label">0.0%</span>
-                                            <span class="tooltip-text">过去24小时内内存平均最大使用率</span>
-                                        </div>
-                                    </div>
-                                </div>
+                            
                                 
                             
                         </div>
@@ -2907,21 +2082,19 @@
                     
                 
                     
+                    
+                    <div class="cluster-section">
+                        <a id="cluster-very-underutilized-cluster" class="cluster-anchor"></a>
+                        <div class="cluster-header">
+                            <span>集群: very-underutilized-cluster （极低利用率集群）</span>
+                        </div>
 
-                    
-                        
-                        
-                    
-
-                    
-                
-                    
-
-                    
-                        
-                        
-                    
-
+                        <div class="resource-pools">
+                            
+                                
+                            
+                        </div>
+                    </div>
                     
                 
 
