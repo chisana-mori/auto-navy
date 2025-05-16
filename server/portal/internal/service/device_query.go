@@ -195,7 +195,7 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 					if len(values) == 0 {
 						return query.Where("1 = 0")
 					}
-					
+
 					// 构建条件
 					var conditions []string
 					for _, v := range values {
@@ -205,19 +205,19 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 							conditions = append(conditions, "NOT ("+SpecialDeviceCondition+")")
 						}
 					}
-					
+
 					if len(conditions) > 0 {
 						return query.Where(strings.Join(conditions, " OR "))
 					}
 					return query
 				}
-				
+
 				// 处理 []interface{} 类型（JSON反序列化后的常见类型）
 				if interfaceValues, ok := block.Value.([]interface{}); ok {
 					if len(interfaceValues) == 0 {
 						return query.Where("1 = 0")
 					}
-					
+
 					// 构建条件
 					var conditions []string
 					for _, v := range interfaceValues {
@@ -243,31 +243,42 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 							}
 						}
 					}
-					
+
 					if len(conditions) > 0 {
 						return query.Where(strings.Join(conditions, " OR "))
 					}
 					return query
 				}
-				
+
 				return query
 			}
-			
+
 			// 处理其他字段
 			// 处理 []string 类型
 			if values, ok := block.Value.([]string); ok {
 				if len(values) == 0 {
 					return query.Where("1 = 0")
 				}
+				// 对ciCode字段使用大小写不敏感的查询
+				if camelKey == "ciCode" {
+					// 构建 UPPER(column) IN (UPPER(?), UPPER(?), ...) 条件
+					placeholders := make([]string, len(values))
+					args := make([]interface{}, len(values))
+					for i, v := range values {
+						placeholders[i] = "UPPER(?)"
+						args[i] = v
+					}
+					return query.Where("UPPER("+column+") IN ("+strings.Join(placeholders, ", ")+")", args...)
+				}
 				return query.Where(column+" IN (?)", values)
 			}
-			
+
 			// 处理 []interface{} 类型（JSON反序列化后的常见类型）
 			if interfaceValues, ok := block.Value.([]interface{}); ok {
 				if len(interfaceValues) == 0 {
 					return query.Where("1 = 0")
 				}
-				
+
 				// 将 []interface{} 转换为 []string
 				values := make([]string, len(interfaceValues))
 				for i, v := range interfaceValues {
@@ -278,10 +289,21 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 						values[i] = fmt.Sprintf("%v", v)
 					}
 				}
-				
+
+				// 对ciCode字段使用大小写不敏感的查询
+				if camelKey == "ciCode" {
+					// 构建 UPPER(column) IN (UPPER(?), UPPER(?), ...) 条件
+					placeholders := make([]string, len(values))
+					args := make([]interface{}, len(values))
+					for i, v := range values {
+						placeholders[i] = "UPPER(?)"
+						args[i] = v
+					}
+					return query.Where("UPPER("+column+") IN ("+strings.Join(placeholders, ", ")+")", args...)
+				}
 				return query.Where(column+" IN (?)", values)
 			}
-			
+
 			// 处理其他类型
 			fmt.Printf("Warning: Invalid value type for 'in' condition, expected []string or []interface{}, got %T. Skipping filter.\n", block.Value)
 			return query
@@ -311,11 +333,19 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 	switch block.ConditionType {
 	case ConditionTypeEqual:
 		if valStr, ok := block.Value.(string); ok {
+			// 对ciCode字段使用大小写不敏感的查询
+			if camelKey == "ciCode" {
+				return query.Where("UPPER("+column+") = UPPER(?)", valStr)
+			}
 			return query.Where(column+" = ?", valStr)
 		}
 		return query // Or handle error/invalid type
 	case ConditionTypeNotEqual:
 		if valStr, ok := block.Value.(string); ok {
+			// 对ciCode字段使用大小写不敏感的查询
+			if camelKey == "ciCode" {
+				return query.Where(fmt.Sprintf("(UPPER(%s) != UPPER(?) OR %s IS NULL)", column, column), valStr)
+			}
 			return query.Where(fmt.Sprintf("(%s != ? OR %s IS NULL)", column, column), valStr)
 		}
 		return query // Or handle error/invalid type
@@ -323,6 +353,10 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 		if valStr, ok := block.Value.(string); ok {
 			escapedValue := strings.ReplaceAll(valStr, "%", "\\%")
 			escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
+			// 对ciCode字段使用大小写不敏感的查询
+			if camelKey == "ciCode" {
+				return query.Where("UPPER("+column+") LIKE UPPER(?)", "%"+escapedValue+"%")
+			}
 			return query.Where(column+" LIKE ?", "%"+escapedValue+"%")
 		}
 		return query // Or handle error/invalid type
@@ -330,6 +364,10 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 		if valStr, ok := block.Value.(string); ok {
 			escapedValue := strings.ReplaceAll(valStr, "%", "\\%")
 			escapedValue = strings.ReplaceAll(escapedValue, "_", "\\_")
+			// 对ciCode字段使用大小写不敏感的查询
+			if camelKey == "ciCode" {
+				return query.Where(fmt.Sprintf("(UPPER(%s) NOT LIKE UPPER(?) OR %s IS NULL)", column, column), "%"+escapedValue+"%")
+			}
 			return query.Where(fmt.Sprintf("(%s NOT LIKE ? OR %s IS NULL)", column, column), "%"+escapedValue+"%")
 		}
 		return query // Or handle error/invalid type
@@ -346,7 +384,7 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 					// 如果传入空数组，则不匹配任何记录
 					return query.Where("1 = 0")
 				}
-				
+
 				// 将布尔值字符串转换为 "1"/"0"
 				convertedValues := make([]string, len(values))
 				for i, v := range values {
@@ -356,17 +394,17 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 						convertedValues[i] = "0"
 					}
 				}
-				
+
 				return query.Where(column+" IN (?)", convertedValues)
 			}
-			
+
 			// 处理 []interface{} 类型（JSON反序列化后的常见类型）
 			if interfaceValues, ok := block.Value.([]interface{}); ok {
 				if len(interfaceValues) == 0 {
 					// 如果传入空数组，则不匹配任何记录
 					return query.Where("1 = 0")
 				}
-				
+
 				// 将 []interface{} 转换为 []string，并处理布尔值
 				convertedValues := make([]string, len(interfaceValues))
 				for i, v := range interfaceValues {
@@ -392,7 +430,7 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 						}
 					}
 				}
-				
+
 				return query.Where(column+" IN (?)", convertedValues)
 			}
 		} else {
@@ -406,14 +444,14 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 				// GORM handles slice arguments for IN clauses directly
 				return query.Where(column+" IN (?)", values)
 			}
-			
+
 			// 处理 []interface{} 类型（JSON反序列化后的常见类型）
 			if interfaceValues, ok := block.Value.([]interface{}); ok {
 				if len(interfaceValues) == 0 {
 					// 如果传入空数组，则不匹配任何记录
 					return query.Where("1 = 0")
 				}
-				
+
 				// 将 []interface{} 转换为 []string
 				values := make([]string, len(interfaceValues))
 				for i, v := range interfaceValues {
@@ -424,11 +462,11 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 						values[i] = fmt.Sprintf("%v", v)
 					}
 				}
-				
+
 				return query.Where(column+" IN (?)", values)
 			}
 		}
-		
+
 		// 处理其他类型
 		fmt.Printf("Warning: Invalid value type for 'in' condition, expected []string or []interface{}, got %T. Skipping filter.\n", block.Value)
 		return query
@@ -442,14 +480,14 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 			// GORM handles slice arguments for NOT IN clauses directly
 			return query.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), values)
 		}
-		
+
 		// 处理 []interface{} 类型（JSON反序列化后的常见类型）
 		if interfaceValues, ok := block.Value.([]interface{}); ok {
 			if len(interfaceValues) == 0 {
 				// 如果传入空数组，则匹配所有非 NULL 记录
 				return query.Where(fmt.Sprintf("%s IS NOT NULL", column))
 			}
-			
+
 			// 将 []interface{} 转换为 []string
 			values := make([]string, len(interfaceValues))
 			for i, v := range interfaceValues {
@@ -460,10 +498,10 @@ func (s *DeviceQueryService) applyDeviceFilter(query *gorm.DB, block FilterBlock
 					values[i] = fmt.Sprintf("%v", v)
 				}
 			}
-			
+
 			return query.Where(fmt.Sprintf("(%s NOT IN (?) OR %s IS NULL)", column, column), values)
 		}
-		
+
 		// 处理其他类型
 		fmt.Printf("Warning: Invalid value type for 'notIn' condition, expected []string or []interface{}, got %T. Skipping filter.\n", block.Value)
 		return query

@@ -69,6 +69,7 @@ func InitDB() (*gorm.DB, error) {
 		&portal.StrategyExecutionHistory{},
 		&portal.NotificationLog{},
 		&portal.ResourceSnapshot{},
+		&portal.ResourcePoolDeviceMatchingPolicy{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %v", err)
 	}

@@ -146,7 +146,12 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 			for _, fieldKey := range searchableFields {
 				dbColumn, found := s.deviceQueryService.GetDbColumnForField(fieldKey)
 				if found {
-					conditions = append(conditions, fmt.Sprintf("%s LIKE ?", dbColumn))
+					// 对ciCode字段使用大小写不敏感的查询
+					if fieldKey == "ciCode" {
+						conditions = append(conditions, fmt.Sprintf("UPPER(%s) LIKE UPPER(?)", dbColumn))
+					} else {
+						conditions = append(conditions, fmt.Sprintf("%s LIKE ?", dbColumn))
+					}
 				} else {
 					// 如果字段定义未找到，记录警告（可选）
 					fmt.Printf("Warning: Searchable field key '%s' not found in definitions.\n", fieldKey)

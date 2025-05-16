@@ -43,6 +43,19 @@ const (
 	colorCyan       = "#00BCD4"
 	colorOrange     = "#FF9800"
 	colorBrown      = "#795548"
+
+	// Resource pool types
+	resourcePoolTypeTotal     = "Total"
+	resourcePoolTypeIntel     = "Intel"
+	resourcePoolTypeARM       = "ARM"
+	resourcePoolTypeHG        = "HG"
+	resourcePoolTypeGPU       = "GPU"
+	resourcePoolTypeWithTaint = "WithTaint"
+	resourcePoolTypeCommon    = "Common"
+
+	// Action types
+	actionTypePoolEntry = "pool_entry"
+	actionTypePoolExit  = "pool_exit"
 )
 
 // ClearAndSeedDatabase clears relevant tables and seeds them with consistent mock data.
@@ -52,20 +65,21 @@ func ClearAndSeedDatabase(db *gorm.DB) ([]portal.K8sCluster, error) {
 
 	// 1. Clear existing data in reverse dependency order (or tables that can be cleared)
 	tablesToClear := []string{
-		"ops_job",             // Assuming no critical FKs pointing to it
-		"f5_info",             // Assuming no critical FKs pointing to it
-		"query_template",      // Assuming no critical FKs pointing to it
-		"device_app",          // 添加DeviceApp表，依赖于device表
-		"k8s_node_taint",      // Depends on k8s_node, taint_feature
-		"k8s_node_label",      // Depends on k8s_node, label_feature
-		"device",              // Related to k8s_node, k8s_etcd
-		"k8s_node",            // Depends on k8s_cluster
-		"k8s_etcd",            // Depends on k8s_cluster
-		"label_feature_value", // Depends on label_feature
-		"label_feature",       // Independent
-		"taint_feature",       // Independent
-		"k8s_cluster_resource_snapshot", // New table for resource snapshots
-		"k8s_cluster",         // Independent
+		"ops_job",                              // Assuming no critical FKs pointing to it
+		"f5_info",                              // Assuming no critical FKs pointing to it
+		"resource_pool_device_matching_policy", // Depends on query_template
+		"query_template",                       // Assuming no critical FKs pointing to it
+		"device_app",                           // 添加DeviceApp表，依赖于device表
+		"k8s_node_taint",                       // Depends on k8s_node, taint_feature
+		"k8s_node_label",                       // Depends on k8s_node, label_feature
+		"device",                               // Related to k8s_node, k8s_etcd
+		"k8s_node",                             // Depends on k8s_cluster
+		"k8s_etcd",                             // Depends on k8s_cluster
+		"label_feature_value",                  // Depends on label_feature
+		"label_feature",                        // Independent
+		"taint_feature",                        // Independent
+		"k8s_cluster_resource_snapshot",        // New table for resource snapshots
+		"k8s_cluster",                          // Independent
 	}
 
 	log.Println("Clearing tables...")
@@ -80,6 +94,7 @@ func ClearAndSeedDatabase(db *gorm.DB) ([]portal.K8sCluster, error) {
 	sequencesToReset := []string{
 		"ops_job",
 		"f5_info",
+		"resource_pool_device_matching_policy",
 		"query_template",
 		"device_app", // 添加DeviceApp表序列重置
 		"k8s_node_label",
@@ -177,11 +192,153 @@ func ClearAndSeedDatabase(db *gorm.DB) ([]portal.K8sCluster, error) {
 		return nil, fmt.Errorf("failed to seed k8s resource snapshots: %w", err)
 	}
 
+	log.Println("Seeding Query Templates...")
+	if err := seedQueryTemplates(db); err != nil {
+		log.Printf("Warning: failed to seed query templates: %v", err)
+	}
+
+	log.Println("Seeding Resource Pool Device Matching Policies...")
+	if err := seedResourcePoolDeviceMatchingPolicies(db); err != nil {
+		log.Printf("Warning: failed to seed resource pool device matching policies: %v", err)
+	}
+
 	log.Println("Database seeding completed successfully.")
 	return clusters, nil // Return the seeded clusters
 }
 
 // --- Seeding Functions --- //
+
+// seedQueryTemplates generates mock data for query_template table.
+func seedQueryTemplates(db *gorm.DB) error {
+	// Create some basic query templates
+	templates := []portal.QueryTemplate{
+		{
+			BaseModel:   portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:        "生产环境设备",
+			Description: "查询所有生产环境的设备",
+			Groups:      `[{"id":"group1","blocks":[{"id":"block1","type":"device","conditionType":"equal","key":"status","value":"Running","operator":"and"}],"operator":"and"}]`,
+			CreatedBy:   "system",
+			UpdatedBy:   "system",
+		},
+		{
+			BaseModel:   portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:        "GPU设备",
+			Description: "查询所有GPU设备",
+			Groups:      `[{"id":"group1","blocks":[{"id":"block1","type":"nodeLabel","conditionType":"equal","key":"nvidia.com/gpu","value":"true","operator":"and"}],"operator":"and"}]`,
+			CreatedBy:   "system",
+			UpdatedBy:   "system",
+		},
+		{
+			BaseModel:   portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:        "上海区域设备",
+			Description: "查询所有上海区域的设备",
+			Groups:      `[{"id":"group1","blocks":[{"id":"block1","type":"device","conditionType":"equal","key":"idc","value":"shanghai","operator":"and"}],"operator":"and"}]`,
+			CreatedBy:   "system",
+			UpdatedBy:   "system",
+		},
+		{
+			BaseModel:   portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:        "物理机设备",
+			Description: "查询所有物理机设备",
+			Groups:      `[{"id":"group1","blocks":[{"id":"block1","type":"device","conditionType":"equal","key":"infra_type","value":"physical","operator":"and"}],"operator":"and"}]`,
+			CreatedBy:   "system",
+			UpdatedBy:   "system",
+		},
+	}
+
+	if err := db.Create(&templates).Error; err != nil {
+		return fmt.Errorf("failed to create query templates: %w", err)
+	}
+
+	log.Printf("Inserted %d Query Templates", len(templates))
+	return nil
+}
+
+// seedResourcePoolDeviceMatchingPolicies generates mock data for resource_pool_device_matching_policy table.
+func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
+
+	// 创建一些基本的查询条件组
+	productionQueryGroups := `[{"id":"group1","blocks":[{"id":"block1","type":"device","conditionType":"equal","key":"status","value":"Running","operator":"and"}],"operator":"and"}]`
+	gpuQueryGroups := `[{"id":"group1","blocks":[{"id":"block1","type":"nodeLabel","conditionType":"equal","key":"nvidia.com/gpu","value":"true","operator":"and"}],"operator":"and"}]`
+	physicalQueryGroups := `[{"id":"group1","blocks":[{"id":"block1","type":"device","conditionType":"equal","key":"infra_type","value":"physical","operator":"and"}],"operator":"and"}]`
+
+	// Create policies for different resource pool types and action types
+	policies := []portal.ResourcePoolDeviceMatchingPolicy{
+		{
+			BaseModel:        portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:             "Total资源池入池策略",
+			Description:      "Total资源池入池设备匹配策略",
+			ResourcePoolType: resourcePoolTypeTotal,
+			ActionType:       actionTypePoolEntry,
+			QueryGroups:      productionQueryGroups,
+			Status:           "enabled",
+			CreatedBy:        "system",
+			UpdatedBy:        "system",
+		},
+		{
+			BaseModel:        portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:             "Total资源池退池策略",
+			Description:      "Total资源池退池设备匹配策略",
+			ResourcePoolType: resourcePoolTypeTotal,
+			ActionType:       actionTypePoolExit,
+			QueryGroups:      productionQueryGroups,
+			Status:           "enabled",
+			CreatedBy:        "system",
+			UpdatedBy:        "system",
+		},
+		{
+			BaseModel:        portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:             "GPU资源池入池策略",
+			Description:      "GPU资源池入池设备匹配策略",
+			ResourcePoolType: resourcePoolTypeGPU,
+			ActionType:       actionTypePoolEntry,
+			QueryGroups:      gpuQueryGroups,
+			Status:           "enabled",
+			CreatedBy:        "system",
+			UpdatedBy:        "system",
+		},
+		{
+			BaseModel:        portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:             "GPU资源池退池策略",
+			Description:      "GPU资源池退池设备匹配策略",
+			ResourcePoolType: resourcePoolTypeGPU,
+			ActionType:       actionTypePoolExit,
+			QueryGroups:      gpuQueryGroups,
+			Status:           "enabled",
+			CreatedBy:        "system",
+			UpdatedBy:        "system",
+		},
+		{
+			BaseModel:        portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:             "Intel资源池入池策略",
+			Description:      "Intel资源池入池设备匹配策略",
+			ResourcePoolType: resourcePoolTypeIntel,
+			ActionType:       actionTypePoolEntry,
+			QueryGroups:      physicalQueryGroups,
+			Status:           "enabled",
+			CreatedBy:        "system",
+			UpdatedBy:        "system",
+		},
+		{
+			BaseModel:        portal.BaseModel{CreatedAt: portal.NavyTime(time.Now()), UpdatedAt: portal.NavyTime(time.Now())},
+			Name:             "Intel资源池退池策略",
+			Description:      "Intel资源池退池设备匹配策略",
+			ResourcePoolType: resourcePoolTypeIntel,
+			ActionType:       actionTypePoolExit,
+			QueryGroups:      physicalQueryGroups,
+			Status:           "disabled", // 这个策略是禁用的
+			CreatedBy:        "system",
+			UpdatedBy:        "system",
+		},
+	}
+
+	if err := db.Create(&policies).Error; err != nil {
+		return fmt.Errorf("failed to create resource pool device matching policies: %w", err)
+	}
+
+	log.Printf("Inserted %d Resource Pool Device Matching Policies", len(policies))
+	return nil
+}
 
 // seedK8sResourceSnapshots generates mock data for k8s_cluster_resource_snapshot table for the last few days.
 func seedK8sResourceSnapshots(db *gorm.DB, clusters []portal.K8sCluster) error {
@@ -229,8 +386,8 @@ func seedK8sResourceSnapshots(db *gorm.DB, clusters []portal.K8sCluster) error {
 				}
 
 				// Simulate usage and requests (vary based on resource type and day)
-				cpuRequestRatio := 0.6 + rand.Float64()*0.2 // 60-80%
-				memRequestRatio := 0.5 + rand.Float64()*0.2 // 50-70%
+				cpuRequestRatio := 0.6 + rand.Float64()*0.2                      // 60-80%
+				memRequestRatio := 0.5 + rand.Float64()*0.2                      // 50-70%
 				maxCpuUsageRatio := cpuRequestRatio * (1.0 + rand.Float64()*0.1) // Slightly higher than request
 				maxMemUsageRatio := memRequestRatio * (1.0 + rand.Float64()*0.1)
 
@@ -253,7 +410,6 @@ func seedK8sResourceSnapshots(db *gorm.DB, clusters []portal.K8sCluster) error {
 					cpuCapacity *= 0.9 // Common nodes are the majority
 					memCapacity *= 0.9
 				}
-
 
 				snapshot := portal.ResourceSnapshot{
 					BaseModel:           portal.BaseModel{CreatedAt: portal.NavyTime(snapshotTime), UpdatedAt: portal.NavyTime(snapshotTime)},
