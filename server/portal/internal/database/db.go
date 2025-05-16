@@ -52,6 +52,7 @@ func InitDB() (*gorm.DB, error) {
 		&portal.K8sNode{},
 		&portal.K8sNodeLabel{},
 		&portal.K8sNodeTaint{},
+		&portal.K8sCluster{},
 		&portal.Device{},
 		&portal.F5Info{},
 		&portal.OpsJob{},
@@ -61,10 +62,18 @@ func InitDB() (*gorm.DB, error) {
 		&portal.TaintManagement{},
 		&portal.K8sETCD{},
 		&portal.DeviceApp{},
+		&portal.ElasticScalingStrategy{},
+		&portal.StrategyClusterAssociation{},
+		&portal.ElasticScalingOrder{},
+		&portal.OrderDevice{},
+		&portal.StrategyExecutionHistory{},
+		&portal.NotificationLog{},
+		&portal.ResourceSnapshot{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %v", err)
 	}
 
 	ClearAndSeedDatabase(db)
+
 	return db, nil
 }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Typography, Avatar } from 'antd';
-import { DashboardOutlined, CloudServerOutlined, SettingOutlined, UserOutlined, NodeIndexOutlined, ToolOutlined, DesktopOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { DashboardOutlined, CloudServerOutlined, SettingOutlined, UserOutlined, NodeIndexOutlined, ToolOutlined, DesktopOutlined, DatabaseOutlined, BarChartOutlined } from '@ant-design/icons';
 import F5InfoList from './components/F5Info/F5InfoList';
 import F5InfoDetail from './components/F5Info/F5InfoDetail';
 import CalicoNetworkTopology from './components/Calico/CalicoNetworkTopology';
@@ -10,6 +10,7 @@ import DeviceManagement from './components/Device/DeviceManagement';
 import DeviceDetail from './components/Device/DeviceDetail';
 import DeviceQuerySimple from './components/Device/DeviceQuerySimple';
 import DeviceCenter from './components/Device/DeviceCenter';
+import { Dashboard as ElasticScalingDashboard } from './components/ElasticScaling';
 
 const { Header, Content, Sider } = Layout;
 const { Title } = Typography;
@@ -25,6 +26,7 @@ const App: React.FC = () => {
     if (path.startsWith('/ops')) return '5';
     if (path === '/device-query') return '7';
     if (path.startsWith('/device')) return '6';
+    if (path.startsWith('/elastic-scaling')) return '8';
     if (path.startsWith('/settings')) return '3';
     return '1';
   });
@@ -52,6 +54,9 @@ const App: React.FC = () => {
         break;
       case '7':
         navigate('/device-query');
+        break;
+      case '8':
+        navigate('/elastic-scaling');
         break;
     }
   };
@@ -101,6 +106,12 @@ const App: React.FC = () => {
                 onClick: () => handleMenuClick('2')
               },
               {
+                key: '8',
+                icon: <BarChartOutlined />,
+                label: '弹性伸缩管理',
+                onClick: () => handleMenuClick('8')
+              },
+              {
                 key: '5',
                 icon: <ToolOutlined />,
                 label: '运维管理',
@@ -111,6 +122,12 @@ const App: React.FC = () => {
                 icon: <DesktopOutlined />,
                 label: '设备中心',
                 onClick: () => handleMenuClick('6')
+              },
+              {
+                key: '7',
+                icon: <DatabaseOutlined />,
+                label: '设备查询',
+                onClick: () => handleMenuClick('7')
               },
               {
                 key: '3',
@@ -133,6 +150,7 @@ const App: React.FC = () => {
               <Route path="/f5/:id" element={<F5InfoDetail />} />
               <Route path="/calico" element={<CalicoNetworkTopology />} />
               <Route path="/k8s" element={<div>K8s 集群管理（待开发）</div>} />
+              <Route path="/elastic-scaling" element={<ElasticScalingDashboard />} />
               <Route path="/ops" element={<OpsManagement />} />
               <Route path="/device" element={<DeviceCenter />} />
               <Route path="/device-management" element={<DeviceManagement />} />

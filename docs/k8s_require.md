@@ -71,7 +71,7 @@
     -   值: 例如 "200 / 150 / 30"
 
 ### 3.2. 待处理弹性伸缩订单区 (Pending Orders)
-集中展示当前状态为"待处理”的弹性伸缩订单。通过订单管理API获取 (`GET /api/orders/list` with `status=pending`)。
+集中展示当前状态为"待处理"的弹性伸缩订单。通过订单管理API获取 (`GET /api/orders/list` with `status=pending`)。
 -   **区域标题**: "待处理弹性伸缩订单"。
 -   **筛选与操作**:
     -   **订单类型筛选**: 下拉选择框，选项包括 "入池" (`pool_entry`)、"退池" (`pool_exit`)。可清空。
@@ -493,7 +493,189 @@
         -   该函数首先过滤出目标集群中所有当前在池内的节点。
         -   应用上述筛选标准（特别是 `IsSpecial=false`），然后根据其他标准（如资源利用率、Pod数量等）对候选节点进行排序或评分。
         -   返回一个排序后的候选节点列表给订单管理服务。
-        -   订单管理服务从列表顶部选取N个节点，执行标准的Kubernetes节点退役流程：先将节点标记为 `Unschedulable` (Cordon)，然后驱逐 (Drain) 节点上的所有Pod，最后从Kubernetes集群中移除该节点，并更新 `device` 表中对应设备的状态（如标记为"可用”或"待清理”等）。
--   **手动订单创建界面**: 除了策略触发，DEMO未完全展示手动创建订单的细节。
+        -   订单管理服务从列表顶部选取N个节点，执行标准的Kubernetes节点退役流程：先将节点标记为 `Unschedulable` (Cordon)，然后驱逐 (Drain) 节点上的所有Pod，最后从Kubernetes集群中移除该节点，并更新 `device` 表中对应设备的状态（如标记为"可用"或"待清理"等）。
+-   **手动订单创建界面与设备维护流程**:
+    -   **背景**: 除了策略自动触发的伸缩订单外，系统需要支持手动创建订单，特别是针对设备维护场景。此流程通常涉及与外部设备管理系统或团队的协作。
+    -   **流程步骤**:
+        1.  **维护请求接收 (API)**: 系统提供一个API接口，供下游系统（如设备组的维护管理系统）调用，以请求对特定设备/节点进行维护。请求参数应包括：
+            -   设备标识 (如 `device.CICode` 或 `device.ID`)。
+            -   期望的维护开始时间 (`maintenance_start_time`) 和结束时间 (`maintenance_end_time`)。
+            -   外部系统工单号 (`external_ticket_id`)，用于追踪。
+            -   维护原因/描述。
+        2.  **创建维护请求订单**: 接收到请求后，系统内部创建一个类型为 `maintenance_request` 的 `elastic_scaling_order`。
+            -   `device_id` 字段记录目标设备。
+            -   初始状态可设为 `pending_confirmation`。
+        3.  **调度确认与回调**:
+            -   系统（或运维人员通过界面操作）确认维护窗口是否可行。
+            -   通过API回调通知下游请求系统，告知已收到请求、内部订单号以及确认/建议的维护时间。
+        4.  **下游系统确认**: 下游系统通过API调用，确认维护安排。订单状态更新为 `scheduled_for_maintenance`。
+        5.  **执行维护前置操作 (K8s层面)**:
+            -   在维护开始前，K8s平台运维人员（或自动化脚本）对目标节点执行 `cordon` 操作，使其不再接收新的Pod调度。
+            -   根据需要，可能执行 `drain` 操作（优雅地驱逐节点上的现有Pod）。
+            -   此操作完成后，可更新维护订单状态为 `maintenance_in_progress`。
+        6.  **通知下游开始维护**: 一旦节点在K8s层面准备就绪（例如已Cordon），系统通过API回调或其他通知方式，通知下游系统可以开始物理维护。
+        7.  **下游执行物理维护**: 下游团队对设备进行实际的维护操作。
+        8.  **维护完成通知 (API)**: 下游系统维护完成后，通过API调用通知本系统维护已结束。
+        9.  **创建"节点恢复服务"订单**: 收到维护完成通知后，系统自动或由运维人员手动创建一个新的关联订单，类型为 `maintenance_uncordon`。此订单的目标是使节点恢复服务。
+            -   此订单关联到同一个 `device_id`。
+            -   初始状态为 `pending` 或 `processing`。
+        10. **执行Uncordon操作**: K8s平台运维人员（或自动化脚本）执行此订单，对节点进行 `uncordon` 操作，使其重新变为可调度状态。
+            -   **注意**: 此操作与标准的"入池"不同，它不涉及重新加入集群或复杂的配置，主要是解除Cordon状态。
+        11. **状态更新与关闭**: `maintenance_uncordon` 订单完成后，状态更新为 `completed`。原 `maintenance_request` 订单也可相应关闭或标记为 `completed`。
+    -   **界面支持**:
+        -   需要界面来查看和管理这些手动创建的维护类订单。
+        -   应能清晰展示订单的各个阶段、关联的设备、以及与下游系统的交互状态。
+    -   **数据模型扩展**: `elastic_scaling_order` 表的 `action_type` 和 `status` ENUM类型需要按上述流程进行扩展。相关字段如 `device_id`, `maintenance_start_time`, `maintenance_end_time`, `external_ticket_id` 已添加。
 -   **前端状态管理和实时更新策略**: 对于列表和统计数据的实时性要求,保持与k8s_cluster_resource_snapshot的实时同步即可。
 -   **API响应与错误码**: API响应应遵循 `pkg/middleware/render/json.go` 中定义的通用结构 (`{ "code": <http_status_code>, "msg": "<message>", "data": <optional_data> }`)。错误码直接使用HTTP状态码，如 `200` (成功), `400` (错误请求), `401` (未授权), `403` (禁止访问), `404` (未找到), `500` (服务器内部错误)。具体的业务逻辑错误信息通过 `msg` 字段传递。
+
+## 8. 节点选择逻辑（退池）
+
+### 8.1 概述
+节点选择逻辑主要由 `server/portal/internal/service/device_query.go` 提供支持，并由订单管理服务调用和协调。该逻辑用于在触发退池操作时，从目标集群中智能选择最适合移除的节点。
+
+### 8.2 核心原则
+- **非特殊设备优先**：`device.IsSpecial = false` 的设备作为高优先级选择对象
+- **特殊设备保护**：`IsSpecial = true` 的设备应避免被自动退池，除非明确配置或手动选择
+
+### 8.3 筛选与排序标准
+以下标准可按优先级配置或作为评分因子：
+
+1. **资源利用率最低**
+   - 优先选择 CPU 和内存请求/使用率最低的节点
+   - 数据来源：`k8s_cluster_resource_snapshot` 或 Kubernetes API 实时数据
+
+2. **运行 Pod 数最少/影响最小**
+   - 优先选择运行 Pod 数量最少的节点
+   - 评估指标：
+     - Pod 优先级
+     - 标签信息
+     - 注解信息
+   - 需要与 Kubernetes API 交互获取节点 Pod 信息
+
+3. **无关键污点/标签**
+   - 避免选择带有保护性污点的节点（如 `NoSchedule` 且阻止驱逐）
+   - 避免选择带有关键业务标签的节点
+   - 例外：策略明确允许的情况
+
+4. **最长在池时间**（可选策略）
+   - 实现类似 FIFO 的轮换机制
+   - 需要记录节点的入池时间
+
+5. **节点健康状态**
+   - 必须处于 Kubernetes `Ready` 状态
+   - 必须未被手动 Cordon
+
+### 8.4 实现细节
+- **函数签名**：`SelectNodesForRemoval(cluster_id, device_count, node_selector)`
+- **处理流程**：
+  1. 过滤目标集群中当前在池内的节点
+  2. 应用筛选标准（特别是 `IsSpecial=false`）
+  3. 根据其他标准（资源利用率、Pod 数量等）对候选节点排序/评分
+  4. 返回排序后的候选节点列表给订单管理服务
+  5. 订单管理服务从列表顶部选取 N 个节点
+  6. 执行标准 Kubernetes 节点退役流程：
+     - 标记为 `Unschedulable`（Cordon）
+     - 驱逐（Drain）节点上的所有 Pod
+     - 从 Kubernetes 集群中移除节点
+     - 更新 `device` 表中对应设备状态
+
+## 9. 手动订单创建与设备维护
+
+### 9.1 背景
+除了策略自动触发的伸缩订单外，系统需要支持手动创建订单，特别是针对设备维护场景。此流程通常涉及与外部设备管理系统或团队的协作。
+
+### 9.2 流程步骤
+
+#### 9.2.1 维护请求接收
+- **API 接口**：供下游系统（如设备组维护管理系统）调用
+- **请求参数**：
+  - 设备标识（`device.CICode` 或 `device.ID`）
+  - 维护时间窗口（`maintenance_start_time`、`maintenance_end_time`）
+  - 外部系统工单号（`external_ticket_id`）
+  - 维护原因/描述
+
+#### 9.2.2 创建维护请求订单
+- 创建类型为 `maintenance_request` 的 `elastic_scaling_order`
+- 记录目标设备到 `device_id` 字段
+- 初始状态设为 `pending_confirmation`
+
+#### 9.2.3 调度确认与回调
+- 系统/运维人员确认维护窗口可行性
+- 通过 API 回调通知下游系统：
+  - 请求接收确认
+  - 内部订单号
+  - 确认/建议的维护时间
+
+#### 9.2.4 下游系统确认
+- 外部系统确认维护安排
+- 更新订单状态为 `scheduled_for_maintenance`
+
+#### 9.2.5 执行维护前置操作
+- 在维护开始前执行 Kubernetes 层面操作：
+  - 执行 `cordon` 操作
+  - 可选执行 `drain` 操作
+- 更新订单状态为 `maintenance_in_progress`
+
+#### 9.2.6 通知下游开始维护
+- 节点在 Kubernetes 层面准备就绪后
+- 通知下游系统开始物理维护
+
+#### 9.2.7 下游执行物理维护
+- 下游团队执行实际维护操作
+
+#### 9.2.8 维护完成通知
+- 下游系统通过 API 通知维护完成
+
+#### 9.2.9 创建节点恢复服务订单
+- 创建类型为 `maintenance_uncordon` 的关联订单
+- 关联到同一 `device_id`
+- 初始状态：`pending` 或 `processing`
+
+#### 9.2.10 执行 Uncordon 操作
+- 执行 `uncordon` 操作使节点恢复可调度状态
+- 注意：此操作与标准"入池"不同，仅解除 Cordon 状态
+
+#### 9.2.11 状态更新与关闭
+- 更新 `maintenance_uncordon` 订单状态为 `completed`
+- 关闭原 `maintenance_request` 订单
+
+### 9.3 界面支持
+- 提供维护类订单的查看和管理界面
+- 清晰展示：
+  - 订单各阶段状态
+  - 关联设备信息
+  - 与下游系统的交互状态
+
+### 9.4 数据模型扩展
+- 扩展 `elastic_scaling_order` 表：
+  - 新增字段：
+    - `device_id`
+    - `maintenance_start_time`
+    - `maintenance_end_time`
+    - `external_ticket_id`
+  - 更新 `action_type` 和 `status` 的 ENUM 类型
+
+## 10. 前端状态管理和实时更新策略
+
+### 10.1 实时数据同步
+- 列表和统计数据的实时性要求
+- 保持与 `k8s_cluster_resource_snapshot` 的实时同步
+
+### 10.2 API 响应规范
+- 遵循 `pkg/middleware/render/json.go` 中定义的通用结构：
+  ```json
+  {
+    "code": <http_status_code>,
+    "msg": "<message>",
+    "data": <optional_data>
+  }
+  ```
+- 错误码使用标准 HTTP 状态码：
+  - `200`：成功
+  - `400`：错误请求
+  - `401`：未授权
+  - `403`：禁止访问
+  - `404`：未找到
+  - `500`：服务器内部错误
+- 具体业务逻辑错误信息通过 `msg` 字段传递

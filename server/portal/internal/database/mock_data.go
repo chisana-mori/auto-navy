@@ -46,7 +46,8 @@ const (
 )
 
 // ClearAndSeedDatabase clears relevant tables and seeds them with consistent mock data.
-func ClearAndSeedDatabase(db *gorm.DB) error {
+// It returns the seeded clusters for further use (e.g., seeding snapshots).
+func ClearAndSeedDatabase(db *gorm.DB) ([]portal.K8sCluster, error) {
 	log.Println("Starting database clearing and seeding...")
 
 	// 1. Clear existing data in reverse dependency order (or tables that can be cleared)
@@ -63,6 +64,7 @@ func ClearAndSeedDatabase(db *gorm.DB) error {
 		"label_feature_value", // Depends on label_feature
 		"label_feature",       // Independent
 		"taint_feature",       // Independent
+		"k8s_cluster_resource_snapshot", // New table for resource snapshots
 		"k8s_cluster",         // Independent
 	}
 
@@ -88,6 +90,7 @@ func ClearAndSeedDatabase(db *gorm.DB) error {
 		"label_feature_value",
 		"label_feature",
 		"taint_feature",
+		"k8s_cluster_resource_snapshot", // New table for resource snapshots
 		"k8s_cluster",
 	}
 	log.Println("Resetting sequences (SQLite only)...")
@@ -103,59 +106,59 @@ func ClearAndSeedDatabase(db *gorm.DB) error {
 	log.Println("Seeding K8s Clusters...")
 	clusters, err := seedK8sClusters(db)
 	if err != nil {
-		return fmt.Errorf("failed to seed k8s clusters: %w", err)
+		return nil, fmt.Errorf("failed to seed k8s clusters: %w", err)
 	}
 
 	log.Println("Seeding Label Features...")
 	labelFeatures, err := seedLabelFeatures(db)
 	if err != nil {
-		return fmt.Errorf("failed to seed label features: %w", err)
+		return nil, fmt.Errorf("failed to seed label features: %w", err)
 	}
 
 	log.Println("Seeding Taint Features...")
 	taintFeatures, err := seedTaintFeatures(db)
 	if err != nil {
-		return fmt.Errorf("failed to seed taint features: %w", err)
+		return nil, fmt.Errorf("failed to seed taint features: %w", err)
 	}
 
 	log.Println("Seeding K8s Nodes...")
 	nodes, err := seedK8sNodes(db, clusters)
 	if err != nil {
-		return fmt.Errorf("failed to seed k8s nodes: %w", err)
+		return nil, fmt.Errorf("failed to seed k8s nodes: %w", err)
 	}
 
 	log.Println("Seeding K8s ETCD...")
 	etcds, err := seedK8sEtcd(db, clusters)
 	if err != nil {
-		return fmt.Errorf("failed to seed k8s etcd: %w", err)
+		return nil, fmt.Errorf("failed to seed k8s etcd: %w", err)
 	}
 
 	log.Println("Seeding Devices...")
 	devices, err := seedDevices(db, nodes, etcds)
 	if err != nil {
-		return fmt.Errorf("failed to seed devices: %w", err)
+		return nil, fmt.Errorf("failed to seed devices: %w", err)
 	}
 	// Note: Devices are seeded, but their 'role' and 'cluster' might be updated later based on actual relations
 
 	log.Println("Seeding K8s Node Labels...")
 	if err := seedK8sNodeLabels(db, nodes, labelFeatures); err != nil {
-		return fmt.Errorf("failed to seed k8s node labels: %w", err)
+		return nil, fmt.Errorf("failed to seed k8s node labels: %w", err)
 	}
 
 	log.Println("Seeding K8s Node Taints...")
 	if err := seedK8sNodeTaints(db, nodes, taintFeatures); err != nil {
-		return fmt.Errorf("failed to seed k8s node taints: %w", err)
+		return nil, fmt.Errorf("failed to seed k8s node taints: %w", err)
 	}
 
 	log.Println("Updating Device Roles/Clusters based on K8s relations...")
 	if err := updateDeviceRelations(db, nodes, etcds, clusters); err != nil {
-		return fmt.Errorf("failed to update device relations: %w", err)
+		return nil, fmt.Errorf("failed to update device relations: %w", err)
 	}
 
 	// 添加DeviceApp数据生成
 	log.Println("Seeding Device Apps...")
 	if err := seedDeviceApps(db, devices); err != nil {
-		return fmt.Errorf("failed to seed device apps: %w", err)
+		return nil, fmt.Errorf("failed to seed device apps: %w", err)
 	}
 
 	// Seed other independent data (optional)
@@ -169,7 +172,120 @@ func ClearAndSeedDatabase(db *gorm.DB) error {
 		log.Printf("Warning: failed to seed Ops Jobs: %v", err)
 	}
 
+	log.Println("Seeding K8s Resource Snapshots...")
+	if err := seedK8sResourceSnapshots(db, clusters); err != nil {
+		return nil, fmt.Errorf("failed to seed k8s resource snapshots: %w", err)
+	}
+
 	log.Println("Database seeding completed successfully.")
+	return clusters, nil // Return the seeded clusters
+}
+
+// --- Seeding Functions --- //
+
+// seedK8sResourceSnapshots generates mock data for k8s_cluster_resource_snapshot table for the last few days.
+func seedK8sResourceSnapshots(db *gorm.DB, clusters []portal.K8sCluster) error {
+	log.Println("Seeding Daily Resource Snapshots...")
+
+	resourceTypesToSeed := []portal.ResourceType{
+		portal.Total,
+		portal.Intel,
+		portal.ARM,
+		portal.HG,
+		portal.GPU,
+		portal.WithTaint,
+		portal.Common,
+	}
+
+	now := time.Now()
+	var snapshotsToInsert []portal.ResourceSnapshot
+
+	// Generate data for the last 7 days
+	for d := 0; d < 7; d++ {
+		day := now.AddDate(0, 0, -d)
+		// Set time to a specific hour to make snapshots appear daily at the same time
+		snapshotTime := time.Date(day.Year(), day.Month(), day.Day(), 10, 0, 0, 0, day.Location())
+
+		for _, cluster := range clusters {
+			for _, resType := range resourceTypesToSeed {
+				// Generate some varying mock data
+				baseCPU := 1000.0 * (1.0 - float64(d)*0.05) // Decrease slightly each day
+				baseMem := 2000.0 * (1.0 - float64(d)*0.03)
+				baseNodes := 100 - int64(d*2)
+				basePods := 1500 - int64(d*50)
+
+				// Add some randomness
+				cpuCapacity := baseCPU + rand.Float64()*baseCPU*0.1
+				memCapacity := baseMem + rand.Float64()*baseMem*0.1
+				nodeCount := baseNodes + rand.Int63n(10) - 5
+				podCount := basePods + rand.Int63n(100) - 50
+
+				// Ensure counts are not negative
+				if nodeCount < 0 {
+					nodeCount = 0
+				}
+				if podCount < 0 {
+					podCount = 0
+				}
+
+				// Simulate usage and requests (vary based on resource type and day)
+				cpuRequestRatio := 0.6 + rand.Float64()*0.2 // 60-80%
+				memRequestRatio := 0.5 + rand.Float64()*0.2 // 50-70%
+				maxCpuUsageRatio := cpuRequestRatio * (1.0 + rand.Float64()*0.1) // Slightly higher than request
+				maxMemUsageRatio := memRequestRatio * (1.0 + rand.Float64()*0.1)
+
+				cpuRequest := cpuCapacity * cpuRequestRatio
+				memRequest := memCapacity * memRequestRatio
+
+				// Adjust values for specific resource types if needed (simplified for now)
+				if resType == portal.GPU {
+					cpuCapacity *= 0.5 // Assume GPU nodes have less general CPU
+					memCapacity *= 0.8
+					// Add GPU specific metrics if the model supported them
+				}
+				if resType == portal.WithTaint {
+					nodeCount = baseNodes / 10 // Fewer tainted nodes
+					if nodeCount < 1 {
+						nodeCount = 1
+					}
+				}
+				if resType == portal.Common {
+					cpuCapacity *= 0.9 // Common nodes are the majority
+					memCapacity *= 0.9
+				}
+
+
+				snapshot := portal.ResourceSnapshot{
+					BaseModel:           portal.BaseModel{CreatedAt: portal.NavyTime(snapshotTime), UpdatedAt: portal.NavyTime(snapshotTime)},
+					ClusterID:           uint(cluster.ID),
+					ResourceType:        string(resType),
+					CpuCapacity:         cpuCapacity,
+					MemoryCapacity:      memCapacity,
+					CpuRequest:          cpuRequest,
+					MemRequest:          memRequest,
+					NodeCount:           nodeCount,
+					BMCount:             nodeCount / 2, // Mock BM/VM split
+					VMCount:             nodeCount - nodeCount/2,
+					MaxCpuUsageRatio:    maxCpuUsageRatio * 100, // Store as percentage
+					MaxMemoryUsageRatio: maxMemUsageRatio * 100,
+					PerNodeCpuRequest:   cpuRequest / float64(nodeCount+1), // Avoid division by zero
+					PerNodeMemRequest:   memRequest / float64(nodeCount+1),
+					PodCount:            podCount,
+				}
+				snapshotsToInsert = append(snapshotsToInsert, snapshot)
+			}
+		}
+	}
+
+	if len(snapshotsToInsert) > 0 {
+		if err := db.CreateInBatches(&snapshotsToInsert, 100).Error; err != nil {
+			return fmt.Errorf("failed to create resource snapshots: %w", err)
+		}
+		log.Printf("Inserted %d Daily Resource Snapshots", len(snapshotsToInsert))
+	} else {
+		log.Println("No Daily Resource Snapshots to insert.")
+	}
+
 	return nil
 }
 

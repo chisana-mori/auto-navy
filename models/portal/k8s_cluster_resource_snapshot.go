@@ -49,6 +49,7 @@ type ResourceSnapshot struct {
 	PerNodeCpuRequest   float64 `gorm:"column:per_node_cpu_req"`
 	PerNodeMemRequest   float64 `gorm:"column:per_node_mem_req"`
 	ResourceType        string  `gorm:"column:resource_type"`
+	ResourcePool        string  `gorm:"column:resource_pool"`
 	PodCount            int64   `gorm:"column:pod_count"`
 }
 
