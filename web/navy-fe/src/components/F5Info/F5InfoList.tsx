@@ -390,54 +390,54 @@ const F5InfoList: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
-      <Card 
-        title={
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <CloudServerOutlined style={{ marginRight: '12px', color: '#1677ff', fontSize: '18px' }} />
-            <span>F5 信息列表</span>
-          </div>
-        } 
-        className="f5-info-list-card"
+    <Card 
+      title={
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <CloudServerOutlined style={{ marginRight: '12px', color: '#1677ff', fontSize: '18px' }} />
+          <span>F5 信息列表</span>
+        </div>
+      } 
+      className="f5-info-list-card"
       >
         <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-          <Button 
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={() => fetchData(pagination.current || 1, pagination.pageSize || 10, filters)}
-          >
-            刷新数据
-          </Button>
+        <Button 
+          type="primary"
+          icon={<ReloadOutlined />}
+          onClick={() => fetchData(pagination.current || 1, pagination.pageSize || 10, filters)}
+        >
+          刷新数据
+        </Button>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={data}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            ...pagination,
-            showTotal: (total) => `共 ${total} 条记录`,
-            showSizeChanger: true,
-            pageSizeOptions: ['10', '20', '50', '100'],
-            size: 'default',
-            showQuickJumper: true,
-          }}
-          onChange={handleTableChange}
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        pagination={{
+          ...pagination,
+          showTotal: (total) => `共 ${total} 条记录`,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          size: 'default',
+          showQuickJumper: true,
+        }}
+        onChange={handleTableChange}
           size="middle"
-          rowClassName={(record) => {
-            return record.ignored ? 'ignored-row' : `status-${record.status.toLowerCase()}-row`;
-          }}
-          onRow={(record) => {
-            const statusInfo = getStatusInfo(record.status);
-            return {
-              style: {
-                backgroundColor: record.ignored ? '#fffbe6' : statusInfo.color,
-                transition: 'background-color 0.3s',
-              }
-            };
-          }}
-        />
-      </Card>
+        rowClassName={(record) => {
+          return record.ignored ? 'ignored-row' : `status-${record.status.toLowerCase()}-row`;
+        }}
+        onRow={(record) => {
+          const statusInfo = getStatusInfo(record.status);
+          return {
+            style: {
+              backgroundColor: record.ignored ? '#fffbe6' : statusInfo.color,
+              transition: 'background-color 0.3s',
+            }
+          };
+        }}
+      />
+    </Card>
     </div>
   );
 };

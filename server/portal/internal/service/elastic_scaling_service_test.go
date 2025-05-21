@@ -685,7 +685,7 @@ var _ = Describe("ElasticScalingService", func() {
 					Status:      "success",
 				}
 				// Set the CreatedAt field using the BaseModel
-				order.BaseModel.CreatedAt = time.Now().Add(-5 * time.Minute) // 5 minutes ago (still in 10 min cooldown)
+				order.BaseModel.CreatedAt = portal.NavyTime(time.Now().Add(-5 * time.Minute)) // 5 minutes ago (still in 10 min cooldown)
 				err = db.Create(&order).Error
 				Expect(err).NotTo(HaveOccurred())
 			})

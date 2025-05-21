@@ -39,8 +39,9 @@ K8s 集群节点入池退池管理系统 (以下简称“本系统”) 是一个
 
 1. **节点入池退池策略 (ElasticScalingStrategy)**：定义节点入池或退池的触发条件、目标值和执行动作
 2. **节点入池退池订单 (ElasticScalingOrder)**：记录节点入池或退池操作的执行状态和结果
-3. **策略执行历史 (StrategyExecutionHistory)**：记录节点入池退池策略的执行历史和结果
-4. **资源快照 (ResourceSnapshot)**：记录集群资源使用情况的快照
+3. **策略执行历史 (StrategyExecutionHistory)**：记录策略的执行历史
+4. **资源池设备匹配策略 (ResourcePoolDeviceMatchStrategy)**：记录资源池设备匹配策略的执行状态和结果
+
 5. **通知日志 (NotificationLog)**：记录系统发送的通知信息
 6. **设备 (Device)**：记录集群中的设备信息
 
@@ -54,31 +55,52 @@ sequenceDiagram
     participant Service as 节点入池退池服务
     participant DB as 数据库
 
-    Note over Monitor: 定时触发策略评估
+    Note over Monitor: 每天早上6点触发一次策略评估
 
     Monitor->>Service: 调用EvaluateStrategies()
     Service->>DB: 查询所有启用的策略
     DB-->>Service: 返回策略列表
 
     loop 对每个策略
-        Service->>DB: 检查冷却期
-        DB-->>Service: 返回最近执行记录
+        Service->>DB: 获取关联集群
+        DB-->>Service: 返回关联集群
 
-        alt 不在冷却期内
-            Service->>DB: 获取关联集群
-            DB-->>Service: 返回关联集群
+        loop 对每个集群和资源池
+            Service->>DB: 查询最近一条订单时间
+            DB-->>Service: 返回订单时间
 
-            loop 对每个集群和资源类型
-                Service->>DB: 获取资源快照
+            alt 距离当前时间小于冷却期
+                Note over Service: 跳过该集群资源池
+            else
+                Service->>DB: 获取最近n天资源快照
                 DB-->>Service: 返回资源数据
 
-                alt 满足触发条件
-                    Note over Service: 策略触发条件满足，进入设备匹配流程
+                Service->>Service: 计算最后连续天数分配率是否超过阈值
+                alt 连续n天超过阈值
+                    Service->>DB: 插入策略执行历史（成功，集群+资源池）
+                    Note over Service: 满足条件，进入设备匹配流程（设备匹配流程包含创建订单动作）
+                else
+                    Service->>DB: 插入策略执行历史（失败，集群+资源池）
+                    Note over Service: 不满足条件，跳过
                 end
             end
         end
     end
 ```
+
+#### 策略评估流程逻辑说明
+
+1. **冷却期检查（按集群+资源池维度）**
+    - 对每个策略，获取其关联的所有集群和资源池。
+    - 针对每个集群和资源池，查询最近一条订单的时间。
+    - 如果订单时间距离当前策略评估时间小于配置的冷却期天数，则跳过该集群资源池的评估。
+
+2. **持续天数判断**
+    - 若通过冷却期检查，获取该集群资源池最近n天的资源快照。
+    - 计算这些天中资源分配率连续超过阈值的最大天数。
+    - 仅当最后一段连续天数大于等于配置的持续天数，才生成订单。
+    - 若中间有一天未达标，则重新计算连续天数，仅统计最后一段连续天数。
+
 
 ### 3.2 设备匹配流程
 
@@ -87,25 +109,55 @@ sequenceDiagram
     participant Service as 节点入池退池服务
     participant DeviceQuery as 设备查询服务
     participant DB as 数据库
+    participant Notifier as 通知服务
 
-    Note over Service: 策略触发条件满足
+    Note over Service: 策略触发条件满足，进入设备匹配流程
 
     alt 入池操作
-        Service->>DB: 获取入池查询模板
+        Service->>DB: 获取入池查询模板和additionCond，组装为最终查询参数
         DB-->>Service: 返回入池查询模板
     else 退池操作
         Service->>DB: 获取退池查询模板
         DB-->>Service: 返回退池查询模板
     end
 
-    Service->>DeviceQuery: 执行设备查询
+    Service->>DeviceQuery: 执行设备查询（组装后的参数）
     DeviceQuery->>DB: 根据查询模板条件查询设备
     DB-->>DeviceQuery: 返回符合条件的设备列表
     DeviceQuery-->>Service: 返回设备查询结果
 
-    Service->>Service: 随机选择所需数量的设备
-    Note over Service: 进入订单创建流程
+    alt 匹配到设备
+        Service->>DB: 查询集群该特定资源池的资源快照（k8s_cluster_resource_snapshot）
+        DB-->>Service: 返回资源快照
+        Service->>Service: 计算需要入池/退池的设备数量
+        Service->>Service: 从候选设备中筛选目标设备
+        Service->>DB: 创建订单
+        Note over Service: 生成工单，驱动用户处理
+    else 未匹配到设备
+        Service->>Notifier: 发送无库存通知邮件
+        Note over Service: 无可用设备，仅通知
+    end
 ```
+
+#### 设备匹配流程详细说明
+
+1. **组装设备查询参数**
+   - 入池操作时，获取资源池关联的设备查询模板，并将策略配置的 additionCond（如根据集群属性动态生成的参数）合并，形成最终的设备查询参数。
+   - 退池操作则直接使用退池查询模板。
+
+2. **设备查询**
+   - 调用设备查询服务，依据组装后的条件查找所有符合要求的设备，获取候选设备列表。
+
+3. **设备数量计算与筛选**
+   - 查询集群当前的资源快照（k8s_cluster_resource_snapshot），获取容量、已用等信息。
+   - 入池：根据当前分配率、目标阈值、触发阈值，计算需要新增的设备数量，使分配率降至目标阈值以下。
+   - 退池：反向计算，可减少的设备数量。
+   - 从候选设备中随机或按策略筛选出所需数量的设备。
+
+4. **生成工单（订单）**
+   - 若有可用设备，生成节点入池/退池订单，驱动用户后续处理。
+   - 若无可用设备，则通过通知服务发送邮件，提醒用户当前无库存需尽快处理。
+
 
 ### 3.3 订单创建流程
 

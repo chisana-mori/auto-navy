@@ -17,8 +17,8 @@ AI Code发展过程
 3 - AI Agent
 
 工具介绍：
-工具cursor,windsurf,trae
-插件augment,copilot,roo,cline(可对接本地模型)
+工具 <img src="https://www.cursor.com/favicon.ico" alt="Cursor" style="height:1em;vertical-align:-0.15em;"/> Cursor, <img src="https://windsurf.com/favicon.ico" alt="Windsurf" style="height:1em;vertical-align:-0.15em;"/> Windsurf, <img src="https://www.trae.ai/favicon.ico" alt="Trae" style="height:1em;vertical-align:-0.15em;"/> Trae
+插件 <img src="https://www.augmentcode.com/favicon.ico" alt="Augment" style="height:1em;vertical-align:-0.15em;"/> Augment, <img src="https://cdn.jsdelivr.net/gh/lobehub/lobe-icons/icons/githubcopilot.svg" alt="Copilot" style="height:1em;vertical-align:-0.15em;"/> Copilot, <img src="https://roocode.com/favicon.ico" alt="Roo" style="height:1em;vertical-align:-0.15em;"/> Roo, <img src="https://cdn.jsdelivr.net/gh/lobehub/lobe-icons/icons/cline.svg" alt="Cline" style="height:1em;vertical-align:-0.15em;"/> Cline(可对接本地模型)
 
 编程模型推荐：
 最优编码模型(claude3.7 gemini2.5 pro)

@@ -53,7 +53,7 @@ const CalicoNetworkTopology: React.FC = () => {
         // 实际项目中应该通过API获取数据
         // const response = await request.get('/api/calico/nodes');
         // setData(response.data);
-
+        
         // --- 生成更复杂的模拟数据 ---
         const mockNodes: CalicoNode[] = [];
         const rrName = 'feature.node/rr';
@@ -67,7 +67,7 @@ const CalicoNetworkTopology: React.FC = () => {
           const isRRNode = i <= rrNodesCount;
           const clusterName = `cluster-${String(i).padStart(2, '0')}`;
           const nodeAS = '65001';
-
+          
           const pools: string[] = [];
           for (let p = 1; p <= poolsPerNode; p++) {
             pools.push(`pool-${clusterName}-${p}`);
@@ -78,7 +78,7 @@ const CalicoNetworkTopology: React.FC = () => {
             cluster: clusterName,
             as: nodeAS,
             // 前 10 个节点连接到 AnchorLeaf, 后 10 个连接到 RR
-            peer: isRRNode ? `${anchorLeafPeerPrefix} : ${anchorLeafPeerIP}` : `some-other-peer-${i} : 10.0.0.${i}`,
+            peer: isRRNode ? `${anchorLeafPeerPrefix} : ${anchorLeafPeerIP}` : `some-other-peer-${i} : 10.0.0.${i}`, 
             nodeType: isRRNode ? 'K8S主机模式' : '测试K8S集群主机模式',
             podType: isRRNode ? 'K8SBASE' : 'K8S非业务APP',
             poolV4: pools,
@@ -86,7 +86,7 @@ const CalicoNetworkTopology: React.FC = () => {
             rr: isRRNode ? '' : rrName, // 前 10 个 rr 为空, 后 10 个指定 rr
           });
         }
-
+        
         // 这里使用模拟数据
         setTimeout(() => {
           setData(mockNodes);
@@ -106,19 +106,19 @@ const CalicoNetworkTopology: React.FC = () => {
   const showTopo = (node: CalicoNode, type: 'rr' | 'anchorleaf') => {
     setTopoType(type);
     setCurrentNode(node);
-
-    // --- 准备拓扑数据 ---
+    
+    // --- 准备拓扑数据 --- 
     const nodes: any[] = [];
     const edges: any[] = [];
 
     if (type === 'rr') {
       const rrId = node.rr || `rr-${node.id}`; // RR 的唯一 ID
       const rrLabel = node.rr || `RR (${node.cluster})`;
-
+      
       // 添加 RR 节点,添加类型和样式
-      nodes.push({
-        id: rrId,
-        label: rrLabel,
+      nodes.push({ 
+        id: rrId, 
+        label: rrLabel, 
         type: 'rr',
         style: { fill: '#e6f7ff', stroke: '#1890ff', lineWidth: 2 },
         size: 40,
@@ -126,7 +126,7 @@ const CalicoNetworkTopology: React.FC = () => {
       });
 
       // 查找所有连接到此 RR 的节点
-      const connectedNodes = data.filter(d => d.rr === node.rr && d.id !== node.id);
+      const connectedNodes = data.filter(d => d.rr === node.rr && d.id !== node.id); 
       if (!connectedNodes.find(cn => cn.id === node.id)) {
         connectedNodes.push(node);
       }
@@ -134,41 +134,41 @@ const CalicoNetworkTopology: React.FC = () => {
       connectedNodes.forEach((connNode) => {
         const nodeId = `node-${connNode.id}`; // 节点唯一 ID
         const nodeLabel = connNode.cluster; // 节点标签
-
+        
         // 添加集群节点,增加样式
-        nodes.push({
-          id: nodeId,
-          label: nodeLabel,
+        nodes.push({ 
+          id: nodeId, 
+          label: nodeLabel, 
           type: 'node',
           originalData: connNode,
           style: { fill: '#f6ffed', stroke: '#52c41a', lineWidth: 2 },
           size: 30,
         });
-        edges.push({
+        edges.push({ 
           id: `edge-${rrId}-${nodeId}`,
-          source: rrId,
+          source: rrId, 
           target: nodeId,
           style: { stroke: '#aaa', lineWidth: 1 },
         });
 
         // 添加节点的 IP Pool
         const pools = [...connNode.poolV4, ...connNode.poolV6];
-
+        
         pools.forEach((pool, poolIndex) => {
           const poolId = `pool-${connNode.id}-${poolIndex}`; // IP Pool 唯一 ID
-
+          
           // 添加 IP Pool 节点,增加样式
-          nodes.push({
-            id: poolId,
-            label: pool,
+          nodes.push({ 
+            id: poolId, 
+            label: pool, 
             type: 'block',
             style: { fill: '#fffbe6', stroke: '#faad14', lineWidth: 1 },
             size: 20,
             labelCfg: { position: 'bottom', style: { fill: '#666', fontSize: 8 } },
           });
-          edges.push({
+          edges.push({ 
             id: `edge-${nodeId}-${poolId}`,
-            source: nodeId,
+            source: nodeId, 
             target: poolId,
             style: { stroke: '#ddd', lineWidth: 1 },
           });
@@ -179,11 +179,11 @@ const CalicoNetworkTopology: React.FC = () => {
       const peerId = node.peer.split(' : ')[0] || `peer-${node.id}`;
       const peerIp = node.peer.split(' : ')[1] || '';
       const peerLabel = `${peerId}${peerIp ? '\n' + peerIp : ''}`;
-
+      
       // 添加中心节点,添加样式
-      nodes.push({
-        id: peerId,
-        label: peerLabel,
+      nodes.push({ 
+        id: peerId, 
+        label: peerLabel, 
         type: 'rr', // 保持用 rr type 表示中心
         style: { fill: '#e6f7ff', stroke: '#1890ff', lineWidth: 2 },
         size: 40,
@@ -197,19 +197,19 @@ const CalicoNetworkTopology: React.FC = () => {
 
       connectedNodes.forEach((connNode) => {
         const nodeId = `node-${connNode.id}`;
-
+        
         // 添加集群节点,添加样式
-        nodes.push({
-          id: nodeId,
-          label: connNode.cluster,
+        nodes.push({ 
+          id: nodeId, 
+          label: connNode.cluster, 
           type: 'node',
           originalData: connNode,
           style: { fill: '#f6ffed', stroke: '#52c41a', lineWidth: 2 },
           size: 30,
         });
-        edges.push({
+        edges.push({ 
           id: `edge-${peerId}-${nodeId}`,
-          source: peerId,
+          source: peerId, 
           target: nodeId,
           style: { stroke: '#aaa', lineWidth: 1 },
         });
@@ -218,29 +218,29 @@ const CalicoNetworkTopology: React.FC = () => {
         const pools = [...connNode.poolV4, ...connNode.poolV6];
         pools.forEach((pool, poolIndex) => {
           const poolId = `pool-${connNode.id}-${poolIndex}`;
-
+          
           // 添加 IP Pool 节点,添加样式
-          nodes.push({
-            id: poolId,
-            label: pool,
+          nodes.push({ 
+            id: poolId, 
+            label: pool, 
             type: 'block',
             style: { fill: '#fffbe6', stroke: '#faad14', lineWidth: 1 },
             size: 20,
             labelCfg: { position: 'bottom', style: { fill: '#666', fontSize: 8 } },
           });
-          edges.push({
+          edges.push({ 
             id: `edge-${nodeId}-${poolId}`,
-            source: nodeId,
+            source: nodeId, 
             target: poolId,
             style: { stroke: '#ddd', lineWidth: 1 },
           });
         });
       });
     }
-
+    
     console.log('Prepared topo data for G6 5.x with styles:', { nodes, edges });
     setTopoData({ nodes, edges });
-
+    
     // 直接设置为拓扑视图可见，不再使用模态框的全屏状态
     setTopoVisible(true);
   };
@@ -251,7 +251,7 @@ const CalicoNetworkTopology: React.FC = () => {
       key: '1',
       label: 'IP分配',
       children: (
-        <Table
+        <Table 
           dataSource={nodeDetail?.ips || []}
           rowKey="ip"
           pagination={false}
@@ -299,7 +299,7 @@ const CalicoNetworkTopology: React.FC = () => {
     topo.style.position = 'relative';
     topo.style.width = '400px'; // Example size, adjust as needed
     topo.style.height = '300px'; // Example size, adjust as needed
-
+    
     // 创建背景辅助网格（可选）
     const grid = document.createElement('div');
     grid.style.position = 'absolute';
@@ -310,7 +310,7 @@ const CalicoNetworkTopology: React.FC = () => {
     grid.style.opacity = '0.6';
     grid.style.pointerEvents = 'none';
     topo.appendChild(grid);
-
+    
     // 创建提示框元素
     const tooltip = document.createElement('div');
     tooltip.style.position = 'absolute';
@@ -326,28 +326,28 @@ const CalicoNetworkTopology: React.FC = () => {
     tooltip.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
     topo.appendChild(tooltip);
 
-
+    
     // 添加悬浮动画样式
     const styleId = 'topo-animations';
     let style = document.getElementById(styleId);
     if (!style) {
         style = document.createElement('style');
         style.id = styleId;
-        style.textContent = `
-          @keyframes float {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-5px); }
-            100% { transform: translateY(0px); }
-          }
-          @keyframes pulse {
-            0% { box-shadow: 0 0 5px rgba(24, 144, 255, 0.3); }
-            50% { box-shadow: 0 0 15px rgba(24, 144, 255, 0.5); }
-            100% { box-shadow: 0 0 5px rgba(24, 144, 255, 0.3); }
-          }
-          @keyframes flow {
-            0% { stroke-dashoffset: 24; }
-            100% { stroke-dashoffset: 0; }
-          }
+    style.textContent = `
+      @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+        100% { transform: translateY(0px); }
+      }
+      @keyframes pulse {
+        0% { box-shadow: 0 0 5px rgba(24, 144, 255, 0.3); }
+        50% { box-shadow: 0 0 15px rgba(24, 144, 255, 0.5); }
+        100% { box-shadow: 0 0 5px rgba(24, 144, 255, 0.3); }
+      }
+      @keyframes flow {
+        0% { stroke-dashoffset: 24; }
+        100% { stroke-dashoffset: 0; }
+      }
         `;
         document.head.appendChild(style);
     }
@@ -405,10 +405,10 @@ const CalicoNetworkTopology: React.FC = () => {
     centerNode.addEventListener('mouseout', () => {
       tooltip.style.display = 'none';
     });
-
+    
     topo.appendChild(centerNode);
     nodeElements[centerNode.id] = centerNode;
-
+    
     // 创建 SVG 画布用于连线
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.style.position = 'absolute';
@@ -761,10 +761,10 @@ const CalicoNetworkTopology: React.FC = () => {
       width: 300,
       render: (pools: string[]) => (
         <div style={{ maxHeight: '60px', overflowY: 'auto' }}>
-          {pools.map((pool, index) => (
+            {pools.map((pool, index) => (
             <Tag key={index} color="geekblue" style={{ marginBottom: '4px' }}>{pool}</Tag>
-          ))}
-        </div>
+            ))}
+          </div>
       ),
     },
     {
@@ -774,10 +774,10 @@ const CalicoNetworkTopology: React.FC = () => {
       width: 300,
       render: (pools: string[]) => (
         <div style={{ maxHeight: '60px', overflowY: 'auto' }}>
-          {pools.map((pool, index) => (
+            {pools.map((pool, index) => (
             <Tag key={index} color="purple" style={{ marginBottom: '4px' }}>{pool}</Tag>
-          ))}
-        </div>
+            ))}
+          </div>
       ),
     },
     { title: 'RR', dataIndex: 'rr', key: 'rr', width: 150 },
@@ -788,8 +788,8 @@ const CalicoNetworkTopology: React.FC = () => {
       width: 300,
       render: (_: any, record: CalicoNode) => (
         <Space size={8} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          <Button
-            size="small"
+          <Button 
+            size="small" 
             type="primary"
             ghost
             icon={<PartitionOutlined />}
@@ -798,8 +798,8 @@ const CalicoNetworkTopology: React.FC = () => {
           >
             RR拓扑
           </Button>
-          <Button
-            size="small"
+          <Button 
+            size="small" 
             type="primary"
             ghost
             icon={<NodeIndexOutlined />}
@@ -857,8 +857,8 @@ const CalicoNetworkTopology: React.FC = () => {
 
       {/* 拓扑图展示区域 (不再使用 Modal) */}
       {topoVisible && (
-        <div
-          style={{
+        <div 
+          style={{ 
             position: 'fixed',
             top: 0,
             left: 0,
@@ -879,17 +879,17 @@ const CalicoNetworkTopology: React.FC = () => {
             style={{ width: '90%', height: '90%', display: 'flex', flexDirection: 'column' }}
             bodyStyle={{ flex: 1, overflow: 'hidden', padding: '16px' }} // Allow body to grow and hide overflow
             extra={
-              <Space>
-                <Button
+            <Space>
+              <Button 
                   danger
-                  onClick={() => {
-                    setTopoVisible(false);
+                onClick={() => {
+                  setTopoVisible(false);
                     // setFullscreen(false); // fullscreen state removed
-                  }}
-                >
+                }}
+              >
                   关闭
-                </Button>
-              </Space>
+              </Button>
+            </Space>
             }
           >
             {/* Conditionally render Node Details or Topology */}
@@ -898,7 +898,7 @@ const CalicoNetworkTopology: React.FC = () => {
             ) : (
                  <div ref={containerRef} style={{ width: '100%', height: '100%', border: '1px solid #eee', position: 'relative' }}>
                    {/* Static topology will be rendered here by initGraph */}
-                 </div>
+            </div>
             )}
           </Card>
         </div>
