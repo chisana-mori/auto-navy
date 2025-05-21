@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe Code - AI编程辅助指南</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: 0 },
+                            '100%': { opacity: 1 },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+        
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+        }
+        
+        /* 卡片悬停效果 */
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-5px);
+        }
+        
+        /* 平滑显示效果 */
+        .section-fade {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        
+        .section-fade.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 标题渐变效果 */
+        .gradient-text {
+            background: linear-gradient(90deg, #0ea5e9, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .dark .gradient-text {
+            background: linear-gradient(90deg, #38bdf8, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 表格样式 - 简洁现代风格 */
+        .model-comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            background: transparent;
+        }
+        
+        .model-comparison-table th {
+            padding: 1rem 1.5rem;
+            text-align: center;
+            font-weight: 500;
+            color: #6b7280;
+            background-color: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .dark .model-comparison-table th {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            border-bottom: 1px solid #374151;
+        }
+        
+        .model-comparison-table th:first-child {
+            text-align: left;
+            padding-left: 1.5rem;
+        }
+        
+        .model-comparison-table td {
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .dark .model-comparison-table td {
+            border-bottom: 1px solid #1f2937;
+        }
+        
+        .model-comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .model-comparison-table td:first-child {
+            text-align: left;
+            font-weight: 500;
+            color: #4b5563;
+        }
+        
+        .dark .model-comparison-table td:first-child {
+            color: #d1d5db;
+        }
+        
+        .model-comparison-table td:not(:first-child) {
+            text-align: center;
+        }
+        
+        /* 为Claude和Gemini模型数据设置不同颜色 */
+        .claude-value {
+            color: #8b5cf6;
+            font-weight: 600;
+        }
+        
+        .gemini-value {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        
+        .dark .claude-value {
+            color: #a78bfa;
+        }
+        
+        .dark .gemini-value {
+            color: #60a5fa;
+        }
+        
+        /* 百分比进度条 */
+        .progress-bar-container {
+            width: 100%;
+            height: 4px;
+            background-color: #e5e7eb;
+            border-radius: 2px;
+            margin-top: 0.25rem;
+            overflow: hidden;
+        }
+        
+        .dark .progress-bar-container {
+            background-color: #4b5563;
+        }
+        
+        .progress-bar-claude {
+            height: 100%;
+            background-color: #8b5cf6;
+            border-radius: 2px;
+        }
+        
+        .progress-bar-gemini {
+            height: 100%;
+            background-color: #3b82f6;
+            border-radius: 2px;
+        }
+        
+        .dark .progress-bar-claude {
+            background-color: #a78bfa;
+        }
+        
+        .dark .progress-bar-gemini {
+            background-color: #60a5fa;
+        }
+        
+        /* 表头模型名称样式 */
+        .model-name {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .model-name i {
+            margin-right: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .model-comparison-table th,
+            .model-comparison-table td {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.85rem;
+            }
+            
+            .model-name i {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col transition-colors duration-200"> 
+    <!-- 导航条 -->
+    <nav class="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="#" class="flex items-center space-x-2">
+                        <i class="fas fa-code text-primary-600 dark:text-primary-400 text-2xl"></i>
+                        <span class="font-bold text-xl">Vibe Code</span>
+                    </a>
+                </div>
+                <div class="hidden md:block">
+                    <div class="flex items-center space-x-4">
+                        <a href="#learning" class="px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">学习板块</a>
+                        <a href="#evolution" class="px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">进化史</a>
+                        <a href="#tools" class="px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">工具插件</a>
+                        <a href="#models" class="px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">模型推荐</a>
+                        <a href="#agents" class="px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Agent原理</a>
+                        <a href="#optimize" class="px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">调优细节</a>
+                        <a href="#practice" class="px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">实践流程</a>
+                        <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none">
+                            <i class="fas fa-moon dark:hidden"></i>
+                            <i class="fas fa-sun hidden dark:block"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none mr-2">
+                        <i class="fas fa-moon dark:hidden"></i>
+                        <i class="fas fa-sun hidden dark:block"></i>
+                    </button>
+                    <button id="mobile-menu-button" class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 移动端菜单 -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 animate-fade-in">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#learning" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800">学习板块</a>
+                <a href="#evolution" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800">进化史</a>
+                <a href="#tools" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800">工具插件</a>
+                <a href="#models" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800">模型推荐</a>
+                <a href="#agents" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800">Agent提示词演示</a>
+                <a href="#optimize" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800">调优细节</a>
+                <a href="#practice" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800">实践流程</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
+        <!-- 头部区域 -->
+        <header class="text-center mb-16 section-fade visible">
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 gradient-text">Vibe Code</h1>
+            <p class="text-lg sm:text-xl md:text-2xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                欢迎来到 Vibe 编码世界，这里是探索 AI 编程辅助、智能体发展、以及各种炫酷工具的聚集地。
+            </p>
+        </header>
+
+        <!-- 学习板块 -->
+        <section id="learning" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-brain text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">学习板块</h2>
+            </div>
+            <p class="mb-6 text-gray-600 dark:text-gray-400">最近我们主打两个 AI 工具：</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-book text-primary-500 text-xl mr-3"></i>
+                        <h3 class="text-xl font-semibold">DeepWiki</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        直接把 GitHub 仓库变成可互动的知识百科，只要将github域名替换为deepwiki即可。
+                    <a href="https://deepwiki.com/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <i class="fab fa-github text-primary-500 text-xl mr-3"></i>
+                        <h3 class="text-xl font-semibold">OpenDeepWiki</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        开源版，支持本地部署，RAG 架构，知识问答也不在话下。
+                    </p>
+                    <a href="https://github.com/AIDotNet/OpenDeepWiki" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        GitHub 仓库
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                <p class="mb-4">
+                    我们尝试通过这两个工具去看 k8s 源码，RAG + 源码 = 爽！
+                </p>
+                <a href="https://github.com/kubernetes/kubernetes" target="_blank" class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:underline">
+                    <i class="fas fa-code-branch mr-2"></i>
+                    Kubernetes 源码仓库
+                    <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                </a>
+            </div>
+        </section>
+
+        <!-- AI Code 的进化史 -->
+        <section id="evolution" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-history text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">AI Code 的进化史</h2>
+            </div>
+            <p class="mb-6 text-gray-600 dark:text-gray-400">从早期的 IDE 补全到现在的 AI 智能体，我们走了这么几个阶段：</p>
+            
+            <div class="relative pl-8 before:content-[''] before:absolute before:left-3 before:top-2 before:w-0.5 before:h-[calc(100%-24px)] before:bg-primary-200 dark:before:bg-primary-800">
+                <div class="relative mb-8">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500"></div>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">IDE 补全（最早的智力点火）</h3>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        最初的代码辅助功能，在IDE中提供简单的代码补全建议。
+                    </p>
+                </div>
+                
+                <div class="relative mb-8">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500"></div>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">AI 问答（ChatGPT/Gemini 入门）</h3>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        能够针对编程问题提供详细解答，帮助开发者理解概念和解决问题。
+                    </p>
+                </div>
+                
+                <div class="relative mb-8">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500"></div>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">人机结对编程（像和个聪明队友搭档）</h3>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        AI开始能够理解上下文，提供更智能的代码建议，与开发者协作编写代码。
+                    </p>
+                </div>
+                
+                <div class="relative">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500"></div>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">AI Agent（智能自动化写代码）</h3>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        能够自主完成复杂的编程任务，理解需求并生成完整的代码解决方案。
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 工具和插件盘点 -->
+        <section id="tools" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-tools text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">工具和插件盘点</h2>
+            </div>
+            
+            <h3 class="text-2xl font-semibold mb-4">常用工具</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <img src="https://www.cursor.so/favicon.ico" alt="Cursor" class="w-6 h-6 mr-3">
+                        <h4 class="text-xl font-semibold">Cursor</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        由 Cursor 团队开发的编程 IDE，支持上下文 AI 辅助。
+                    </p>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        <p><span class="font-medium">付费情况：</span> 提供免费试用，Pro 版 $20/月，团队版 $40/用户/月。</p>
+                    </div>
+                    <a href="https://www.cursor.so/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <img src="https://windsurfai.org/favicon.ico" alt="Windsurf" class="w-6 h-6 mr-3" onerror="this.src='https://via.placeholder.com/24'">
+                        <h4 class="text-xl font-semibold">Windsurf</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        由 Codeium 开发的多模型聚合 + 云端服务工具。
+                    </p>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="mb-1"><span class="font-medium">付费情况：</span></p>
+                        <ul class="list-disc list-inside pl-1">
+                            <li>免费版：提供基本功能</li>
+                            <li>Pro 版：$15/月</li>
+                            <li>Pro Ultimate 版：$60/月</li>
+                            <li>团队版：$30/用户/月</li>
+                        </ul>
+                    </div>
+                    <a href="https://windsurfai.org/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <img src="https://trae.ai/favicon.ico" alt="Trae" class="w-6 h-6 mr-3" onerror="this.src='https://via.placeholder.com/24'">
+                        <h4 class="text-xl font-semibold">Trae</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        由 Trae Labs 开发的 agent 流水线实验场。
+                    </p>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        <p><span class="font-medium">付费情况：</span> 目前提供免费试用，具体定价参考官网。</p>
+                    </div>
+                    <a href="https://trae.ai/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <h3 class="text-2xl font-semibold mb-4">插件精选</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <img src="https://augment.sh/favicon.ico" alt="Augment" class="w-6 h-6 mr-3" onerror="this.src='https://via.placeholder.com/24'">
+                        <h4 class="text-lg font-semibold">Augment</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        由 Augment 开发的增强型插件。
+                    </p>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        <p><span class="font-medium">付费：</span> Dev 版 $50/月</p>
+                    </div>
+                    <a href="https://augment.sh/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <img src="https://github.com/favicon.ico" alt="GitHub Copilot" class="w-6 h-6 mr-3">
+                        <h4 class="text-lg font-semibold">Copilot</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        由 GitHub 开发的 AI 编程助手。
+                    </p>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        <p><span class="font-medium">付费：</span> 个人版 $10/月，企业版 $19/用户/月</p>
+                    </div>
+                    <a href="https://github.com/features/copilot" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <img src="https://roo.ai/favicon.ico" alt="Roo" class="w-6 h-6 mr-3" onerror="this.src='https://via.placeholder.com/24'">
+                        <h4 class="text-lg font-semibold">Roo</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        由 Roo AI 开发的智能插件。
+                    </p>
+                    <a href="https://roo.ai/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <img src="https://cline.io/favicon.ico" alt="Cline" class="w-6 h-6 mr-3" onerror="this.src='https://via.placeholder.com/24'">
+                        <h4 class="text-lg font-semibold">Cline</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        由 Cline 开发，支持对接本地模型。
+                    </p>
+                    <a href="https://cline.io/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        访问网站
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 编程模型推荐 -->
+        <section id="models" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-microchip text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">编程模型推荐</h2>
+            </div>
+            
+            <p class="mb-6 text-gray-600 dark:text-gray-400">现阶段实测：</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-robot text-purple-500 text-xl mr-3"></i>
+                        <h3 class="text-xl font-semibold">Claude 3.7 Sonnet</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        审查、测试类任务稳如老狗。
+                    </p>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-robot text-blue-500 text-xl mr-3"></i>
+                        <h3 class="text-xl font-semibold">Gemini 2.5 Pro</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        编码 & 文档生成一把好手。
+                    </p>
+                </div>
+            </div>
+            
+            <h3 class="text-2xl font-semibold mb-4">模型能力对比</h3>
+            <div class="overflow-x-auto mb-6">
+                <table class="model-comparison-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%">能力领域</th>
+                            <th style="width: 35%">
+                                <div class="model-name">
+                                    <i class="fas fa-robot text-purple-500"></i>
+                                    <span class="claude-value">Claude 3.7 Sonnet</span>
+                                </div>
+                            </th>
+                            <th style="width: 35%">
+                                <div class="model-name">
+                                    <i class="fas fa-robot text-blue-500"></i>
+                                    <span class="gemini-value">Gemini 2.5 Pro</span>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>数学推理</td>
+                            <td>
+                                <div class="claude-value">80%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-claude" style="width: 80%"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gemini-value">92%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-gemini" style="width: 92%"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>科学推理</td>
+                            <td>
+                                <div class="claude-value">79%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-claude" style="width: 79%"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gemini-value">93%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-gemini" style="width: 93%"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>代码生成</td>
+                            <td>
+                                <div class="claude-value">70.3%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-claude" style="width: 70.3%"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gemini-value">63.8%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-gemini" style="width: 63.8%"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>多步骤推理</td>
+                            <td>
+                                <div class="claude-value">82%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-claude" style="width: 82%"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gemini-value">85%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-gemini" style="width: 85%"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>事实准确性</td>
+                            <td>
+                                <div class="claude-value">86%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-claude" style="width: 86%"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gemini-value">83%</div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-gemini" style="width: 83%"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>长文本处理</td>
+                            <td class="claude-value">200K tokens</td>
+                            <td class="gemini-value">1M tokens</td>
+                        </tr>
+                        <tr>
+                            <td>多模态处理</td>
+                            <td class="claude-value">文本</td>
+                            <td class="gemini-value">文本、图像、音频</td>
+                        </tr>
+                        <tr>
+                            <td>编程优势</td>
+                            <td class="claude-value">调试、文档总结</td>
+                            <td class="gemini-value">全栈、多语言</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="mb-1">来源：</p>
+                <ul>
+                    <li>
+                        <a href="https://www.cursor-ide.com/blog/gemini-claude-comparison-2025" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">
+                            Cursor Blog: Gemini vs Claude
+                            <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://blog.chathub.gg/gemini-2-5-pro-vs-claude-3-7-sonnet-a-comprehensive-comparison-analysis-of-ai-models/" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">
+                            ChatHub Blog: Model Comparison
+                            <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- AI Agent 原理演示 -->
+        <section id="agents" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-robot text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">AI Code Agent 上下文演示</h2>
+            </div>
+            
+            <p class="mb-6 text-gray-600 dark:text-gray-400">举例演示：RepoPrompt</p>
+            
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 font-mono text-sm mb-6 overflow-x-auto">
+                <p class="mb-2 text-gray-700 dark:text-gray-300">目标：开发一个简单的 Web 服务</p>
+                <p class="text-gray-700 dark:text-gray-300"><span class="text-primary-600 dark:text-primary-400">Prompt:</span> 请构建一个包含用户认证与资源管理的全栈项目，前端用 React，后端用 FastAPI，数据库用 SQLite。</p>
+            </div>
+            
+            <p class="text-gray-600 dark:text-gray-400">Agent 会自己建项目结构、分层、甚至写测试！</p>
+        </section>
+
+        <!-- VibeCode 调优细节 -->
+        <section id="optimize" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-sliders-h text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">VibeCode 调优细节</h2>
+            </div>
+            
+            <div class="mb-8">
+                <h3 class="text-2xl font-semibold mb-4">什么是 MCP？</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">
+                    MCP（Model Context Protocol）是一种协议，旨在为大型语言模型（LLMs）提供结构化的上下文管理。
+                </p>
+                
+                <h3 class="text-2xl font-semibold mb-4">三大关键组件</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-project-diagram text-primary-500 text-xl mr-3"></i>
+                            <h4 class="text-lg font-semibold">Context7</h4>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">
+                            注入最新 API 示例与文档，避免调用错误版本。
+                        </p>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">场景：</span> 用 Claude / Cursor 开发时保障上下文一致性。
+                        </p>
+                        <a href="https://context7.com/?q=gin" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                            了解更多
+                            <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                        </a>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-file-code text-primary-500 text-xl mr-3"></i>
+                            <h4 class="text-lg font-semibold">Code Rules</h4>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">
+                            制定 AI 的编码风格指令。
+                        </p>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">场景：</span> 规范生成代码风格，方便团队协作。
+                        </p>
+                        <a href="https://docs.cursor.com/context/rules" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                            了解更多
+                            <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                        </a>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-memory text-primary-500 text-xl mr-3"></i>
+                            <h4 class="text-lg font-semibold">Mem0</h4>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">
+                            赋予 AI 持久记忆力。
+                        </p>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">场景：</span> 长周期项目中自动"记住"上下文和偏好。
+                        </p>
+                        <a href="https://mem0.ai/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                            了解更多
+                            <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Code Review 革新 -->
+        <section id="code-review" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-paw text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">AI Code Review 革新</h2>
+            </div>
+            
+            <p class="text-gray-600 dark:text-gray-400 mb-6">
+                代码审查是开发流程中的关键环节，AI 技术正在彻底改变这一领域：
+            </p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-bug text-primary-500 text-xl mr-3"></i>
+                        <h4 class="text-lg font-semibold">AI + Lint 静态分析</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        将 AI 与传统 Lint 工具结合，大幅提升代码质量和开发效率。
+                    </p>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        <span class="font-medium">优势：</span> 不仅检测语法错误，还能提供智能重构建议，自动修复常见问题。
+                    </p>
+                    <div class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                        <p><span class="font-medium">推荐工具：</span> ESLint + AI, Golangci-lint + OpenAI</p>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 card-hover">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-code-branch text-primary-500 text-xl mr-3"></i>
+                        <h4 class="text-lg font-semibold">CodeRabbit</h4>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">
+                        专为 GitHub PR 流程设计的 AI 代码审查助手。
+                    </p>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        <span class="font-medium">功能：</span> 自动分析 PR 变更，提供详细代码建议，检测潜在 bug 和安全漏洞。
+                    </p>
+                    <a href="https://coderabbit.ai/" target="_blank" class="inline-flex items-center mt-4 text-primary-600 dark:text-primary-400 hover:underline">
+                        了解更多
+                        <i class="fas fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700 mt-6">
+                <div class="flex items-center mb-3">
+                    <i class="fas fa-lightbulb text-yellow-500 mr-3"></i>
+                    <h4 class="text-lg font-semibold">AI Code Review 最佳实践</h4>
+                </div>
+                <ul class="list-disc list-inside text-gray-600 dark:text-gray-400 ml-2 space-y-2">
+                    <li>结合自动化 CI/CD 流水线，实现自动审查</li>
+                    <li>使用语言特定模型（如 Codex, Claude 等）提升专业度</li>
+                    <li>关注安全漏洞和性能瓶颈，而非简单的风格问题</li>
+                    <li>为 AI 审查工具提供项目上下文，提高相关性</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 行内落地例子 -->
+        <section id="examples" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-lightbulb text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">行内落地例子</h2>
+            </div>
+            
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-6">
+                <p class="text-gray-600 dark:text-gray-400">
+                    在 <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">navy</code> 项目中做设备管理 & 资源管理：
+                </p>
+                <ul class="list-disc list-inside text-gray-600 dark:text-gray-400 mt-4 ml-4 space-y-2">
+                    <li>用了行内 commit 技巧记录 agent 行为。</li>
+                    <li>协作和复盘变得超级高效！</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- VibeCode 实践流程 -->
+        <section id="practice" class="mb-20 section-fade">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-rocket text-primary-500 text-2xl mr-3"></i>
+                <h2 class="text-3xl font-bold">VibeCode 实践流程</h2>
+            </div>
+            
+            <p class="mb-6 text-gray-600 dark:text-gray-400">完整流程如下：</p>
+            
+            <div class="relative pl-8 before:content-[''] before:absolute before:left-3 before:top-2 before:w-0.5 before:h-[calc(100%-24px)] before:bg-primary-200 dark:before:bg-primary-800">
+                <div class="relative mb-8 flex items-start">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">1</div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2">💡 想法生成（ChatGPT DeepResearch）</h3>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            利用ChatGPT深度研究功能，探索和生成创新想法。
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="relative mb-8 flex items-start">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">2</div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2">📄 设计/需求文档（ChatGPT）</h3>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            使用ChatGPT制作详细的设计方案和需求规格文档。
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="relative mb-8 flex items-start">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">3</div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2">💻 编码实现（Gemini 2.5 Pro）</h3>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            利用Gemini 2.5 Pro的编码能力快速实现功能。
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="relative mb-8 flex items-start">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">4</div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2">🧐 代码审查（Claude 3.7 Sonnet）</h3>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            使用Claude 3.7 Sonnet进行全面的代码审查，找出潜在问题。
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="relative mb-8 flex items-start">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">5</div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2">🧹 代码优化（Gemini）</h3>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            根据审查结果，使用Gemini进行代码重构和优化。
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="relative mb-8 flex items-start">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">6</div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2">✅ 代码测试（Claude）</h3>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            使用Claude创建和执行全面的测试套件，确保代码质量。
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="relative flex items-start">
+                    <div class="absolute left-[-33px] bg-white dark:bg-gray-900 rounded-full border-4 border-primary-200 dark:border-primary-800 z-10">
+                        <div class="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">7</div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2">📚 使用手册（Gemini）</h3>
+                        <p class="text-gray-600 dark:text-gray-400">
+                            使用Gemini生成详细的用户文档和使用指南。
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-8 text-center bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
+                <p class="text-lg text-gray-700 dark:text-gray-300">
+                    AI 全流程参与，你就是产品主理人 + 技术负责人 + 项目经理！
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-gray-100 dark:bg-gray-800 py-8 border-t border-gray-200 dark:border-gray-700">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-6 md:mb-0">
+                    <a href="#" class="flex items-center space-x-2">
+                        <i class="fas fa-code text-primary-600 dark:text-primary-400 text-2xl"></i>
+                        <span class="font-bold text-xl">Vibe Code</span>
+                    </a>
+                    <p class="mt-2 text-gray-600 dark:text-gray-400">探索 AI 编程辅助的无限可能</p>
+                </div>
+                
+                <div class="mb-6 md:mb-0">
+                    <h3 class="font-semibold mb-4">作者信息</h3>
+                    <p class="text-gray-600 dark:text-gray-400">AI编程爱好者</p>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold mb-4">关注我们</h3>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-primary-500 transition-colors">
+                            <i class="fab fa-github text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-primary-500 transition-colors">
+                            <i class="fab fa-twitter text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-primary-500 transition-colors">
+                            <i class="fab fa-linkedin text-xl"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700 text-center text-gray-500 dark:text-gray-400">
+                <p>&copy; 2023 Vibe Code. 保留所有权利。</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // 暗色/亮色主题切换
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+        
+        initTheme();
+        
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        });
+        
+        document.getElementById('mobile-theme-toggle').addEventListener('click', () => {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        });
+        
+        // 移动端菜单
+        document.getElementById('mobile-menu-button').addEventListener('click', () => {
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenu.classList.toggle('hidden');
+        });
+        
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    const mobileMenu = document.getElementById('mobile-menu');
+                    if (!mobileMenu.classList.contains('hidden')) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                    
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+        
+        // 滚动动画
+        function handleIntersection(entries, observer) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }
+        
+        const observer = new IntersectionObserver(handleIntersection, {
+            root: null,
+            rootMargin: '0px',
+            threshold: 0.1
+        });
+        
+        document.querySelectorAll('.section-fade').forEach(section => {
+            if (!section.classList.contains('visible')) {
+                observer.observe(section);
+            }
+        });
+    </script>
+</body>
+</html> 

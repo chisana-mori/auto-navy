@@ -622,6 +622,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                     fetchDeviceFieldValues(value);
                   }
                 }
+                // 同时更新 field 和 key 字段，确保它们保持同步
                 updateFilterBlock(groupId, block.id, { field: value, key: value });
               }}
             >

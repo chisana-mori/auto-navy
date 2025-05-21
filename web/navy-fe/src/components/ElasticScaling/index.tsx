@@ -1,7 +1,9 @@
 import Dashboard from './Dashboard';
+import DeviceMatchingPolicy from './DeviceMatchingPolicy';
 
 export {
-  Dashboard
+  Dashboard,
+  DeviceMatchingPolicy
 };
- 
-export default Dashboard; 
+
+export default Dashboard;

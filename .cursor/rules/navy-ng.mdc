@@ -48,7 +48,9 @@ navy-ng/
 - 后端代码开发遵从java MVC设计模式，前端参数构造的模型与数据库层模型需要分离开，在service层构建单独的DTO模型，文件名以${service}_dto为模版
 - controller类所有关于响应的代码必须调用pkg/middleware/render/json.go来完成
 - 前后端通信的json为驼峰格式
-- 方法的复杂度不要超过15
+- 函数和方法的复杂度不要超过15
+- 代码中关于日志的打印，禁止使用fmt.Println，请使用zap log
+- 代码中不允许出现大量重复字符串，编码时就请将字符串提成常量
 
 # Rule: job-overview.mdc
 # Path: .cursor/rules/job-overview.mdc

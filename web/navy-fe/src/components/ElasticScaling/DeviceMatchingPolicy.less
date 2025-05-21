@@ -1,0 +1,252 @@
+/* 设备匹配策略样式 - 与监控策略管理页面保持一致 */
+.device-matching-policy-container {
+  margin-bottom: 24px;
+}
+
+/* 卡片样式 */
+.policy-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  border-radius: 4px;
+
+  .ant-card-head {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 0 16px;
+
+    .ant-card-head-title {
+      padding: 16px 0;
+    }
+  }
+
+  .ant-card-body {
+    padding: 16px;
+  }
+}
+
+/* 查询构建器样式 */
+.query-builder {
+  margin-top: 16px;
+
+  .filter-groups {
+    margin-bottom: 16px;
+  }
+
+  .filter-area-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #999;
+    border: 2px dashed #d9d9d9;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+  }
+
+  .filter-group {
+    background-color: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s;
+
+    &:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+    }
+
+    .filter-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+
+      .filter-group-title {
+        font-weight: 500;
+        color: #333;
+        font-size: 14px;
+      }
+    }
+
+    .filter-blocks {
+      min-height: 50px;
+    }
+
+    .filter-group-footer {
+      padding: 12px 0 0;
+      margin-top: 12px;
+      border-top: 1px solid #f0f0f0;
+    }
+  }
+
+  .filter-block {
+    background-color: #f0f7ff;
+    border: 1px solid #d6e4ff;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.3s;
+
+    &:hover {
+      box-shadow: 0 2px 6px rgba(24, 144, 255, 0.1);
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .filter-block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+
+      .filter-block-type {
+        font-weight: 500;
+        color: #1890ff;
+        font-size: 13px;
+      }
+    }
+
+    .filter-block-content {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .filter-block-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+  }
+
+  .logic-operator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 12px 0;
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background-color: #e8e8e8;
+      z-index: 0;
+    }
+
+    .logic-operator-content {
+      background-color: #fff;
+      padding: 0 12px;
+      position: relative;
+      z-index: 1;
+      border-radius: 12px;
+      border: 1px solid #e8e8e8;
+    }
+  }
+
+  .query-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+  }
+}
+
+/* 表单样式优化 */
+.policy-form {
+  .ant-form-item-label > label {
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  .ant-card {
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+
+    .ant-card-head {
+      background-color: #f5f7fa;
+      min-height: 40px;
+      padding: 0 16px;
+
+      .ant-card-head-title {
+        padding: 10px 0;
+      }
+    }
+
+    .ant-card-body {
+      padding: 16px 24px;
+    }
+  }
+
+  .ant-input, .ant-select-selector, .ant-input-number {
+    border-radius: 4px;
+  }
+
+  .ant-radio-button-wrapper {
+    min-width: 80px;
+    text-align: center;
+  }
+
+  .ant-form-item-required::before {
+    margin-right: 6px !important;
+  }
+}
+
+/* 表格样式优化 */
+.policy-table {
+  .ant-table-thead > tr > th {
+    background-color: #f5f7fa;
+    font-weight: 500;
+    padding: 12px 16px;
+  }
+
+  .ant-table-tbody > tr > td {
+    padding: 12px 16px;
+  }
+
+  .ant-table-row:hover {
+    background-color: #f0f7ff;
+  }
+
+  .ant-tag {
+    margin-right: 0;
+  }
+}
+
+/* 模态框样式优化 */
+.policy-modal {
+  .ant-modal-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .ant-modal-body {
+    padding: 24px;
+    background-color: #f9fbfd;
+  }
+
+  .ant-modal-footer {
+    border-top: 1px solid #f0f0f0;
+    padding: 12px 24px;
+  }
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .filter-block-content {
+    flex-direction: column;
+    align-items: flex-start;
+
+    .ant-select {
+      width: 100% !important;
+    }
+  }
+}

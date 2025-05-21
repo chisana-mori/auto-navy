@@ -28,6 +28,10 @@ func NewResourcePoolDeviceMatchingPolicyService(db *gorm.DB, cache *DeviceCache)
 
 // GetResourcePoolDeviceMatchingPolicies 获取资源池设备匹配策略列表
 func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingPolicies(ctx context.Context, page, size int) (*ResourcePoolDeviceMatchingPolicyListResponse, error) {
+	// 创建一个带有超时的上下文
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	// 验证分页参数
 	if page <= 0 {
 		page = DefaultPage
@@ -39,52 +43,108 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 	// 计算数据库偏移量
 	offset := (page - 1) * size
 
-	// 查询总数
-	var total int64
-	if err := s.db.WithContext(ctx).Model(&portal.ResourcePoolDeviceMatchingPolicy{}).Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("failed to count policies: %w", err)
-	}
-
-	// 从数据库获取分页的策略
-	var dbPolicies []portal.ResourcePoolDeviceMatchingPolicy
-	if err := s.db.WithContext(ctx).
-		Offset(offset).
-		Limit(size).
-		Order("id desc"). // 默认按ID降序排列
-		Find(&dbPolicies).Error; err != nil {
-		return nil, fmt.Errorf("failed to get policies: %w", err)
-	}
-
-	// 转换为服务层策略格式
-	policies := make([]ResourcePoolDeviceMatchingPolicy, len(dbPolicies))
-	for i, dbPolicy := range dbPolicies {
-		// 解析查询条件组
-		var queryGroups []FilterGroup
-		if err := json.Unmarshal([]byte(dbPolicy.QueryGroups), &queryGroups); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal query groups for policy %d: %w", dbPolicy.ID, err)
+	// 使用事务来确保查询的一致性和性能
+	var response *ResourcePoolDeviceMatchingPolicyListResponse
+	err := s.db.WithContext(timeoutCtx).Transaction(func(tx *gorm.DB) error {
+		// 查询总数
+		var total int64
+		if err := tx.Model(&portal.ResourcePoolDeviceMatchingPolicy{}).Count(&total).Error; err != nil {
+			return fmt.Errorf("failed to count policies: %w", err)
 		}
 
-		policies[i] = ResourcePoolDeviceMatchingPolicy{
-			ID:               dbPolicy.ID,
-			Name:             dbPolicy.Name,
-			Description:      dbPolicy.Description,
-			ResourcePoolType: dbPolicy.ResourcePoolType,
-			ActionType:       dbPolicy.ActionType,
-			QueryGroups:      queryGroups,
-			Status:           dbPolicy.Status,
-			CreatedBy:        dbPolicy.CreatedBy,
-			UpdatedBy:        dbPolicy.UpdatedBy,
-			CreatedAt:        time.Time(dbPolicy.CreatedAt),
-			UpdatedAt:        time.Time(dbPolicy.UpdatedAt),
+		// 从数据库获取分页的策略，只选择必要的字段
+		var dbPolicies []portal.ResourcePoolDeviceMatchingPolicy
+		if err := tx.
+			Select("id, name, description, resource_pool_type, action_type, query_template_id, status, created_by, updated_by, created_at, updated_at").
+			Order("id desc"). // 默认按ID降序排列
+			Offset(offset).
+			Limit(size).
+			Find(&dbPolicies).Error; err != nil {
+			return fmt.Errorf("failed to get policies: %w", err)
 		}
-	}
 
-	// 构建响应
-	response := &ResourcePoolDeviceMatchingPolicyListResponse{
-		List:  policies,
-		Total: total,
-		Page:  page,
-		Size:  size,
+		// 获取关联的查询模板
+		var templateIDs []uint
+		for _, policy := range dbPolicies {
+			templateIDs = append(templateIDs, policy.QueryTemplateID)
+		}
+
+		// 查询关联的查询模板
+		var queryTemplates []portal.QueryTemplate
+		if len(templateIDs) > 0 {
+			if err := tx.Where("id IN ?", templateIDs).Find(&queryTemplates).Error; err != nil {
+				return fmt.Errorf("failed to get query templates: %w", err)
+			}
+		}
+
+		// 创建模板ID到模板的映射
+		templateMap := make(map[uint]portal.QueryTemplate)
+		for _, template := range queryTemplates {
+			templateMap[uint(template.ID)] = template
+		}
+
+		// 转换为服务层策略格式
+		policies := make([]ResourcePoolDeviceMatchingPolicy, len(dbPolicies))
+		for i, dbPolicy := range dbPolicies {
+			// 查找关联的查询模板
+			template, exists := templateMap[dbPolicy.QueryTemplateID]
+
+			// 解析额外动态条件
+			var additionConds []string
+			if dbPolicy.AdditionConds != "" {
+				if err := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionConds); err != nil {
+					return fmt.Errorf("failed to unmarshal addition conditions for policy %d: %w", dbPolicy.ID, err)
+				}
+			}
+
+			// 创建策略对象
+			policies[i] = ResourcePoolDeviceMatchingPolicy{
+				ID:               dbPolicy.ID,
+				Name:             dbPolicy.Name,
+				Description:      dbPolicy.Description,
+				ResourcePoolType: dbPolicy.ResourcePoolType,
+				ActionType:       dbPolicy.ActionType,
+				QueryTemplateID:  int64(dbPolicy.QueryTemplateID),
+				Status:           dbPolicy.Status,
+				AdditionConds:    additionConds,
+				CreatedBy:        dbPolicy.CreatedBy,
+				UpdatedBy:        dbPolicy.UpdatedBy,
+				CreatedAt:        time.Time(dbPolicy.CreatedAt),
+				UpdatedAt:        time.Time(dbPolicy.UpdatedAt),
+			}
+
+			// 如果找到了关联的查询模板，解析其查询条件组并添加到策略中
+			if exists {
+				// 解析查询条件组
+				var queryGroups []FilterGroup
+				if err := json.Unmarshal([]byte(template.Groups), &queryGroups); err != nil {
+					return fmt.Errorf("failed to unmarshal query groups for template %d: %w", template.ID, err)
+				}
+
+				// 添加查询条件组和模板信息
+				policies[i].QueryGroups = queryGroups
+				policies[i].QueryTemplate = &QueryTemplate{
+					ID:          template.ID,
+					Name:        template.Name,
+					Description: template.Description,
+					Groups:      queryGroups,
+				}
+			}
+		}
+
+		// 构建响应
+		response = &ResourcePoolDeviceMatchingPolicyListResponse{
+			List:  policies,
+			Total: total,
+			Page:  page,
+			Size:  size,
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	return response, nil
@@ -101,10 +161,27 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 		return nil, fmt.Errorf("failed to get policy: %w", err)
 	}
 
+	// 获取关联的查询模板
+	var template portal.QueryTemplate
+	if err := s.db.WithContext(ctx).First(&template, "id = ?", dbPolicy.QueryTemplateID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("query template not found: %d", dbPolicy.QueryTemplateID)
+		}
+		return nil, fmt.Errorf("failed to get query template: %w", err)
+	}
+
 	// 解析查询条件组
 	var queryGroups []FilterGroup
-	if err := json.Unmarshal([]byte(dbPolicy.QueryGroups), &queryGroups); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal query groups for policy %d: %w", dbPolicy.ID, err)
+	if err := json.Unmarshal([]byte(template.Groups), &queryGroups); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal query groups for template %d: %w", template.ID, err)
+	}
+
+	// 解析额外动态条件
+	var additionConds []string
+	if dbPolicy.AdditionConds != "" {
+		if err := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionConds); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal addition conditions: %w", err)
+		}
 	}
 
 	// 转换为服务层策略格式
@@ -114,12 +191,20 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 		Description:      dbPolicy.Description,
 		ResourcePoolType: dbPolicy.ResourcePoolType,
 		ActionType:       dbPolicy.ActionType,
+		QueryTemplateID:  int64(dbPolicy.QueryTemplateID),
 		QueryGroups:      queryGroups,
 		Status:           dbPolicy.Status,
+		AdditionConds:    additionConds,
 		CreatedBy:        dbPolicy.CreatedBy,
 		UpdatedBy:        dbPolicy.UpdatedBy,
 		CreatedAt:        time.Time(dbPolicy.CreatedAt),
 		UpdatedAt:        time.Time(dbPolicy.UpdatedAt),
+		QueryTemplate: &QueryTemplate{
+			ID:          template.ID,
+			Name:        template.Name,
+			Description: template.Description,
+			Groups:      queryGroups,
+		},
 	}
 
 	return policy, nil
@@ -144,14 +229,28 @@ func (s *ResourcePoolDeviceMatchingPolicyService) CreateResourcePoolDeviceMatchi
 		return fmt.Errorf("action type is required")
 	}
 
-	if len(policy.QueryGroups) == 0 {
-		return fmt.Errorf("query groups are required")
+	if policy.QueryTemplateID <= 0 {
+		return fmt.Errorf("query template ID is required")
 	}
 
-	// 将查询条件组转换为JSON字符串
-	queryGroupsJSON, err := json.Marshal(policy.QueryGroups)
-	if err != nil {
-		return fmt.Errorf("failed to marshal query groups: %w", err)
+	// 检查查询模板是否存在
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&portal.QueryTemplate{}).Where("id = ?", policy.QueryTemplateID).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check query template existence: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("query template not found: %d", policy.QueryTemplateID)
+	}
+
+	// 处理额外动态条件
+	var additionCondsJSON string
+	if len(policy.AdditionConds) > 0 {
+		additionCondsBytes, err := json.Marshal(policy.AdditionConds)
+		if err != nil {
+			return fmt.Errorf("failed to marshal addition conditions: %w", err)
+		}
+		additionCondsJSON = string(additionCondsBytes)
 	}
 
 	// 将策略数据转换为数据库模型
@@ -160,8 +259,9 @@ func (s *ResourcePoolDeviceMatchingPolicyService) CreateResourcePoolDeviceMatchi
 		Description:      policy.Description,
 		ResourcePoolType: policy.ResourcePoolType,
 		ActionType:       policy.ActionType,
-		QueryGroups:      string(queryGroupsJSON),
+		QueryTemplateID:  uint(policy.QueryTemplateID),
 		Status:           policy.Status,
+		AdditionConds:    additionCondsJSON,
 		CreatedBy:        policy.CreatedBy,
 		UpdatedBy:        policy.UpdatedBy,
 	}
@@ -209,8 +309,8 @@ func (s *ResourcePoolDeviceMatchingPolicyService) UpdateResourcePoolDeviceMatchi
 		return fmt.Errorf("action type is required")
 	}
 
-	if len(policy.QueryGroups) == 0 {
-		return fmt.Errorf("query groups are required")
+	if policy.QueryTemplateID <= 0 {
+		return fmt.Errorf("query template ID is required")
 	}
 
 	// 检查策略是否存在
@@ -223,10 +323,24 @@ func (s *ResourcePoolDeviceMatchingPolicyService) UpdateResourcePoolDeviceMatchi
 		return fmt.Errorf("policy not found: %d", policy.ID)
 	}
 
-	// 将查询条件组转换为JSON字符串
-	queryGroupsJSON, err := json.Marshal(policy.QueryGroups)
-	if err != nil {
-		return fmt.Errorf("failed to marshal query groups: %w", err)
+	// 检查查询模板是否存在
+	count = 0
+	if err := s.db.WithContext(ctx).Model(&portal.QueryTemplate{}).Where("id = ?", policy.QueryTemplateID).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check query template existence: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("query template not found: %d", policy.QueryTemplateID)
+	}
+
+	// 处理额外动态条件
+	var additionCondsJSON string
+	if len(policy.AdditionConds) > 0 {
+		additionCondsBytes, err := json.Marshal(policy.AdditionConds)
+		if err != nil {
+			return fmt.Errorf("failed to marshal addition conditions: %w", err)
+		}
+		additionCondsJSON = string(additionCondsBytes)
 	}
 
 	// 更新策略
@@ -237,8 +351,9 @@ func (s *ResourcePoolDeviceMatchingPolicyService) UpdateResourcePoolDeviceMatchi
 			"description":        policy.Description,
 			"resource_pool_type": policy.ResourcePoolType,
 			"action_type":        policy.ActionType,
-			"query_groups":       string(queryGroupsJSON),
+			"query_template_id":  uint(policy.QueryTemplateID),
 			"status":             policy.Status,
+			"addition_conds":     additionCondsJSON,
 			"updated_by":         policy.UpdatedBy,
 		})
 
@@ -341,27 +456,63 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 		return nil, fmt.Errorf("failed to get policies by type: %w", err)
 	}
 
+	// 获取关联的查询模板
+	var templateIDs []uint
+	for _, policy := range dbPolicies {
+		templateIDs = append(templateIDs, policy.QueryTemplateID)
+	}
+
+	// 查询关联的查询模板
+	var queryTemplates []portal.QueryTemplate
+	if len(templateIDs) > 0 {
+		if err := s.db.WithContext(ctx).Where("id IN ?", templateIDs).Find(&queryTemplates).Error; err != nil {
+			return nil, fmt.Errorf("failed to get query templates: %w", err)
+		}
+	}
+
+	// 创建模板ID到模板的映射
+	templateMap := make(map[uint]portal.QueryTemplate)
+	for _, template := range queryTemplates {
+		templateMap[uint(template.ID)] = template
+	}
+
 	// 转换为服务层策略格式
 	policies := make([]ResourcePoolDeviceMatchingPolicy, len(dbPolicies))
 	for i, dbPolicy := range dbPolicies {
-		// 解析查询条件组
-		var queryGroups []FilterGroup
-		if err := json.Unmarshal([]byte(dbPolicy.QueryGroups), &queryGroups); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal query groups for policy %d: %w", dbPolicy.ID, err)
-		}
+		// 查找关联的查询模板
+		template, exists := templateMap[dbPolicy.QueryTemplateID]
 
+		// 创建策略对象
 		policies[i] = ResourcePoolDeviceMatchingPolicy{
 			ID:               dbPolicy.ID,
 			Name:             dbPolicy.Name,
 			Description:      dbPolicy.Description,
 			ResourcePoolType: dbPolicy.ResourcePoolType,
 			ActionType:       dbPolicy.ActionType,
-			QueryGroups:      queryGroups,
+			QueryTemplateID:  int64(dbPolicy.QueryTemplateID),
 			Status:           dbPolicy.Status,
 			CreatedBy:        dbPolicy.CreatedBy,
 			UpdatedBy:        dbPolicy.UpdatedBy,
 			CreatedAt:        time.Time(dbPolicy.CreatedAt),
 			UpdatedAt:        time.Time(dbPolicy.UpdatedAt),
+		}
+
+		// 如果找到了关联的查询模板，解析其查询条件组并添加到策略中
+		if exists {
+			// 解析查询条件组
+			var queryGroups []FilterGroup
+			if err := json.Unmarshal([]byte(template.Groups), &queryGroups); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal query groups for template %d: %w", template.ID, err)
+			}
+
+			// 添加查询条件组和模板信息
+			policies[i].QueryGroups = queryGroups
+			policies[i].QueryTemplate = &QueryTemplate{
+				ID:          template.ID,
+				Name:        template.Name,
+				Description: template.Description,
+				Groups:      queryGroups,
+			}
 		}
 	}
 

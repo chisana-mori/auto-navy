@@ -82,6 +82,7 @@ export interface FilterBlock {
   key?: string;                // 键
   value?: string | string[];   // 值（单选或多选）
   operator: LogicalOperator;   // 与下一个条件的逻辑关系
+  label?: string;              // 自定义显示标签
 }
 
 // 筛选组

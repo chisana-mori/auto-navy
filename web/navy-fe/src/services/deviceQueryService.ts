@@ -117,6 +117,41 @@ export async function queryDevices(params: DeviceQueryRequest): Promise<DeviceLi
       throw new Error('查询参数无效');
     }
 
+    // 检查每个组和块的有效性
+    params.groups.forEach((group, groupIndex) => {
+      if (!group || typeof group !== 'object') {
+        console.error(`查询参数无效: 组 ${groupIndex} 不是有效对象`);
+      } else if (!Array.isArray(group.blocks)) {
+        console.error(`查询参数无效: 组 ${groupIndex} 的 blocks 不是数组`);
+      } else {
+        group.blocks.forEach((block, blockIndex) => {
+          if (!block || typeof block !== 'object') {
+            console.error(`查询参数无效: 组 ${groupIndex} 的块 ${blockIndex} 不是有效对象`);
+          } else {
+            // 检查关键字段
+            if (!block.type) {
+              console.error(`查询参数无效: 组 ${groupIndex} 的块 ${blockIndex} 缺少 type 字段`);
+            }
+            if (!block.conditionType) {
+              console.error(`查询参数无效: 组 ${groupIndex} 的块 ${blockIndex} 缺少 conditionType 字段`);
+            }
+            if (!block.field && !block.key) {
+              console.error(`查询参数无效: 组 ${groupIndex} 的块 ${blockIndex} 缺少 field 和 key 字段`);
+            }
+
+            // 确保 key 和 field 字段同步
+            if (block.field && !block.key) {
+              console.log(`修复查询参数: 组 ${groupIndex} 的块 ${blockIndex} 设置 key = field`);
+              block.key = block.field;
+            } else if (block.key && !block.field) {
+              console.log(`修复查询参数: 组 ${groupIndex} 的块 ${blockIndex} 设置 field = key`);
+              block.field = block.key;
+            }
+          }
+        });
+      }
+    });
+
     // 清理参数中的无效数据
     const cleanedParams = {
       ...params,
@@ -169,7 +204,7 @@ export async function saveQueryTemplate(template: QueryTemplate): Promise<any> {
 export async function getQueryTemplates(params?: { page?: number; size?: number }): Promise<QueryTemplateListResponse> {
   try {
     console.log('获取模板列表', params);
-    
+
     // 构建查询参数
     const queryParams: Record<string, string | number> = {};
     if (params?.page) {
@@ -178,7 +213,7 @@ export async function getQueryTemplates(params?: { page?: number; size?: number 
     if (params?.size) {
       queryParams.size = params.size;
     }
-    
+
     const response = await request(`${BASE_URL}/templates`, {
       method: 'GET',
       params: queryParams,
@@ -190,23 +225,23 @@ export async function getQueryTemplates(params?: { page?: number; size?: number 
     if (response && typeof response === 'object' && 'list' in response) {
       // 使用类型断言告诉TypeScript这个对象有QueryTemplateListResponse的结构
       const responseData = response as unknown as Partial<QueryTemplateListResponse>;
-      
+
       // 处理模板列表
       const list = responseData.list || [];
       const processedTemplates = Array.isArray(list) ? list.map(processTemplate) : [];
-      
+
       return {
         list: processedTemplates,
         total: typeof responseData.total === 'number' ? responseData.total : 0,
         page: typeof responseData.page === 'number' ? responseData.page : 1,
         size: typeof responseData.size === 'number' ? responseData.size : 10
       };
-    } 
-    
+    }
+
     // 兼容旧版返回格式（直接返回数组）
     if (Array.isArray(response)) {
       const processedTemplates = response.map(processTemplate);
-      
+
       return {
         list: processedTemplates,
         total: processedTemplates.length,
@@ -258,6 +293,14 @@ function processTemplate(template: any): QueryTemplate {
         if (!block.id) {
           block.id = generateUUID();
         }
+
+        // 确保 key 和 field 字段同步
+        if (block.field && !block.key) {
+          block.key = block.field;
+        } else if (block.key && !block.field) {
+          block.field = block.key;
+        }
+
         return block;
       });
     }
@@ -315,6 +358,14 @@ export async function getQueryTemplate(id: number | string): Promise<QueryTempla
           if (!block.id) {
             block.id = generateUUID();
           }
+
+          // 确保 key 和 field 字段同步
+          if (block.field && !block.key) {
+            block.key = block.field;
+          } else if (block.key && !block.field) {
+            block.field = block.key;
+          }
+
           return block;
         });
       }

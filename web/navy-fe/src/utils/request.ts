@@ -9,7 +9,7 @@ interface ApiError extends Error {
 }
 
 const request = axios.create({
-  baseURL: 'http://localhost:8081/fe-v1', // 直接使用完整的API地址
+  baseURL: '/api/v1', // 使用代理路径
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -19,7 +19,44 @@ const request = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
-    console.log('发送请求:', config.method, config.url, config.params || config.data);
+    console.log('发送请求:', config.method, config.url);
+
+    // 对于设备查询请求，添加更详细的日志
+    if (config.url?.includes('/device-query/query') && config.method === 'post') {
+      console.log('设备查询请求详情:');
+      console.log('- URL:', config.url);
+      console.log('- 方法:', config.method);
+      console.log('- 请求体:', JSON.stringify(config.data, null, 2));
+
+      // 检查请求体中的筛选组
+      if (config.data && config.data.groups) {
+        const groups = config.data.groups;
+        console.log('- 筛选组数量:', groups.length);
+
+        groups.forEach((group: any, groupIndex: number) => {
+          console.log(`- 筛选组 ${groupIndex + 1}:`);
+          console.log(`  - ID: ${group.id}`);
+          console.log(`  - 操作符: ${group.operator}`);
+          console.log(`  - 块数量: ${group.blocks?.length || 0}`);
+
+          if (group.blocks && group.blocks.length > 0) {
+            group.blocks.forEach((block: any, blockIndex: number) => {
+              console.log(`  - 块 ${blockIndex + 1}:`);
+              console.log(`    - ID: ${block.id}`);
+              console.log(`    - 类型: ${block.type}`);
+              console.log(`    - 条件类型: ${block.conditionType}`);
+              console.log(`    - 字段: ${block.field}`);
+              console.log(`    - 键: ${block.key}`);
+              console.log(`    - 值: ${block.value}`);
+              console.log(`    - 操作符: ${block.operator}`);
+            });
+          }
+        });
+      }
+    } else {
+      console.log('请求参数:', config.params || config.data);
+    }
+
     return config;
   },
   (error) => {

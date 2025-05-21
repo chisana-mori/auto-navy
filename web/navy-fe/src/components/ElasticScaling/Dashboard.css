@@ -434,6 +434,10 @@
   color: #52c41a;
 }
 
+.order-status-ignored {
+  color: #8c8c8c;
+}
+
 .order-count-badge {
   display: inline-flex;
   align-items: center;
@@ -450,6 +454,11 @@
   transition: all 0.3s;
 }
 
+.order-count-badge.pending {
+  background: #fff1f0;
+  color: #f5222d;
+}
+
 .order-count-badge.processing {
   background: #e6f7ff;
   color: #1890ff;
@@ -463,6 +472,38 @@
 .order-count-badge.all {
   background: #f5f5f5;
   color: #8c8c8c;
+}
+
+.order-count-badge.ignored {
+  background: #f0f0f0;
+  color: #8c8c8c;
+}
+
+.order-count-badge.custom {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+/* 编辑策略模态框样式 */
+.edit-strategy-modal .ant-modal-content {
+  transition: all 0.3s ease-in-out;
+  transform-origin: center top;
+  animation: modalFadeIn 0.3s;
+}
+
+.edit-strategy-modal .ant-modal-body {
+  transition: opacity 0.3s ease-in-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 资源使用信息卡片 */
@@ -500,6 +541,71 @@
 .chart-container {
   width: 100%;
   height: 350px;
+  position: relative;
+}
+
+/* 空图表样式 */
+.empty-chart-container {
+  width: 100%;
+  height: 350px;
+  background-color: #fafafa;
+  border-radius: 8px;
+  border: 1px dashed #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.02);
+}
+
+.empty-chart-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(to right, transparent 0%, transparent 49.9%, #f0f0f0 50%, #f0f0f0 50.1%, transparent 51%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, transparent 49.9%, #f0f0f0 50%, #f0f0f0 50.1%, transparent 51%, transparent 100%);
+  background-size: 20px 20px;
+  opacity: 0.3;
+  z-index: 0;
+}
+
+.empty-chart-container .empty-chart-content {
+  z-index: 1;
+  text-align: center;
+  padding: 24px 30px;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.empty-chart-container:hover .empty-chart-content {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.empty-chart-container .empty-chart-icon {
+  font-size: 32px;
+  color: #1890ff;
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+.empty-chart-container .empty-chart-title {
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.65);
+  margin-bottom: 8px;
+}
+
+.empty-chart-container .empty-chart-subtitle {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.45);
 }
 
 /* 策略表单样式 */
@@ -589,4 +695,4 @@
 .strategy-form .ant-form-item-has-error .ant-select-focused .ant-select-selector {
   border-color: #ff4d4f;
   box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2);
-} 
+}

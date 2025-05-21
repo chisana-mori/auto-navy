@@ -13,6 +13,8 @@ import (
 
 	// Removed "navy-ng/pkg/redis" as it's no longer directly used after introducing interface
 
+	// 移除 . "navy-ng/server/portal/internal/service"，避免 import cycle
+
 	"go.uber.org/zap" // Added zap import
 	"gorm.io/gorm"
 )
@@ -483,7 +485,7 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 		return errors.New("策略名称不能为空")
 	}
 
-	if dto.ThresholdTriggerAction != "pool_entry" && dto.ThresholdTriggerAction != "pool_exit" {
+	if dto.ThresholdTriggerAction != TriggerActionPoolEntry && dto.ThresholdTriggerAction != TriggerActionPoolExit {
 		return errors.New("无效的触发动作类型")
 	}
 
@@ -495,7 +497,7 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 		if *dto.CPUThresholdValue <= 0 || *dto.CPUThresholdValue > 100 {
 			return errors.New("CPU阈值必须在0-100之间")
 		}
-		if *dto.CPUThresholdType != "usage" && *dto.CPUThresholdType != "allocated" {
+		if *dto.CPUThresholdType != ThresholdTypeUsage && *dto.CPUThresholdType != ThresholdTypeAllocated {
 			return errors.New("无效的CPU阈值类型")
 		}
 
@@ -506,9 +508,9 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 			}
 
 			// 根据动作类型验证目标值与阈值的关系
-			if dto.ThresholdTriggerAction == "pool_entry" && *dto.CPUTargetValue >= *dto.CPUThresholdValue {
+			if dto.ThresholdTriggerAction == TriggerActionPoolEntry && *dto.CPUTargetValue >= *dto.CPUThresholdValue {
 				return errors.New("入池动作的CPU目标值必须小于阈值")
-			} else if dto.ThresholdTriggerAction == "pool_exit" && *dto.CPUTargetValue <= *dto.CPUThresholdValue {
+			} else if dto.ThresholdTriggerAction == TriggerActionPoolExit && *dto.CPUTargetValue <= *dto.CPUThresholdValue {
 				return errors.New("退池动作的CPU目标值必须大于阈值")
 			}
 		}
@@ -518,7 +520,7 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 		if *dto.MemoryThresholdValue <= 0 || *dto.MemoryThresholdValue > 100 {
 			return errors.New("内存阈值必须在0-100之间")
 		}
-		if *dto.MemoryThresholdType != "usage" && *dto.MemoryThresholdType != "allocated" {
+		if *dto.MemoryThresholdType != ThresholdTypeUsage && *dto.MemoryThresholdType != ThresholdTypeAllocated {
 			return errors.New("无效的内存阈值类型")
 		}
 
@@ -529,16 +531,16 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 			}
 
 			// 根据动作类型验证目标值与阈值的关系
-			if dto.ThresholdTriggerAction == "pool_entry" && *dto.MemoryTargetValue >= *dto.MemoryThresholdValue {
+			if dto.ThresholdTriggerAction == TriggerActionPoolEntry && *dto.MemoryTargetValue >= *dto.MemoryThresholdValue {
 				return errors.New("入池动作的内存目标值必须小于阈值")
-			} else if dto.ThresholdTriggerAction == "pool_exit" && *dto.MemoryTargetValue <= *dto.MemoryThresholdValue {
+			} else if dto.ThresholdTriggerAction == TriggerActionPoolExit && *dto.MemoryTargetValue <= *dto.MemoryThresholdValue {
 				return errors.New("退池动作的内存目标值必须大于阈值")
 			}
 		}
 	}
 
 	if dto.CPUThresholdValue != nil && dto.MemoryThresholdValue != nil {
-		if dto.ConditionLogic != "AND" && dto.ConditionLogic != "OR" {
+		if dto.ConditionLogic != ConditionLogicAnd && dto.ConditionLogic != ConditionLogicOr {
 			return errors.New("无效的条件逻辑，必须为AND或OR")
 		}
 	}
@@ -547,7 +549,7 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 		return errors.New("设备数量必须大于0")
 	}
 
-	if dto.Status != "enabled" && dto.Status != "disabled" {
+	if dto.Status != StrategyStatusEnabled && dto.Status != StrategyStatusDisabled {
 		return errors.New("无效的策略状态")
 	}
 
@@ -566,25 +568,41 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 	// 验证资源类型（可选）
 	if dto.ResourceTypes != "" {
 		validTypes := map[string]bool{
-			"total":    true,
-			"compute":  true,
-			"memory":   true,
-			"storage":  true,
-			"network":  true,
-			"database": true,
-			"gpu":      true,
+			ResourceTypeTotal:    true,
+			ResourceTypeCompute:  true,
+			ResourceTypeMemory:   true,
+			ResourceTypeStorage:  true,
+			ResourceTypeNetwork:  true,
+			ResourceTypeDatabase: true,
+			ResourceTypeGPU:      true,
 		}
 
-		types := strings.Split(dto.ResourceTypes, ",")
+		types := splitAndTrim(dto.ResourceTypes)
 		for _, t := range types {
-			trimmed := strings.TrimSpace(t)
-			if !validTypes[trimmed] {
-				return fmt.Errorf("无效的资源类型: %s", trimmed)
+			if !validTypes[t] {
+				return fmt.Errorf("无效的资源类型: %s", t)
 			}
 		}
 	}
 
 	return nil
+}
+
+// splitAndTrim 分割逗号字符串并去除空格
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
+	}
+	return parts
+}
+
+// safePercentage calculates percentage safely, returning 0 if denominator is zero.
+func safePercentage(numerator, denominator float64) float64 {
+	if denominator == 0 {
+		return 0
+	}
+	return numerator / denominator * 100
 }
 
 // CreateOrder 创建弹性伸缩订单
@@ -594,14 +612,14 @@ func (s *ElasticScalingService) CreateOrder(dto OrderDTO) (int64, error) {
 
 	// 创建订单模型
 	order := portal.ElasticScalingOrder{
-		OrderNumber: orderNumber,
-		ClusterID:   dto.ClusterID,
-		StrategyID:  dto.StrategyID,
-		ActionType:  dto.ActionType,
-		Status:      "pending", // 初始状态为待处理
-		DeviceCount: dto.DeviceCount,
-		DeviceID:    dto.DeviceID,
-		CreatedBy:   dto.CreatedBy,
+		OrderNumber:            orderNumber,
+		ClusterID:              dto.ClusterID,
+		StrategyID:             dto.StrategyID,
+		ActionType:             dto.ActionType,
+		Status:                 "pending", // 初始状态为待处理
+		DeviceCount:            dto.DeviceCount,
+		DeviceID:               dto.DeviceID,
+		CreatedBy:              dto.CreatedBy,
 		StrategyTriggeredValue: dto.StrategyTriggeredValue, // 保存策略触发值
 		StrategyThresholdValue: dto.StrategyThresholdValue, // 保存策略阈值
 	}
@@ -937,13 +955,12 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 				historyResult = "order_completed_no_compl_time"
 			}
 		}
-		
+
 		// 从订单中获取保存的触发值和阈值
 		reasonForHistory := fmt.Sprintf("Order %s by strategy %d.", status, *order.StrategyID)
 		if order.FailureReason != "" && status == "failed" { // 虽然这里是 processing/completed, 但以防万一
 			reasonForHistory = order.FailureReason
 		}
-
 
 		// 调用 recordStrategyExecution
 		// 注意：recordStrategyExecution 内部的 ExecutionTime 将被我们这里提供的 executionTimeForHistory 覆盖
@@ -1571,12 +1588,4 @@ func (s *ElasticScalingService) recordStrategyExecution(
 			zap.Error(err))
 	}
 	return err
-}
-
-// safePercentage calculates percentage safely, returning 0 if denominator is zero.
-func safePercentage(numerator, denominator float64) float64 {
-	if denominator == 0 {
-		return 0
-	}
-	return numerator / denominator * 100
 }

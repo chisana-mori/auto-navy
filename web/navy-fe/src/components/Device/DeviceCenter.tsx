@@ -92,7 +92,40 @@ const initialQueryState: QueryState = {
 
 const DeviceCenter: React.FC = () => {
   const navigate = useNavigate();
-  const [queryState, setQueryState] = useState<QueryState>(initialQueryState);
+  const location = window.location;
+
+  // 在组件初始化时立即从URL获取查询参数
+  const getInitialQueryParams = () => {
+    const searchParams = new URLSearchParams(location.search);
+    return {
+      tab: searchParams.get('tab') as 'simple' | 'advanced' | 'template' | null,
+      templateId: searchParams.get('templateId') ? parseInt(searchParams.get('templateId')!) : null,
+    };
+  };
+
+  // 获取初始参数
+  const initialParams = getInitialQueryParams();
+
+  // 根据URL参数设置初始状态
+  const getInitialState = (): QueryState => {
+    // 如果URL中有tab参数，使用它作为初始模式
+    const initialMode = initialParams.tab || 'simple';
+
+    return {
+      ...initialQueryState,
+      mode: initialMode,
+      // 如果是高级查询模式且有模板ID，设置加载状态为true
+      advancedParams: {
+        ...initialQueryState.advancedParams,
+        results: {
+          ...initialQueryState.advancedParams.results,
+          loading: initialParams.tab === 'advanced' && initialParams.templateId !== null
+        }
+      }
+    };
+  };
+
+  const [queryState, setQueryState] = useState<QueryState>(getInitialState());
   const [roleEditVisible, setRoleEditVisible] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [groupOptions, setGroupOptions] = useState<string[]>([]);
@@ -105,17 +138,27 @@ const DeviceCenter: React.FC = () => {
     total: 0,
   });
   const [roleForm] = Form.useForm();
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+  // 从URL获取查询参数的通用函数
+  const getQueryParams = () => {
+    const searchParams = new URLSearchParams(location.search);
+    return {
+      tab: searchParams.get('tab') as 'simple' | 'advanced' | 'template' | null,
+      templateId: searchParams.get('templateId') ? parseInt(searchParams.get('templateId')!) : null,
+    };
+  };
 
   // 加载模板列表
   const loadTemplates = async () => {
     try {
       const { current, pageSize } = templatePagination;
-      
+
       const templatesResponse = await getQueryTemplates({
         page: current,
         size: pageSize
       });
-      
+
       // 更新模板列表和分页信息
       setTemplates(templatesResponse.list);
       setTemplatePagination(prev => ({
@@ -152,7 +195,7 @@ const DeviceCenter: React.FC = () => {
       ...prev,
       current: 1,
     }));
-    
+
     // 延迟加载以确保状态更新
     setTimeout(() => {
       loadTemplates();
@@ -167,7 +210,7 @@ const DeviceCenter: React.FC = () => {
       current: page,
       pageSize: pageSize || prev.pageSize,
     }));
-    
+
     // 当分页参数变化时，重新加载数据
     // 使用setTimeout避免状态更新顺序问题
     setTimeout(() => {
@@ -179,10 +222,108 @@ const DeviceCenter: React.FC = () => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // 加载模板列表
-        await loadTemplates();
+        // 获取URL参数 - 使用已经在组件初始化时获取的参数
+        const { tab, templateId } = initialParams;
 
-        // 加载初始设备列表（无查询条件）
+        // 并行加载模板列表 - 不等待它完成
+        const templatesPromise = loadTemplates();
+
+        // 如果URL中有templateId参数且是高级查询模式，优先加载模板并执行查询
+        if (templateId && (tab === 'advanced' || tab === null)) {
+          try {
+            console.log('从URL参数加载模板:', templateId);
+
+            // 加载模板
+            const template = await getQueryTemplate(templateId);
+            console.log('模板加载成功:', template);
+
+            if (template && template.groups) {
+              // 确保每个筛选块的 key 和 field 字段同步
+              const processedGroups = template.groups.map(group => ({
+                ...group,
+                blocks: group.blocks.map(block => {
+                  // 创建一个新的块对象，避免修改原始对象
+                  const processedBlock = { ...block };
+
+                  // 确保 key 和 field 字段同步
+                  if (processedBlock.field && !processedBlock.key) {
+                    processedBlock.key = processedBlock.field;
+                  } else if (processedBlock.key && !processedBlock.field) {
+                    processedBlock.field = processedBlock.key;
+                  }
+
+                  return processedBlock;
+                })
+              }));
+
+              console.log('处理后的查询组:', processedGroups);
+
+              // 立即执行查询，不等待状态更新
+              console.log('直接执行模板查询');
+              const queryResponse = await queryDevices({
+                groups: processedGroups,
+                page: 1,
+                size: 10,
+              });
+
+              console.log('模板查询响应:', queryResponse);
+
+              // 一次性更新所有状态，减少重渲染
+              if (queryResponse) {
+                setQueryState(prev => ({
+                  ...prev,
+                  mode: 'advanced',
+                  advancedParams: {
+                    ...prev.advancedParams,
+                    groups: processedGroups,
+                    sourceTemplateId: templateId,
+                    sourceTemplateName: template.name,
+                    results: {
+                      devices: queryResponse.list || [],
+                      pagination: {
+                        current: 1,
+                        pageSize: 10,
+                        total: queryResponse.total || 0,
+                      },
+                      loading: false,
+                      lastUpdated: new Date(),
+                    }
+                  }
+                }));
+
+                // 等待DOM更新后显示成功消息
+                setTimeout(() => {
+                  message.success('查询成功');
+                }, 100);
+
+                // 标记初始加载完成
+                setInitialLoadComplete(true);
+
+                // 等待模板列表加载完成
+                await templatesPromise;
+                return;
+              }
+            }
+          } catch (error) {
+            console.error('模板加载或查询失败:', error);
+            message.error('加载模板失败');
+
+            // 重置加载状态
+            setQueryState(prev => ({
+              ...prev,
+              advancedParams: {
+                ...prev.advancedParams,
+                results: {
+                  ...prev.advancedParams.results,
+                  loading: false,
+                }
+              }
+            }));
+          }
+        }
+
+        // 如果没有模板ID或模板加载失败，加载初始设备列表
+        console.log('加载初始设备列表');
         setQueryState(prev => ({
           ...prev,
           simpleParams: {
@@ -218,8 +359,14 @@ const DeviceCenter: React.FC = () => {
             }
           }));
         }
+
+        // 等待模板列表加载完成
+        await templatesPromise;
+
+        // 标记初始加载完成
+        setInitialLoadComplete(true);
       } catch (error) {
-        console.error('Failed to load initial data:', error);
+        console.error('初始数据加载失败:', error);
         setQueryState(prev => ({
           ...prev,
           simpleParams: {
@@ -230,6 +377,9 @@ const DeviceCenter: React.FC = () => {
             }
           }
         }));
+
+        // 即使出错也标记初始加载完成
+        setInitialLoadComplete(true);
       }
     };
 
@@ -569,11 +719,29 @@ const DeviceCenter: React.FC = () => {
       console.log('Template fetched:', template);
 
       if (template && template.groups) {
+        // 确保每个筛选块的 key 和 field 字段同步
+        const processedGroups = template.groups.map(group => ({
+          ...group,
+          blocks: group.blocks.map(block => {
+            // 创建一个新的块对象，避免修改原始对象
+            const processedBlock = { ...block };
+
+            // 确保 key 和 field 字段同步
+            if (processedBlock.field && !processedBlock.key) {
+              processedBlock.key = processedBlock.field;
+            } else if (processedBlock.key && !processedBlock.field) {
+              processedBlock.field = processedBlock.key;
+            }
+
+            return processedBlock;
+          })
+        }));
+
         const currentPagination = queryState.templateParams.results.pagination;
 
-        console.log('Executing query with template groups:', template.groups);
+        console.log('Executing query with processed template groups:', processedGroups);
         const response = await queryDevices({
-          groups: template.groups,
+          groups: processedGroups,
           page: 1, // 始终从第一页开始
           size: currentPagination.pageSize,
         });
@@ -1253,39 +1421,51 @@ const DeviceCenter: React.FC = () => {
         }
         className="device-center-card"
       >
-        <Tabs activeKey={mode} onChange={handleTabChange}>
-          <TabPane tab="基本查询" key="simple">
-            <SimpleQueryPanel
-              keyword={simpleParams.keyword}
-              onKeywordChange={(keyword) =>
-                setQueryState(prev => ({
-                  ...prev,
-                  simpleParams: {
-                    ...prev.simpleParams,
-                    keyword
-                  }
-                }))
-              }
-              onSearch={handleSimpleQuery}
-              loading={loading}
-            />
-          </TabPane>
-          <TabPane tab="高级查询" key="advanced">
-            <AdvancedQueryPanel
-              filterGroups={advancedParams.groups}
-              onFilterGroupsChange={handleAdvancedQueryChange}
-              onQuery={handleAdvancedQuery}
-              loading={loading}
-              sourceTemplateId={advancedParams.sourceTemplateId}
-              sourceTemplateName={advancedParams.sourceTemplateName}
-              onTemplateSaved={loadTemplates} // 保存模板后刷新模板列表
-              onSwitchToTemplateTab={switchToTemplateTab} // 切换到模板标签页
-            />
-          </TabPane>
-          <TabPane tab="模板" key="template">
-            {renderTemplateList()}
-          </TabPane>
-        </Tabs>
+        {initialParams.templateId && !initialLoadComplete ? (
+          // 如果是从模板预览跳转过来且初始加载未完成，显示加载状态
+          <div style={{ padding: '40px 0', textAlign: 'center' }}>
+            <Spin size="large" tip="正在加载模板数据..." />
+          </div>
+        ) : (
+          <Tabs
+            activeKey={mode}
+            onChange={handleTabChange}
+            animated={{ inkBar: true, tabPane: false }} // 只启用墨条动画，禁用内容切换动画
+            destroyInactiveTabPane={false} // 不销毁不活动的标签页，避免重新渲染
+          >
+            <TabPane tab="基本查询" key="simple" forceRender>
+              <SimpleQueryPanel
+                keyword={simpleParams.keyword}
+                onKeywordChange={(keyword) =>
+                  setQueryState(prev => ({
+                    ...prev,
+                    simpleParams: {
+                      ...prev.simpleParams,
+                      keyword
+                    }
+                  }))
+                }
+                onSearch={handleSimpleQuery}
+                loading={loading}
+              />
+            </TabPane>
+            <TabPane tab="高级查询" key="advanced" forceRender>
+              <AdvancedQueryPanel
+                filterGroups={advancedParams.groups}
+                onFilterGroupsChange={handleAdvancedQueryChange}
+                onQuery={handleAdvancedQuery}
+                loading={loading}
+                sourceTemplateId={advancedParams.sourceTemplateId}
+                sourceTemplateName={advancedParams.sourceTemplateName}
+                onTemplateSaved={loadTemplates} // 保存模板后刷新模板列表
+                onSwitchToTemplateTab={switchToTemplateTab} // 切换到模板标签页
+              />
+            </TabPane>
+            <TabPane tab="模板" key="template" forceRender>
+              {renderTemplateList()}
+            </TabPane>
+          </Tabs>
+        )}
 
         {/* 查询摘要 */}
         <QuerySummary

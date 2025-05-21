@@ -11,12 +11,17 @@ type ResourcePoolDeviceMatchingPolicy struct {
 	Description      string        `json:"description"`                                              // 策略描述
 	ResourcePoolType string        `json:"resourcePoolType" binding:"required"`                      // 资源池类型
 	ActionType       string        `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
-	QueryGroups      []FilterGroup `json:"queryGroups" binding:"required"`                           // 查询条件组
+	QueryTemplateID  int64         `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
+	QueryGroups      []FilterGroup `json:"queryGroups,omitempty"`                                    // 查询条件组（从查询模板获取，非直接存储字段）
 	Status           string        `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
+	AdditionConds    []string      `json:"additionConds,omitempty"`                                  // 额外动态条件，仅入池时有效
 	CreatedBy        string        `json:"createdBy"`                                                // 创建者
 	UpdatedBy        string        `json:"updatedBy"`                                                // 更新者
 	CreatedAt        time.Time     `json:"createdAt"`                                                // 创建时间
 	UpdatedAt        time.Time     `json:"updatedAt"`                                                // 更新时间
+
+	// 关联的查询模板信息
+	QueryTemplate *QueryTemplate `json:"queryTemplate,omitempty"` // 关联的查询模板
 }
 
 // ResourcePoolDeviceMatchingPolicyListResponse 资源池设备匹配策略列表响应
@@ -29,22 +34,24 @@ type ResourcePoolDeviceMatchingPolicyListResponse struct {
 
 // CreateResourcePoolDeviceMatchingPolicyRequest 创建资源池设备匹配策略请求
 type CreateResourcePoolDeviceMatchingPolicyRequest struct {
-	Name             string        `json:"name" binding:"required"`                                  // 策略名称
-	Description      string        `json:"description"`                                              // 策略描述
-	ResourcePoolType string        `json:"resourcePoolType" binding:"required"`                      // 资源池类型
-	ActionType       string        `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
-	QueryGroups      []FilterGroup `json:"queryGroups" binding:"required"`                           // 查询条件组
-	Status           string        `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
+	Name             string   `json:"name" binding:"required"`                                  // 策略名称
+	Description      string   `json:"description"`                                              // 策略描述
+	ResourcePoolType string   `json:"resourcePoolType" binding:"required"`                      // 资源池类型
+	ActionType       string   `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
+	QueryTemplateID  int64    `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
+	Status           string   `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
+	AdditionConds    []string `json:"additionConds,omitempty"`                                  // 额外动态条件，仅入池时有效
 }
 
 // UpdateResourcePoolDeviceMatchingPolicyRequest 更新资源池设备匹配策略请求
 type UpdateResourcePoolDeviceMatchingPolicyRequest struct {
-	Name             string        `json:"name" binding:"required"`                                  // 策略名称
-	Description      string        `json:"description"`                                              // 策略描述
-	ResourcePoolType string        `json:"resourcePoolType" binding:"required"`                      // 资源池类型
-	ActionType       string        `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
-	QueryGroups      []FilterGroup `json:"queryGroups" binding:"required"`                           // 查询条件组
-	Status           string        `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
+	Name             string   `json:"name" binding:"required"`                                  // 策略名称
+	Description      string   `json:"description"`                                              // 策略描述
+	ResourcePoolType string   `json:"resourcePoolType" binding:"required"`                      // 资源池类型
+	ActionType       string   `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
+	QueryTemplateID  int64    `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
+	Status           string   `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
+	AdditionConds    []string `json:"additionConds,omitempty"`                                  // 额外动态条件，仅入池时有效
 }
 
 // UpdateResourcePoolDeviceMatchingPolicyStatusRequest 更新资源池设备匹配策略状态请求
@@ -59,8 +66,9 @@ func (req *CreateResourcePoolDeviceMatchingPolicyRequest) ToServiceModel(usernam
 		Description:      req.Description,
 		ResourcePoolType: req.ResourcePoolType,
 		ActionType:       req.ActionType,
-		QueryGroups:      req.QueryGroups,
+		QueryTemplateID:  req.QueryTemplateID,
 		Status:           req.Status,
+		AdditionConds:    req.AdditionConds,
 		CreatedBy:        username,
 		UpdatedBy:        username,
 	}
@@ -74,8 +82,9 @@ func (req *UpdateResourcePoolDeviceMatchingPolicyRequest) ToServiceModel(id int6
 		Description:      req.Description,
 		ResourcePoolType: req.ResourcePoolType,
 		ActionType:       req.ActionType,
-		QueryGroups:      req.QueryGroups,
+		QueryTemplateID:  req.QueryTemplateID,
 		Status:           req.Status,
+		AdditionConds:    req.AdditionConds,
 		UpdatedBy:        username,
 	}
 }
@@ -88,7 +97,9 @@ func (p *ResourcePoolDeviceMatchingPolicy) ToResponse() *ResourcePoolDeviceMatch
 		Description:      p.Description,
 		ResourcePoolType: p.ResourcePoolType,
 		ActionType:       p.ActionType,
+		QueryTemplateID:  p.QueryTemplateID,
 		QueryGroups:      p.QueryGroups,
+		QueryTemplate:    p.QueryTemplate,
 		Status:           p.Status,
 		CreatedBy:        p.CreatedBy,
 		UpdatedBy:        p.UpdatedBy,
@@ -96,5 +107,7 @@ func (p *ResourcePoolDeviceMatchingPolicy) ToResponse() *ResourcePoolDeviceMatch
 		UpdatedAt:        p.UpdatedAt,
 	}
 }
+
+// 使用 device_query.go 中定义的 QueryTemplate 类型
 
 // 使用 device_query.go 中定义的 FilterBlock 和 FilterGroup 类型

@@ -1,7 +1,10 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -53,13 +56,33 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) RegisterRoutes(router *gin.Rou
 // @Router /resource-pool/matching-policies [get]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingPolicies(c *gin.Context) {
 	// 获取分页参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	size, _ := strconv.Atoi(c.DefaultQuery("size", "10"))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page <= 0 {
+		page = 1
+	}
+
+	size, err := strconv.Atoi(c.DefaultQuery("size", "10"))
+	if err != nil || size <= 0 || size > 100 {
+		size = 10
+	}
+
+	// 创建一个带有超时的上下文
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
 
 	// 调用服务获取策略列表
-	response, err := h.policyService.GetResourcePoolDeviceMatchingPolicies(c.Request.Context(), page, size)
+	response, err := h.policyService.GetResourcePoolDeviceMatchingPolicies(ctx, page, size)
 	if err != nil {
-		render.InternalServerError(c, err.Error())
+		// 记录详细错误信息
+		fmt.Printf("Error getting matching policies: %v\n", err)
+
+		// 检查是否是超时错误
+		if ctx.Err() == context.DeadlineExceeded {
+			render.InternalServerError(c, "请求超时，请稍后重试")
+			return
+		}
+
+		render.InternalServerError(c, "获取匹配策略失败: "+err.Error())
 		return
 	}
 

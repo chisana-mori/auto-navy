@@ -1,0 +1,208 @@
+.device-matching-policy-container {
+  margin-bottom: 20px;
+}
+
+.policy-card {
+  border-radius: 4px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+.policy-card .ant-card-head {
+  background-color: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 16px;
+}
+
+.policy-card .ant-card-head-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+  letter-spacing: 0.3px;
+  padding: 14px 0;
+}
+
+.policy-table .ant-table-thead > tr > th {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+/* 操作按钮样式 */
+.policy-table .action-buttons {
+  display: flex;
+  justify-content: center;
+}
+
+.policy-table .ant-btn-text {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.3s;
+  margin: 0 4px;
+  position: relative;
+}
+
+.policy-table .ant-btn-text:hover {
+  background-color: #f5f5f5;
+}
+
+.policy-table .ant-btn-text[danger]:hover {
+  background-color: #fff1f0;
+}
+
+.policy-table .ant-btn-text .anticon {
+  font-size: 16px;
+}
+
+/* 编辑按钮 */
+.policy-table .edit-button .anticon {
+  color: #1890ff;
+}
+
+.policy-table .edit-button:hover {
+  background-color: #e6f7ff;
+}
+
+/* 启用按钮 */
+.policy-table .enable-button .anticon {
+  color: #52c41a;
+}
+
+.policy-table .enable-button:hover {
+  background-color: #f6ffed;
+}
+
+/* 禁用按钮 */
+.policy-table .disable-button .anticon {
+  color: #ff4d4f;
+}
+
+.policy-table .disable-button:hover {
+  background-color: #fff1f0;
+}
+
+/* 删除按钮 */
+.policy-table .delete-button .anticon {
+  color: #ff4d4f;
+}
+
+.policy-table .delete-button:hover {
+  background-color: #fff1f0;
+}
+
+/* 筛选块样式 */
+.filter-block {
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  background-color: #fafafa;
+  padding: 12px;
+}
+
+.filter-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #f0f0f0;
+}
+
+.filter-block-type {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.filter-block-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filter-block-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 模板预览卡片样式 */
+.template-preview-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+  padding: 16px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.template-preview-card .template-info {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.template-preview-card .success-icon {
+  color: #52c41a;
+  font-size: 18px;
+  margin-right: 12px;
+  margin-top: 2px;
+}
+
+.template-preview-card .template-details {
+  flex: 1;
+}
+
+.template-preview-card .template-name {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+  margin-bottom: 4px;
+}
+
+.template-preview-card .template-description {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+
+.template-preview-card .preview-button {
+  flex-shrink: 0;
+  background-color: #52c41a;
+  border-color: #52c41a;
+  transition: all 0.3s;
+  margin-left: 16px;
+}
+
+.template-preview-card .preview-button:hover {
+  background-color: #73d13d;
+  border-color: #73d13d;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .filter-block-content {
+    flex-direction: column;
+  }
+
+  .filter-block-content .ant-select {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 8px;
+  }
+
+  .template-preview-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .template-preview-card .preview-button {
+    margin-left: 0 !important;
+    margin-top: 16px;
+    align-self: flex-end;
+  }
+}

@@ -256,11 +256,31 @@ func seedQueryTemplates(db *gorm.DB) error {
 
 // seedResourcePoolDeviceMatchingPolicies generates mock data for resource_pool_device_matching_policy table.
 func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
+	// 获取已创建的查询模板
+	var templates []portal.QueryTemplate
+	if err := db.Find(&templates).Error; err != nil {
+		return fmt.Errorf("failed to get query templates: %w", err)
+	}
 
-	// 创建一些基本的查询条件组
-	productionQueryGroups := `[{"id":"group1","blocks":[{"id":"block1","type":"device","conditionType":"equal","key":"status","value":"Running","operator":"and"}],"operator":"and"}]`
-	gpuQueryGroups := `[{"id":"group1","blocks":[{"id":"block1","type":"nodeLabel","conditionType":"equal","key":"nvidia.com/gpu","value":"true","operator":"and"}],"operator":"and"}]`
-	physicalQueryGroups := `[{"id":"group1","blocks":[{"id":"block1","type":"device","conditionType":"equal","key":"infra_type","value":"physical","operator":"and"}],"operator":"and"}]`
+	// 创建模板名称到ID的映射
+	templateMap := make(map[string]uint)
+	for _, template := range templates {
+		templateMap[template.Name] = uint(template.ID)
+	}
+
+	// 获取默认模板ID（如果没有模板，使用1作为默认值）
+	defaultTemplateID := uint(1)
+	if len(templates) > 0 {
+		defaultTemplateID = uint(templates[0].ID)
+	}
+
+	// 获取特定模板ID
+	getTemplateID := func(name string) uint {
+		if id, ok := templateMap[name]; ok {
+			return id
+		}
+		return defaultTemplateID
+	}
 
 	// Create policies for different resource pool types and action types
 	policies := []portal.ResourcePoolDeviceMatchingPolicy{
@@ -270,7 +290,7 @@ func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
 			Description:      "Total资源池入池设备匹配策略",
 			ResourcePoolType: resourcePoolTypeTotal,
 			ActionType:       actionTypePoolEntry,
-			QueryGroups:      productionQueryGroups,
+			QueryTemplateID:  getTemplateID("生产环境设备"),
 			Status:           "enabled",
 			CreatedBy:        "system",
 			UpdatedBy:        "system",
@@ -281,7 +301,7 @@ func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
 			Description:      "Total资源池退池设备匹配策略",
 			ResourcePoolType: resourcePoolTypeTotal,
 			ActionType:       actionTypePoolExit,
-			QueryGroups:      productionQueryGroups,
+			QueryTemplateID:  getTemplateID("生产环境设备"),
 			Status:           "enabled",
 			CreatedBy:        "system",
 			UpdatedBy:        "system",
@@ -292,7 +312,7 @@ func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
 			Description:      "GPU资源池入池设备匹配策略",
 			ResourcePoolType: resourcePoolTypeGPU,
 			ActionType:       actionTypePoolEntry,
-			QueryGroups:      gpuQueryGroups,
+			QueryTemplateID:  getTemplateID("GPU设备"),
 			Status:           "enabled",
 			CreatedBy:        "system",
 			UpdatedBy:        "system",
@@ -303,7 +323,7 @@ func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
 			Description:      "GPU资源池退池设备匹配策略",
 			ResourcePoolType: resourcePoolTypeGPU,
 			ActionType:       actionTypePoolExit,
-			QueryGroups:      gpuQueryGroups,
+			QueryTemplateID:  getTemplateID("GPU设备"),
 			Status:           "enabled",
 			CreatedBy:        "system",
 			UpdatedBy:        "system",
@@ -314,7 +334,7 @@ func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
 			Description:      "Intel资源池入池设备匹配策略",
 			ResourcePoolType: resourcePoolTypeIntel,
 			ActionType:       actionTypePoolEntry,
-			QueryGroups:      physicalQueryGroups,
+			QueryTemplateID:  getTemplateID("物理机设备"),
 			Status:           "enabled",
 			CreatedBy:        "system",
 			UpdatedBy:        "system",
@@ -325,7 +345,7 @@ func seedResourcePoolDeviceMatchingPolicies(db *gorm.DB) error {
 			Description:      "Intel资源池退池设备匹配策略",
 			ResourcePoolType: resourcePoolTypeIntel,
 			ActionType:       actionTypePoolExit,
-			QueryGroups:      physicalQueryGroups,
+			QueryTemplateID:  getTemplateID("物理机设备"),
 			Status:           "disabled", // 这个策略是禁用的
 			CreatedBy:        "system",
 			UpdatedBy:        "system",
@@ -935,13 +955,20 @@ func seedOpsJobs(db *gorm.DB) error {
 // ConfigureCORS - Keep this utility function if used by the main application setup
 func ConfigureCORS(r *gin.Engine) {
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"}, // Adjust as needed
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:8080"}, // Allow both frontend origins
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "X-CSRF-Token"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
 		AllowCredentials: true,
+		AllowWildcard:    true, // Allow wildcard matching for origins
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// Add a middleware to log all requests for debugging
+	r.Use(func(c *gin.Context) {
+		fmt.Printf("Request: %s %s\n", c.Request.Method, c.Request.URL.Path)
+		c.Next()
+	})
 }
 
 // --- Deprecated / To Be Removed --- //
