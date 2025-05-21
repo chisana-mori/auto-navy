@@ -756,24 +756,15 @@ const Dashboard: React.FC = () => {
     if (!stats) return null;
 
     return (
-      <Row gutter={24} className="stats-cards">
-        <Col xs={24} sm={12} md={6}>
+            <Row gutter={24} className="stats-cards">
+        <Col xs={24} sm={8} md={8}>
           <Card className="stat-card success">
             <div className="stat-value">{`${stats.enabledStrategyCount}/${stats.strategyCount}`}</div>
             <div className="stat-label">今日已巡检/总策略</div>
             <Progress percent={(stats.enabledStrategyCount / stats.strategyCount) * 100} size="small" />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="stat-card">
-            <div className="stat-value">{`${stats.triggeredTodayCount}/${stats.enabledStrategyCount}`}</div>
-            <div className="stat-label">巡检成功/已巡检策略</div>
-            <div className="stat-trend">
-              较昨日 <ArrowUpOutlined style={{ color: "#52c41a" }} /> <span style={{ color: "#52c41a" }}>2</span> 个成功策略
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={8} md={8}>
           <Card className={`stat-card ${stats.abnormalClusterCount > 0 ? 'warning' : ''}`}>
             <div className="stat-value">{`${stats.clusterCount - stats.abnormalClusterCount}/${stats.clusterCount}`}</div>
             <div className="stat-label">正常集群/总集群数</div>
@@ -782,7 +773,7 @@ const Dashboard: React.FC = () => {
             )}
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={8} md={8}>
           <Card className={`stat-card ${stats.pendingOrderCount > 0 ? 'error' : ''}`}>
             <div className="stat-value">{stats.pendingOrderCount}</div>
             <div className="stat-label">待处理资源伸缩任务</div>
