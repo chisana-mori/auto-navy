@@ -611,14 +611,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                     >
                       添加筛选组
                     </Button>
-
-                    <Button
-                      type="primary"
-                      icon={<SelectOutlined />}
-                      onClick={openDeviceDrawer}
-                    >
-                      选择设备
-                    </Button>
                   </div>
                 </Card>
               </div>
@@ -658,14 +650,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 <Table.Summary.Cell index={0} colSpan={5}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                     <span>共选择 <strong>{devices.length}</strong> 台设备</span>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<SelectOutlined />}
-                      onClick={openDeviceDrawer}
-                    >
-                      重新选择
-                    </Button>
                   </div>
                 </Table.Summary.Cell>
               </Table.Summary.Row>
@@ -677,14 +661,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           description={
             <div>
               <p>暂无设备数据</p>
-              <Button
-                type="primary"
-                icon={<SelectOutlined />}
-                onClick={openDeviceDrawer}
-                style={{ marginTop: 16 }}
-              >
-                选择设备
-              </Button>
             </div>
           }
         />
