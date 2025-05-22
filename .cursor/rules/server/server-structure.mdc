@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: server-structure
+# Path: .cursor/rules/server/server-structure.mdc
+# Description: server目录结构及使用规范
+# Tags: server, gin, web, backend
+
+# Server目录结构
+
+`server/`目录包含所有后端服务层代码，基于Gin框架实现Web服务。
+
+## 目录结构
+```
+server/
+└── portal/            # 门户模块服务
+    └── internal/      # 内部实现(不对外暴露)
+        ├── main.go    # 服务启动入口
+        ├── conf/      # 配置管理(环境变量/配置文件)
+        ├── docs/      # swagger文档
+        ├── routers/   # Gin路由定义与控制器
+        └── service/   # 业务逻辑实现
+```
+
+## 后端服务开发规范
+
+1. 遵循MVC设计模式，明确分离控制器(routers)与业务逻辑(service)
+2. 在service层构建单独的DTO模型，文件名以${service}_dto为模版
+3. 所有API路由应在routers目录中注册
+4. 业务逻辑实现应放在service目录
+5. controller层的响应必须通过pkg/middleware/render/json.go完成
+6. 每个新开发的API应在swagger文档中添加注释

@@ -1,0 +1,32 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: project-config-files
+# Path: .cursor/rules/config/project-config-files.mdc
+# Description: 项目配置文件及使用规范
+# Tags: config, git, makefile, golang
+
+# 项目配置文件
+
+项目根目录下包含多种配置文件，用于项目管理、依赖管理、代码质量控制等。
+
+## 主要配置文件
+```
+.gitignore            # Git忽略规则
+.golangci.yaml        # Go代码静态分析配置
+Makefile              # 项目构建/测试/运行命令
+README.md             # 项目文档说明
+go.mod                # Go模块依赖管理
+go.sum                # 依赖版本校验
+```
+
+## 配置文件规范
+
+1. `.gitignore` 应包括编译生成的文件、IDE配置、临时文件等
+2. `.golangci.yaml` 应配置适当的linter规则，确保代码质量
+3. `Makefile` 应提供标准化的构建、测试、运行、部署等命令
+4. `README.md` 应包含项目概述、环境要求、安装说明、使用方法等
+5. `go.mod` 应明确依赖版本，避免使用不确定版本
+6. 所有配置文件应保持最新，与项目实际需求一致

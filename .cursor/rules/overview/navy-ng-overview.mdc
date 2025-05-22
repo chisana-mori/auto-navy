@@ -1,0 +1,68 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: navy-ng-overview
+# Path: .cursor/rules/overview/navy-ng-overview.mdc
+# Description: Navy-NG项目总体概述
+# Tags: overview, structure
+
+# Navy-NG项目概述
+
+本项目为一个前后端融合项目，其中后端使用golang实现，web基于gin，前端使用react实现。
+
+## 目录结构
+```
+navy-ng/
+├── models/                # 数据模型层 - 使用GORM进行数据库操作
+│   └── portal/            # 门户模块数据模型
+│       └── object.go      # 核心数据模型定义文件
+│
+├── pkg/                   # 公共库代码 - 可被外部项目引用
+│   └── middleware/        # 中间件
+│       └── render         # controller层渲染相关方法
+│            └── json.go   # 渲染方法
+│
+├── server/                # 后端服务层
+│   └── portal/            # 门户模块服务
+│       └── internal/      # 内部实现(不对外暴露)
+│           ├── main.go    # 服务启动入口
+│           ├── conf/      # 配置管理(环境变量/配置文件)
+│           ├── docs/      # swagger文档
+│           ├── routers/   # Gin路由定义与控制器
+│           └── service/   # 业务逻辑实现
+│
+├── job/                   # 巡检任务job
+│   └── email/             # 任务job集合，每个job对应发送一种类型的邮件
+├── web/                   # 前端应用层
+│   └── navy-fe/           # React前端项目
+│
+├── scripts/               # 开发运维脚本
+│                           # 构建/部署/测试等自动化脚本
+│
+# 项目配置文件
+├── .gitignore            # Git忽略规则
+├── .golangci.yaml        # Go代码静态分析配置
+├── Makefile              # 项目构建/测试/运行命令
+├── README.md             # 项目文档说明
+├── go.mod                # Go模块依赖管理
+└── go.sum                # 依赖版本校验
+```
+
+## 项目整体结构
+本项目按照以下主要目录组织：
+
+- `models/`: 数据模型层，使用GORM进行数据库操作
+- `pkg/`: 公共库代码，可被外部项目引用
+- `server/`: 后端服务层
+- `job/`: 巡检任务job
+- `web/`: 前端应用层
+- `scripts/`: 开发运维脚本
+
+## 通用开发规范
+- 后端代码开发遵从java MVC设计模式
+- 前端参数构造的模型与数据库层模型需要分离开，在service层构建单独的DTO模型，文件名以${service}_dto为模版
+- controller类所有关于响应的代码必须调用pkg/middleware/render/json.go来完成
+- 前后端通信的json为驼峰格式
+- 方法的复杂度不要超过15

@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: pkg-structure
+# Path: .cursor/rules/pkg/pkg-structure.mdc
+# Description: pkg目录结构及使用规范
+# Tags: pkg, middleware, common
+
+# Pkg目录结构
+
+`pkg/`目录包含所有公共库代码，这些代码可被外部项目引用。
+
+## 目录结构
+```
+pkg/
+└── middleware/        # 中间件
+    └── render         # controller层渲染相关方法
+         └── json.go   # 渲染方法
+```
+
+## 公共库开发规范
+
+1. `pkg`目录下的代码应具有高度可复用性和通用性
+2. 所有公共函数应有完整的注释和文档
+3. controller类所有关于响应的代码必须调用pkg/middleware/render/json.go来完成
+4. 每个公共函数应有完整的错误处理机制
+5. 避免在公共库中引入特定业务逻辑

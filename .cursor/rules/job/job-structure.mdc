@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: job-structure
+# Path: .cursor/rules/job/job-structure.mdc
+# Description: job目录结构及使用规范
+# Tags: job, cli, cobra, task
+
+# Job目录结构
+
+`job/`目录包含所有巡检任务相关代码，基于Cobra库实现命令行工具。
+
+## 目录结构
+```
+job/
+├── main.go           # 命令行主入口
+├── init.go           # 资源初始化函数
+├── chore/            # 数据收集和处理任务
+│   └── security_check/ # 安全检查数据收集
+└── email/            # 邮件发送任务
+    └── security_report/ # 安全报告邮件发送
+```
+
+## Job开发规范
+
+1. 所有命令行工具应基于Cobra库开发
+2. 全局标志应定义在根命令中，特定标志应定义在子命令中
+3. 任务应分为数据收集(chore)和通知发送(email)等类别
+4. 每个任务应有清晰的日志输出
+5. 共享资源初始化（如数据库连接、S3客户端）应在init.go中定义
+6. 邮件模板应使用Go HTML模板系统
+
