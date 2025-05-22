@@ -1,0 +1,39 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: code-conventions
+# Path: .cursor/rules/development/code-conventions.mdc
+# Description: 代码开发约定与最佳实践
+# Tags: conventions, mvc, dto, naming
+
+# 代码开发约定
+
+项目代码开发需要遵循一系列约定与最佳实践，确保代码质量和一致性。
+
+## 通用开发约定
+
+1. **MVC设计模式**: 后端代码开发遵从java MVC设计模式
+   - 控制器: 处理请求、调用服务、返回响应
+   - 服务层: 包含业务逻辑
+   - 模型层: 定义数据结构和数据库交互
+
+2. **DTO模式**: 前端参数构造的模型与数据库层模型需要分离开
+   - 在service层构建单独的DTO模型
+   - DTO文件名以`${service}_dto.go`为模版
+   - DTO应只包含需要传输的数据，不含业务逻辑
+
+3. **响应处理**: controller类所有关于响应的代码必须调用pkg/middleware/render/json.go来完成
+   - 统一错误码和消息格式
+   - 统一成功响应格式
+
+4. **命名规范**:
+   - 前后端通信的JSON字段使用驼峰格式
+   - Go代码内部使用驼峰命名法
+   - 数据库字段使用下划线命名法
+
+5. **复杂度控制**: 方法的复杂度不要超过15
+   - 单个函数应只做一件事
+   - 复杂逻辑应拆分为多个小函数
+   - 避免深度嵌套的条件语句

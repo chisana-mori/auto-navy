@@ -3,162 +3,33 @@ description:
 globs: 
 alwaysApply: true
 ---
-# 本项目为一个前后端融合项目，其中后端使用golang实现，web base于gin,前端使用react实现
+# Rule: navy-ng
+# Path: .cursor/rules/navy-ng.mdc
+# Description: Navy-NG项目规则集索引
+# Tags: overview, index, structure
 
-## 项目文件结构
+# Navy-NG 项目规则集
 
-- 生成的业务代码需要满足以下代码树结构
-```
-navy-ng/
-├── models/                # 数据模型层 - 使用GORM进行数据库操作
-│   └── portal/            # 门户模块数据模型
-│       └── object.go      # 核心数据模型定义文件
-│
-├── pkg/                   # 公共库代码 - 可被外部项目引用
-│   └── middleware/        # 中间件
-│       └── render         # controller层渲染相关方法
-│            └── json.go   # 渲染方法
-│
-├── server/                # 后端服务层
-│   └── portal/            # 门户模块服务
-│       └── internal/      # 内部实现(不对外暴露)
-│           ├── main.go    # 服务启动入口
-│           ├── conf/      # 配置管理(环境变量/配置文件)
-│           ├── docs/      # swagger文档
-│           ├── routers/   # Gin路由定义与控制器
-│           └── service/   # 业务逻辑实现
-│
-├── job/                   # 巡检任务job
-│   └── email/             # 任务job集合，每个job对应发送一种类型的邮件
-├── web/                   # 前端应用层
-│   └── navy-fe/           # React前端项目
-│
-├── scripts/               # 开发运维脚本
-│                           # 构建/部署/测试等自动化脚本
-│
-# 项目配置文件
-├── .gitignore            # Git忽略规则
-├── .golangci.yaml        # Go代码静态分析配置
-├── Makefile              # 项目构建/测试/运行命令
-├── README.md             # 项目文档说明
-├── go.mod                # Go模块依赖管理
-└── go.sum                # 依赖版本校验
-```
+本规则集为Navy-NG项目的主规则索引，包含了项目的各个子规则集。
 
-- 后端代码开发遵从java MVC设计模式，前端参数构造的模型与数据库层模型需要分离开，在service层构建单独的DTO模型，文件名以${service}_dto为模版
-- controller类所有关于响应的代码必须调用pkg/middleware/render/json.go来完成
-- 前后端通信的json为驼峰格式
-- 方法的复杂度不要超过15
+## 总体概述
+- [项目总体概述](mdc:.cursor/rules/overview/navy-ng-overview.mdc)
 
-# Rule: job-overview.mdc
-# Path: .cursor/rules/job-overview.mdc
-# Description: Overview of the `job/` directory and its command-line structure.
-# Tags: job, cli, cobra, structure
+## 按目录的规则集
+- [数据模型层规则](mdc:.cursor/rules/models/models-structure.mdc)
+- [公共库规则](mdc:.cursor/rules/pkg/pkg-structure.mdc) 
+- [后端服务规则](mdc:.cursor/rules/server/server-structure.mdc)
+- [任务Job规则](mdc:.cursor/rules/job/job-structure.mdc)
+- [前端应用规则](mdc:.cursor/rules/web/web-structure.mdc)
+- [开发运维脚本规则](mdc:.cursor/rules/scripts/scripts-structure.mdc)
 
-## Navy Job Runner Overview
+## 配置与开发规范
+- [项目配置文件规则](mdc:.cursor/rules/config/project-config-files.mdc)
+- [代码开发约定](mdc:.cursor/rules/development/code-conventions.mdc)
 
-The `job/` directory contains command-line tools for various background tasks and operations within the Navy-NG project. These jobs are built using the [Cobra](mdc:https:/github.com/spf13/cobra) library for CLI interactions.
-
-### Key Files & Structure:
-
--   **`[main.go](mdc:job/main.go)`**: The main entry point for the `job` executable. It defines the root command (`job`), persistent flags (like database DSN, S3 credentials), and adds subcommands.
--   **`[init.go](mdc:job/init.go)`**: Contains helper functions for initializing shared resources like the database connection (`initDB`) and the S3 client (`initS3Client`).
--   **`chore/`**: Contains subcommands related to data collection, processing, and maintenance tasks.
-    -   `security_check/`: Logic for collecting security check results. See `[.cursor/rules/security-check-collector.mdc](mdc:.cursor/rules/security-check-collector.mdc)`.
--   **`email/`**: Contains subcommands related to generating and sending email notifications.
-    -   `security_report/`: Logic for generating and sending the security check report email. See `[.cursor/rules/security-report-sender.mdc](mdc:.cursor/rules/security-report-sender.mdc)`.
-
-### Command Structure:
-
-The jobs are organized hierarchically using Cobra:
-
-Global flags (like `--mysql-dsn`, `--s3-access-key`, etc.) are defined on the root command and are available to all subcommands. Specific flags (like SMTP settings) are defined on the relevant subcommands (`security-check` and `security-report`).
-
-# Rule: security-check-collector.mdc
-# Path: .cursor/rules/security-check-collector.mdc
-# Description: Details the security check data collection process.
-# Tags: job, chore, security-check, s3, collector, database
-
-## Security Check Data Collector (`job/chore/security_check/`)
-
-This component is responsible for collecting security configuration check results from an S3 bucket and storing them in the database.
-
-### Key Files:
-
--   **`[collector.go](mdc:job/chore/security_check/collector.go)`**: Defines the `S3ConfigCollector` struct and its methods.
-    -   `Run()`: The main execution method.
-    -   `ListClusters()`: Lists clusters found in the database and checks their existence and data presence (for today's date) in S3 under the `safeconf-check/YYYY-MM-DD/` path structure. It initializes the `clusterStatus` map.
-    -   `ProcessCluster()`: Orchestrates processing for a single cluster across different node types and check types.
-    -   `processNodeType()`: Handles listing and processing config files for a specific node type (master, etcd, node) and check type (k8s, runtime) within a cluster, constructing the S3 path like `safeconf-check/YYYY-MM-DD/{clusterName}/{nodeType}/{checkType}/`.
-    -   `processNodeConfig()`: Downloads a specific node's config file from S3, parses its content line by line (`parseConfigLine`, `scanConfigFile`), updates the cluster status if failures are found (`updateClusterStatus`), and saves the results (`saveChecks`).
-    -   `saveChecks()`: Saves the main check record (`portal.SecurityCheck`) and individual items (`portal.SecurityCheckItem`) to the database within a transaction.
--   **`[types.go](mdc:job/chore/security_check/types.go)`**: Defines internal data structures like `ConfigCheck` used during parsing.
-
-### Data Flow:
-
-1.  The `security-check` command (defined in `[job/main.go](mdc:job/main.go)`) is executed.
-2.  It initializes DB and S3 clients using `[job/init.go](mdc:job/init.go)`.
-3.  It creates an `S3ConfigCollector`.
-4.  `collector.Run()` is called.
-5.  `ListClusters()` fetches DB clusters, checks S3 paths (including today's date), and initializes `clusterStatus`.
-6.  `Run()` iterates through clusters returned by `ListClusters()` and calls `ProcessCluster()`.
-7.  `ProcessCluster()` calls `processNodeType()` for relevant node/check types.
-8.  `processNodeType()` lists files in the date-specific S3 path and calls `processNodeConfig()` for each file.
-9.  `processNodeConfig()` gets the S3 object, scans it, updates `clusterStatus`, and calls `saveChecks()`.
-10. `saveChecks()` writes data to `portal.SecurityCheck` and `portal.SecurityCheckItem` tables.
-11. `Run()` returns the `clusterStatus` map, which indicates which clusters exist in S3, have failures, and have data for the current day.
-
-# Rule: security-report-sender.mdc
-# Path: .cursor/rules/security-report-sender.mdc
-# Description: Details the security report email generation and sending process.
-# Tags: job, email, security-report, sender, template, html
-
-## Security Report Email Sender (`job/email/security_report/`)
-
-This component generates and sends an HTML email summarizing the results of the security checks collected by the `security-check` job.
-
-### Key Files:
-
--   **`[sender.go](mdc:job/email/security_report/sender.go)`**: Defines the `SecurityReportSender` struct and its methods.
-    -   `Run()`: The main execution method. Calls validation, data collection, data generation, content generation, and email sending.
-    -   `validateS3Data()`: Checks the `clusterStatus` (passed from the collector) to ensure at least one cluster has `TodayDataExists` set to true, preventing reports based on stale data.
-    -   `collectData()`: Fetches online cluster/node info (`getOnlineClustersAndNodes`) and security check results from the DB (`collectClusterData`), compares them to identify `missingNodes`, and prepares the raw `SecurityReportData`. Stores `onlineClusters` and `missingNodes` in the sender struct.
-    -   `getOnlineClustersAndNodes()`: Queries the database (using JOINs) for clusters (`k8s_cluster`), their nodes (`k8s_node`), and etcd info (`k8s_etcd_info`) that meet the "online" criteria (running status, recent creation date, not Offline).
-    -   `collectClusterData()`: Fetches security check results (`portal.SecurityCheck`, `portal.SecurityCheckItem`) for a specific cluster from the database for the current day.
-    -   `generateEmailData()`: Transforms the collected `SecurityReportData` and stored `onlineClusters`/`missingNodes` into the final `EmailTemplateData` struct used by the HTML template. It calculates summaries, health statuses, abnormal details, and heatmap data.
-    -   `generateEmailContent()`: Parses the embedded `[template.html](mdc:job/email/security_report/template.html)`, applies Sprig and custom template functions, executes the template with `EmailTemplateData`, and returns the generated HTML string.
-    -   `sendEmail()`: Constructs and sends the email using SMTP settings provided via flags.
--   **`[types.go](mdc:job/email/security_report/types.go)`**: Defines data structures used for reporting, including `SecurityReportData`, `SecurityCheckResult`, and the crucial `EmailTemplateData` which structures data for the template.
--   **`[template.html](mdc:job/email/security_report/template.html)`**: The Go HTML template used to render the email body. It uses data from the `EmailTemplateData` struct. Contains CSS for styling and some JavaScript for interactivity (like toggling cluster visibility, scrolling).
--   **`[mock_data.json](mdc:job/email/security_report/mock_data.json)`**: An example JSON file representing the structure of `EmailTemplateData`, useful for previewing and testing the template.
-
-### Data Flow:
-
-1.  The `security-report` command (or `security-check` with `--send-email`) is executed.
-2.  It initializes DB using `[job/init.go](mdc:job/init.go)`.
-3.  It creates a `SecurityReportSender` with SMTP settings.
-4.  `sender.Run()` is called, potentially receiving `clusterStatus` from the collector.
-5.  `validateS3Data()` checks if today's data exists based on `clusterStatus.TodayDataExists`.
-6.  `collectData()` fetches online node info and DB results, identifies missing nodes, and prepares raw data.
-7.  `generateEmailData()` processes the raw data and sender state (`s.onlineClusters`, `s.missingNodes`) into the final `EmailTemplateData`.
-8.  `generateEmailContent()` renders `[template.html](mdc:job/email/security_report/template.html)` using the `EmailTemplateData`.
-9.  `sendEmail()` sends the rendered HTML.
-
-# Rule: database-models-job.mdc
-# Path: .cursor/rules/database-models-job.mdc
-# Description: Highlights GORM models relevant to the security check job.
-# Tags: job, model, gorm, database, security-check, security-report
-
-## Relevant Database Models for Security Job (`models/portal/`)
-
-The security check collector and report sender jobs interact with several GORM models defined in the `models/portal/` directory.
-
-### Key Models Used:
-
--   **`[k8s_cluster.go](mdc:models/portal/k8s_cluster.go)`**: Represents the `k8s_cluster` table. Used by the sender (`getOnlineClustersAndNodes`) to find active clusters (`Status` field) and by the collector (`ListClusters`) to get the list of clusters to potentially process.
--   **`[k8s_node.go](mdc:models/portal/k8s_node.go)`**: Represents the `k8s_node` table. Used by the sender (`getOnlineClustersAndNodes`) to find nodes associated with active clusters, filtering by `created_at` and `status`, and grouping by `Role`.
--   **`[k8s_etcd_info.go](mdc:models/portal/k8s_etcd_info.go)`**: Represents the `k8s_etcd_info` table. Used by the sender (`getOnlineClustersAndNodes`) to get etcd instance IPs associated with active clusters, filtering by `created_at`.
--   **`[security_check.go](mdc:models/portal/security_check.go)`**: Defines `SecurityCheck` (main record) and `SecurityCheckItem` (individual check details). These models are written to by the collector (`saveChecks`) and read by the sender (`collectClusterData`) to get the results of the security scans.
-
-These models provide the ORM layer for interacting with the database tables storing cluster configuration, node details, and security check outcomes.
+## Job相关详细规则
+- [Job总体概述](mdc:.cursor/rules/job-overview.mdc)
+- [安全检查收集器](mdc:.cursor/rules/security-check-collector.mdc)
+- [安全报告发送器](mdc:.cursor/rules/security-report-sender.mdc)
+- [数据库模型Job相关](mdc:.cursor/rules/database-models-job.mdc)
 

@@ -1,0 +1,39 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: web-structure
+# Path: .cursor/rules/web/web-structure.mdc
+# Description: web目录结构及使用规范
+# Tags: web, frontend, react
+
+# Web目录结构
+
+`web/`目录包含所有前端应用层代码，基于React框架实现。
+
+## 目录结构
+```
+web/
+└── navy-fe/           # React前端项目
+    ├── public/        # 静态资源
+    ├── src/           # 源代码
+    │   ├── api/       # API调用
+    │   ├── components/ # 组件
+    │   ├── pages/     # 页面
+    │   ├── store/     # 状态管理
+    │   ├── styles/    # 样式
+    │   └── utils/     # 工具函数
+    ├── package.json   # 依赖管理
+    └── README.md      # 项目说明
+```
+
+## 前端开发规范
+
+1. 组件应遵循功能单一原则，避免过度复杂
+2. 与后端通信的JSON使用驼峰命名法
+3. API调用应集中在api目录管理
+4. 应使用TypeScript进行类型定义
+5. 页面路由应清晰定义
+6. 复用组件应放在components目录
+7. 全局状态应通过store统一管理
