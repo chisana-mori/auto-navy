@@ -441,118 +441,198 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           headStyle={{ backgroundColor: '#f5f7fa' }}
           bodyStyle={{ padding: '16px 24px' }}
         >
-          {matchingPolicies.length > 0 ? (
-            <>
-              <Form.Item
-                name="matchingPolicyId"
-                label="设备匹配策略"
-                rules={[{ required: true, message: '请选择设备匹配策略' }]}
-              >
-                <Select placeholder="请选择设备匹配策略">
-                  {matchingPolicies.map(policy => (
-                    <Option key={policy.id} value={policy.id}>{policy.name}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="deviceCount"
-                label="设备数量"
-                rules={[{ required: true, message: '请输入设备数量' }]}
-              >
-                <InputNumber min={1} max={100} style={{ width: '100%' }} />
-              </Form.Item>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item>
-                    <Button
-                      type="primary"
-                      icon={<SearchOutlined />}
-                      onClick={handleSearchDevices}
-                      disabled={!selectedPolicy}
-                      loading={searchingDevices}
-                      block
-                    >
-                      使用策略查询
-                    </Button>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item>
-                    <Button
-                      type="default"
-                      icon={<FilterOutlined />}
-                      onClick={openDeviceDrawer}
-                      block
-                    >
-                      自定义筛选
-                    </Button>
-                  </Form.Item>
-                </Col>
-              </Row>
-            </>
-          ) : (
-            <>
-              <Alert
-                message="未找到匹配的设备策略"
-                description="当前资源池类型和动作类型没有可用的设备匹配策略，您可以使用自定义筛选功能选择设备。"
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-
-              <div style={{ marginTop: 16 }}>
-                <Card
-                  title="基本筛选条件"
-                  size="small"
-                  type="inner"
-                  style={{ marginBottom: 16 }}
+          {form.getFieldValue('resourcePoolType') && form.getFieldValue('actionType') ? (
+            matchingPolicies.length > 0 ? (
+              <>
+                <Form.Item
+                  name="matchingPolicyId"
+                  label="设备匹配策略"
+                  rules={[{ required: true, message: '请选择设备匹配策略' }]}
                 >
-                  {filterGroups.length === 0 ? (
-                    <Empty
-                      description="暂无筛选条件"
-                      image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    />
-                  ) : (
-                    filterGroups.map((group, groupIndex) => (
-                      <div key={group.id} className="filter-group">
-                        <div className="filter-group-header">
-                          <span>筛选组 {groupIndex + 1}</span>
-                          <Button
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => removeFilterGroup(group.id)}
-                            size="small"
-                          />
-                        </div>
+                  <Select placeholder="请选择设备匹配策略">
+                    {matchingPolicies.map(policy => (
+                      <Option key={policy.id} value={policy.id}>{policy.name}</Option>
+                    ))}
+                  </Select>
+                </Form.Item>
 
-                        {group.blocks.map((block) => {
-                          // 根据筛选块类型显示不同的内容
-                          let blockContent = '';
-                          let tagColor = 'default';
+                {selectedPolicy && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ marginBottom: 8, fontWeight: 500 }}>查询参数：</div>
+                    <div>
+                      {selectedPolicy.queryGroups && selectedPolicy.queryGroups.map((group, groupIndex) => (
+                        <div key={`group-${groupIndex}`} style={{ marginBottom: 8 }}>
+                          {group.blocks && group.blocks.map((block, blockIndex) => {
+                            let blockContent = '';
+                            let tagColor = 'default';
 
-                          // 特殊处理入池条件的显示
-                          const actionType = form.getFieldValue('actionType');
-                          if (actionType === 'pool_entry' && block.type === FilterType.Device) {
-                            if (block.field === 'cluster' && block.conditionType === ConditionType.IsEmpty) {
-                              blockContent = '未入池设备';
+                            if (block.type === FilterType.Device) {
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              const fieldLabel = filterOptions.deviceFields?.find((f: any) => f.value === block.field)?.label || block.field;
+                              const conditionLabel = block.conditionType === ConditionType.Equal ? '等于' :
+                                                    block.conditionType === ConditionType.NotEqual ? '不等于' :
+                                                    block.conditionType === ConditionType.Contains ? '包含' :
+                                                    block.conditionType === ConditionType.IsEmpty ? '为空' :
+                                                    block.conditionType === ConditionType.IsNotEmpty ? '不为空' :
+                                                    block.conditionType;
+                              blockContent = `${fieldLabel} ${conditionLabel} ${block.value || ''}`;
                               tagColor = 'blue';
-                            } else if (['idc', 'zone', 'room'].includes(block.field || '') && block.conditionType === ConditionType.Equal) {
-                              // 优先使用自定义标签
-                              if (block.label) {
-                                blockContent = block.label;
-                              } else {
-                                const locationLabels: Record<string, string> = {
-                                  'idc': '与集群同IDC',
-                                  'zone': '与集群同安全域',
-                                  'room': '与集群同机房'
-                                };
-                                blockContent = locationLabels[block.field || ''] || `${block.field} = ${block.value}`;
-                              }
+                            } else if (block.type === FilterType.NodeLabel) {
+                              blockContent = `标签 ${block.key || ''} ${block.conditionType} ${block.value || ''}`;
                               tagColor = 'green';
-                            } else {
+                            } else if (block.type === FilterType.Taint) {
+                              blockContent = `污点 ${block.key || ''} ${block.conditionType} ${block.value || ''}`;
+                              tagColor = 'orange';
+                            }
+
+                            return (
+                              <Tag
+                                key={`block-${blockIndex}`}
+                                color={tagColor}
+                                style={{ margin: '4px' }}
+                              >
+                                {blockContent}
+                              </Tag>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 显示额外动态条件 (additionConds) */}
+                    {form.getFieldValue('actionType') === 'pool_entry' && selectedPolicy.additionConds && selectedPolicy.additionConds.length > 0 && (
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ marginBottom: 8, fontWeight: 500 }}>额外动态条件：</div>
+                        <div>
+                          {selectedPolicy.additionConds.map((cond, index) => {
+                            let condLabel = '';
+                            if (cond === 'same_idc') condLabel = '与目标集群同IDC';
+                            else if (cond === 'same_zone') condLabel = '与目标集群同安全域';
+                            else if (cond === 'same_room') condLabel = '与目标集群同机房';
+                            else condLabel = cond;
+
+                            return (
+                              <Tag key={`cond-${index}`} color="purple" style={{ margin: '4px' }}>
+                                {condLabel}
+                              </Tag>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <Form.Item
+                  name="deviceCount"
+                  label="设备数量"
+                  rules={[{ required: true, message: '请输入设备数量' }]}
+                >
+                  <InputNumber min={1} max={100} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item>
+                      <Button
+                        type="primary"
+                        icon={<SearchOutlined />}
+                        onClick={handleSearchDevices}
+                        disabled={!selectedPolicy}
+                        loading={searchingDevices}
+                        block
+                      >
+                        使用策略查询
+                      </Button>
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item>
+                      <Button
+                        type="default"
+                        icon={<FilterOutlined />}
+                        onClick={openDeviceDrawer}
+                        block
+                      >
+                        自定义筛选
+                      </Button>
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </>
+            ) : (
+              <>
+                <Alert
+                  message="未找到匹配的设备策略"
+                  description="当前资源池类型和动作类型没有可用的设备匹配策略，您可以使用自定义筛选功能选择设备。"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+
+                <div style={{ marginTop: 16 }}>
+                  <Card
+                    title="基本筛选条件"
+                    size="small"
+                    type="inner"
+                    style={{ marginBottom: 16 }}
+                  >
+                    {filterGroups.length === 0 ? (
+                      <Empty
+                        description="暂无筛选条件"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      />
+                    ) : (
+                      filterGroups.map((group, groupIndex) => (
+                        <div key={group.id} className="filter-group">
+                          <div className="filter-group-header">
+                            <span>筛选组 {groupIndex + 1}</span>
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => removeFilterGroup(group.id)}
+                              size="small"
+                            />
+                          </div>
+
+                          {group.blocks.map((block) => {
+                            // 根据筛选块类型显示不同的内容
+                            let blockContent = '';
+                            let tagColor = 'default';
+
+                            // 特殊处理入池条件的显示
+                            const actionType = form.getFieldValue('actionType');
+                            if (actionType === 'pool_entry' && block.type === FilterType.Device) {
+                              if (block.field === 'cluster' && block.conditionType === ConditionType.IsEmpty) {
+                                blockContent = '未入池设备';
+                                tagColor = 'blue';
+                              } else if (['idc', 'zone', 'room'].includes(block.field || '') && block.conditionType === ConditionType.Equal) {
+                                // 优先使用自定义标签
+                                if (block.label) {
+                                  blockContent = block.label;
+                                } else {
+                                  const locationLabels: Record<string, string> = {
+                                    'idc': '与集群同IDC',
+                                    'zone': '与集群同安全域',
+                                    'room': '与集群同机房'
+                                  };
+                                  blockContent = locationLabels[block.field || ''] || `${block.field} = ${block.value}`;
+                                }
+                                tagColor = 'green';
+                              } else {
+                                // 常规设备字段处理
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const fieldLabel = filterOptions.deviceFields?.find((f: any) => f.value === block.field)?.label || block.field;
+                                const conditionLabel = block.conditionType === ConditionType.Equal ? '等于' :
+                                                      block.conditionType === ConditionType.NotEqual ? '不等于' :
+                                                      block.conditionType === ConditionType.Contains ? '包含' :
+                                                      block.conditionType === ConditionType.IsEmpty ? '为空' :
+                                                      block.conditionType === ConditionType.IsNotEmpty ? '不为空' :
+                                                      block.conditionType;
+                                blockContent = `${fieldLabel} ${conditionLabel} ${block.value || ''}`;
+                              }
+                            } else if (block.type === FilterType.Device) {
                               // 常规设备字段处理
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               const fieldLabel = filterOptions.deviceFields?.find((f: any) => f.value === block.field)?.label || block.field;
@@ -563,58 +643,55 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                                                     block.conditionType === ConditionType.IsNotEmpty ? '不为空' :
                                                     block.conditionType;
                               blockContent = `${fieldLabel} ${conditionLabel} ${block.value || ''}`;
+                            } else if (block.type === FilterType.NodeLabel) {
+                              blockContent = `标签 ${block.key || ''} ${block.conditionType} ${block.value || ''}`;
+                            } else if (block.type === FilterType.Taint) {
+                              blockContent = `污点 ${block.key || ''} ${block.conditionType} ${block.value || ''}`;
                             }
-                          } else if (block.type === FilterType.Device) {
-                            // 常规设备字段处理
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const fieldLabel = filterOptions.deviceFields?.find((f: any) => f.value === block.field)?.label || block.field;
-                            const conditionLabel = block.conditionType === ConditionType.Equal ? '等于' :
-                                                  block.conditionType === ConditionType.NotEqual ? '不等于' :
-                                                  block.conditionType === ConditionType.Contains ? '包含' :
-                                                  block.conditionType === ConditionType.IsEmpty ? '为空' :
-                                                  block.conditionType === ConditionType.IsNotEmpty ? '不为空' :
-                                                  block.conditionType;
-                            blockContent = `${fieldLabel} ${conditionLabel} ${block.value || ''}`;
-                          } else if (block.type === FilterType.NodeLabel) {
-                            blockContent = `标签 ${block.key || ''} ${block.conditionType} ${block.value || ''}`;
-                          } else if (block.type === FilterType.Taint) {
-                            blockContent = `污点 ${block.key || ''} ${block.conditionType} ${block.value || ''}`;
-                          }
 
-                          return (
-                            <Tag
-                              key={block.id}
-                              closable
-                              color={tagColor}
-                              onClose={() => removeFilterBlock(group.id, block.id)}
-                              style={{ margin: '4px' }}
-                            >
-                              {blockContent}
-                            </Tag>
-                          );
-                        })}
+                            return (
+                              <Tag
+                                key={block.id}
+                                closable
+                                color={tagColor}
+                                onClose={() => removeFilterBlock(group.id, block.id)}
+                                style={{ margin: '4px' }}
+                              >
+                                {blockContent}
+                              </Tag>
+                            );
+                          })}
 
-                        {group.blocks.length === 0 && (
-                          <div style={{ padding: '8px 0', color: '#999' }}>
-                            请添加筛选条件
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
+                          {group.blocks.length === 0 && (
+                            <div style={{ padding: '8px 0', color: '#999' }}>
+                              请添加筛选条件
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
 
-                  <div style={{ marginTop: 16 }}>
-                    <Button
-                      type="dashed"
-                      onClick={() => addFilterGroup()}
-                      style={{ marginRight: 8 }}
-                    >
-                      添加筛选组
-                    </Button>
-                  </div>
-                </Card>
-              </div>
-            </>
+                    <div style={{ marginTop: 16 }}>
+                      <Button
+                        type="dashed"
+                        onClick={() => addFilterGroup()}
+                        style={{ marginRight: 8 }}
+                      >
+                        添加筛选组
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+              </>
+            )
+          ) : (
+            <Alert
+              message="请先选择资源池类型和动作类型"
+              description="选择资源池类型和动作类型后，系统将自动加载可用的设备匹配策略。"
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
           )}
         </Card>
       </Form>
