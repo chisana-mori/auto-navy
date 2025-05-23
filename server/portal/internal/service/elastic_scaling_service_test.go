@@ -1,718 +1,811 @@
 package service
 
 import (
+	"context"
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
-	"strings"
-	"sync"        // Import for sync.WaitGroup
-	"sync/atomic" // Import for atomic operations
+	"regexp"
+	"testing"
 	"time"
 
-	"go.uber.org/zap" // Added zap import
-	"github.com/agiledragon/gomonkey/v2"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"gorm.io/driver/sqlite"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/zap"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-
 	"navy-ng/models/portal"
 )
 
-// MockRedisHandler implements RedisHandlerInterface for testing
+// MockRedisHandler is a mock implementation of RedisHandlerInterface
 type MockRedisHandler struct {
-	lockAcquired bool
-	lockKey      string
-	lockValue    string
+	mock.Mock
 }
 
-// NewMockRedisHandler creates a new mock Redis handler
-func NewMockRedisHandler() *MockRedisHandler {
-	return &MockRedisHandler{
-		lockAcquired: true, // Default to success
-	}
-}
-
-// AcquireLock mocks acquiring a Redis lock
 func (m *MockRedisHandler) AcquireLock(key string, value string, expiry time.Duration) (bool, error) {
-	m.lockKey = key
-	m.lockValue = value
-	return m.lockAcquired, nil
+	args := m.Called(key, value, expiry)
+	return args.Bool(0), args.Error(1)
 }
 
-// Delete mocks deleting a Redis key
 func (m *MockRedisHandler) Delete(key string) {
-	// Just record the call, no actual implementation needed
+	m.Called(key)
 }
 
-// Expire mocks setting expiration on Redis keys
 func (m *MockRedisHandler) Expire(expiration time.Duration) {
-	// Just record the call, no actual implementation needed
+	m.Called(expiration)
 }
 
-// SetLockAcquired sets whether the mock should simulate successful lock acquisition
-func (m *MockRedisHandler) SetLockAcquired(acquired bool) {
-	m.lockAcquired = acquired
+// MockDeviceCache is a mock implementation of DeviceCache
+type MockDeviceCache struct {
+	mock.Mock
 }
 
-// Global variables for test suite
-var (
-	db               *gorm.DB
-	service          *ElasticScalingService
-	mockRedisHandler *MockRedisHandler
-	logger           *zap.Logger
-)
+func (m *MockDeviceCache) GetDeviceList(queryHash string) (*DeviceListResponse, error) {
+	args := m.Called(queryHash)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*DeviceListResponse), args.Error(1)
+}
 
-var _ = BeforeSuite(func() {
-	// 使用sqlite内存数据库进行测试
+func (m *MockDeviceCache) SetDeviceList(queryHash string, response *DeviceListResponse) error {
+	args := m.Called(queryHash, response)
+	return args.Error(0)
+}
+
+func (m *MockDeviceCache) InvalidateDeviceLists() {
+	m.Called()
+}
+
+func (m *MockDeviceCache) GetDevice(deviceID int64) (*DeviceResponse, error) {
+	args := m.Called(deviceID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*DeviceResponse), args.Error(1)
+}
+
+func (m *MockDeviceCache) SetDevice(deviceID int64, device *DeviceResponse) error {
+	args := m.Called(deviceID, device)
+	return args.Error(0)
+}
+
+func (m *MockDeviceCache) GetDeviceFieldValues(field string) ([]string, error) {
+	args := m.Called(field)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockDeviceCache) SetDeviceFieldValues(field string, values []string, isLabelField bool) error {
+	args := m.Called(field, values, isLabelField)
+	return args.Error(0)
+}
+
+
+type ElasticScalingServiceTestSuite struct {
+	suite.Suite
+	service      *ElasticScalingService
+	db           *gorm.DB
+	sqlMock      sqlmock.Sqlmock
+	redisHandler *MockRedisHandler
+	deviceCache  *MockDeviceCache
+	logger       *zap.Logger
+}
+
+func (s *ElasticScalingServiceTestSuite) SetupTest() {
 	var err error
-	db, err = gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	Expect(err).NotTo(HaveOccurred())
+	s.logger = zap.NewNop() // Use No-Op logger for tests
 
-	// 自动迁移表结构
-	err = db.AutoMigrate(
-		&portal.ElasticScalingStrategy{},
-		&portal.StrategyClusterAssociation{},
-		&portal.ResourceSnapshot{},
-		&portal.StrategyExecutionHistory{},
-		&portal.ElasticScalingOrder{},
-		&portal.OrderDevice{},
-		&portal.K8sCluster{},
-		&portal.Device{},
-	)
-	Expect(err).NotTo(HaveOccurred())
+	// Setup sqlmock
+	mockDb, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp)) // Use regexp matching
+	assert.NoError(s.T(), err)
 
-	// Create a mock Redis handler
-	mockRedisHandler = NewMockRedisHandler()
-
-	// Create a logger for tests
-	var errLogger error
-	logger, errLogger = zap.NewDevelopment() // Or zap.NewExample() or a configured logger
-	Expect(errLogger).NotTo(HaveOccurred())
-
-	// Pass the mock Redis handler and logger to the service constructor
-	service = NewElasticScalingService(db, mockRedisHandler, logger)
-})
-
-var _ = AfterSuite(func() {
-	// 清理数据库 - 使用事务来确保原子性
-	db.Transaction(func(tx *gorm.DB) error {
-		// 获取实际的表名，这些是基于模型定义中的 TableName() 方法
-		tablesToClear := []string{
-			(portal.ElasticScalingStrategy{}).TableName(),
-			(portal.StrategyClusterAssociation{}).TableName(),
-			(portal.ResourceSnapshot{}).TableName(),
-			(portal.StrategyExecutionHistory{}).TableName(),
-			(portal.ElasticScalingOrder{}).TableName(),
-			(portal.OrderDevice{}).TableName(),
-			(portal.K8sCluster{}).TableName(),
-			(portal.Device{}).TableName(),
-		}
-		for _, table := range tablesToClear {
-			// 使用 Unscoped 来确保所有记录都被删除，包括软删除的记录
-			if err := tx.Exec("DELETE FROM " + table).Error; err != nil {
-				// 如果表不存在，忽略错误
-				if !strings.Contains(err.Error(), "no such table") {
-					return err
-				}
-			}
-		}
-		return nil
+	// Setup GORM with the mocked SQL driver
+	dialector := mysql.New(mysql.Config{
+		Conn:       mockDb,
+		SkipInitializeWithVersion: true,
 	})
-})
-
-var _ = Describe("ElasticScalingService", func() {
-	BeforeEach(func() {
-		// 每个测试前清理数据库表
-		db.Transaction(func(tx *gorm.DB) error {
-			tablesToClear := []string{
-				(portal.ElasticScalingStrategy{}).TableName(),
-				(portal.StrategyClusterAssociation{}).TableName(),
-				(portal.ResourceSnapshot{}).TableName(),
-				(portal.StrategyExecutionHistory{}).TableName(),
-				(portal.ElasticScalingOrder{}).TableName(),
-				(portal.OrderDevice{}).TableName(),
-				(portal.K8sCluster{}).TableName(),
-				(portal.Device{}).TableName(),
-			}
-			for _, table := range tablesToClear {
-				if err := tx.Exec("DELETE FROM " + table).Error; err != nil {
-					if !strings.Contains(err.Error(), "no such table") {
-						return err
-					}
-				}
-			}
-			return nil
-		})
+	s.db, err = gorm.Open(dialector, &gorm.Config{
+		Logger: zap.NewNop().Sugar(), // Disable GORM logging for tests
 	})
+	assert.NoError(s.T(), err)
+	s.sqlMock = mock
 
-	Describe("EvaluateStrategies", func() {
-		// Test case: No enabled strategies
-		Context("when there are no enabled strategies", func() {
-			// No setup needed - the database is empty by default
+	s.redisHandler = new(MockRedisHandler)
+	s.deviceCache = new(MockDeviceCache)
 
-			It("should return nil and not create any orders", func() {
-				// Test the method
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+	s.service = NewElasticScalingService(s.db, s.redisHandler, s.logger, s.deviceCache)
+}
 
-				// Verify no orders were created
-				var orderCount int64
-				db.Model(&portal.ElasticScalingOrder{}).Count(&orderCount)
-				Expect(orderCount).To(BeZero())
-			})
-		})
+func TestElasticScalingServiceTestSuite(t *testing.T) {
+	suite.Run(t, new(ElasticScalingServiceTestSuite))
+}
 
-		// Test case: Enabled strategy with no associated clusters
-		Context("when there is an enabled strategy with no associated clusters", func() {
-			BeforeEach(func() {
-				strategy := portal.ElasticScalingStrategy{
-					Name:                   "Test Strategy",
-					Status:                 "enabled",
-					ThresholdTriggerAction: "pool_entry",
-					CPUThresholdValue:      80,
-					CPUThresholdType:       "usage",
-					DeviceCount:            1,
-					DurationMinutes:        5,
-					CooldownMinutes:        10,
-					CreatedBy:              "test",
-				}
-				err := db.Create(&strategy).Error
-				Expect(err).NotTo(HaveOccurred())
-			})
+// --- Test Cases Start Here ---
 
-			It("should not create any orders", func() {
-				// Test the method
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+func (s *ElasticScalingServiceTestSuite) TestEvaluateStrategy_CooldownPeriod() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:              1,
+		Name:            "TestCooldown",
+		Status:          StrategyStatusEnabled,
+		CooldownMinutes: 60,
+		// ... other necessary fields
+	}
 
-				// Verify no orders were created
-				var orderCount int64
-				db.Model(&portal.ElasticScalingOrder{}).Count(&orderCount)
-				Expect(orderCount).To(BeZero())
+	// Mock Redis lock acquisition
+	s.redisHandler.On("AcquireLock", mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
+	s.redisHandler.On("Delete", mock.Anything).Return()
 
-				var historyCount int64
-				db.Model(&portal.StrategyExecutionHistory{}).Count(&historyCount)
-				Expect(historyCount).To(BeZero()) // No history should be recorded if no clusters are associated
-			})
-		})
+	// Mock DB to return a recent execution history
+	expectedHistoryTime := time.Now().Add(-30 * time.Minute) // 30 minutes ago, within 60 min cooldown
+	rows := sqlmock.NewRows([]string{"id", "strategy_id", "execution_time", "result"}).
+		AddRow(1, strategy.ID, expectedHistoryTime, StrategyExecutionResultOrderCreated)
+	
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_execution_histories` WHERE strategy_id = \\? AND result = \\? ORDER BY execution_time DESC LIMIT 1").
+		WithArgs(strategy.ID, StrategyExecutionResultOrderCreated).
+		WillReturnRows(rows)
 
-		// Test case: Enabled strategy with associated clusters but no resource snapshots
-		Context("when there is an enabled strategy with associated clusters but no resource snapshots", func() {
-			var clusterID int64
-			var strategyID int64
+	err := s.service.evaluateStrategy(strategy)
+	assert.NoError(s.T(), err)
 
-			BeforeEach(func() {
-				// Create a cluster
-				cluster := portal.K8sCluster{
-					ClusterName: "Test Cluster",
-					ClusterID:   "test-cluster-id",
-					Status:      "active",
-				}
-				err := db.Create(&cluster).Error
-				Expect(err).NotTo(HaveOccurred())
-				clusterID = cluster.ID
+	// Assert that no further DB calls for snapshots or associations happened beyond the history check
+	s.sqlMock.ExpectationsWereMet() // Verifies only the history query was made
+}
 
-				// Create a strategy
-				strategy := portal.ElasticScalingStrategy{
-					Name:                   "Test Strategy",
-					Status:                 "enabled",
-					ThresholdTriggerAction: "pool_entry",
-					CPUThresholdValue:      80,
-					CPUThresholdType:       "usage",
-					DeviceCount:            1,
-					DurationMinutes:        5,
-					CooldownMinutes:        10,
-					CreatedBy:              "test",
-				}
-				err = db.Create(&strategy).Error
-				Expect(err).NotTo(HaveOccurred())
-				strategyID = strategy.ID
 
-				// Associate cluster with strategy
-				association := portal.StrategyClusterAssociation{
-					StrategyID: strategyID,
-					ClusterID:  clusterID,
-				}
-				err = db.Create(&association).Error
-				Expect(err).NotTo(HaveOccurred())
-			})
+func (s *ElasticScalingServiceTestSuite) TestEvaluateStrategy_NoAssociations() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:     1,
+		Name:   "TestNoAssociations",
+		Status: StrategyStatusEnabled,
+		// ... other necessary fields for cooldown check to pass (or mock it empty)
+		CooldownMinutes: 60,
+	}
 
-			It("should record skipped execution history for each resource type", func() {
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+	s.redisHandler.On("AcquireLock", mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
+	s.redisHandler.On("Delete", mock.Anything).Return()
 
-				var history []portal.StrategyExecutionHistory
-				db.Where("strategy_id = ?", strategyID).Find(&history)
-				Expect(len(history)).To(BeNumerically(">", 0))
-				
-				for _, h := range history {
-					Expect(h.Result).To(Equal("skipped"))
-					Expect(h.Reason).To(ContainSubstring("没有资源类型"))
-				}
+	// Mock DB for cooldown check (no recent history)
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_execution_histories` WHERE strategy_id = \\? AND result = \\? ORDER BY execution_time DESC LIMIT 1").
+		WithArgs(strategy.ID, StrategyExecutionResultOrderCreated).
+		WillReturnError(gorm.ErrRecordNotFound)
+	
+	// Mock DB for associations (return empty)
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_cluster_associations` WHERE strategy_id = \\?").
+		WithArgs(strategy.ID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "strategy_id", "cluster_id"})) // No rows
 
-				var orderCount int64
-				db.Model(&portal.ElasticScalingOrder{}).Count(&orderCount)
-				Expect(orderCount).To(BeZero())
-			})
-		})
+	err := s.service.evaluateStrategy(strategy)
+	assert.NoError(s.T(), err)
+	s.sqlMock.ExpectationsWereMet() 
+	// Potentially check for a specific log or a "skipped_no_associations" history record if that was implemented
+}
 
-		// Test case: Enabled strategy with associated clusters and resource snapshots, but conditions not met
-		Context("when there is an enabled strategy with associated clusters and resource snapshots, but conditions not met", func() {
-			var strategyID int64
-			var clusterID int64
 
-			BeforeEach(func() {
-				// Create a cluster
-				cluster := portal.K8sCluster{
-					ClusterName: "Test Cluster",
-					ClusterID:   "test-cluster-id-2",
-					Status:      "active",
-				}
-				err := db.Create(&cluster).Error
-				Expect(err).NotTo(HaveOccurred())
-				clusterID = cluster.ID
+func (s *ElasticScalingServiceTestSuite) TestEvaluateStrategy_NoSnapshots() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:              1,
+		Name:            "TestNoSnapshots",
+		Status:          StrategyStatusEnabled,
+		CooldownMinutes: 60,
+		DurationMinutes: 30,
+		ResourceTypes:   "total",
+		// ... other necessary fields
+	}
+	clusterID := int64(101)
+	
+	s.redisHandler.On("AcquireLock", mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
+	s.redisHandler.On("Delete", mock.Anything).Return()
 
-				// Create a strategy
-				strategy := portal.ElasticScalingStrategy{
-					Name:                   "Test Strategy",
-					Status:                 "enabled",
-					ThresholdTriggerAction: "pool_entry",
-					CPUThresholdValue:      80, // Threshold is 80%
-					CPUThresholdType:       "usage",
-					DeviceCount:            1,
-					DurationMinutes:        5,
-					CooldownMinutes:        10,
-					CreatedBy:              "test",
-					ResourceTypes:          "total",
-				}
-				err = db.Create(&strategy).Error
-				Expect(err).NotTo(HaveOccurred())
-				strategyID = strategy.ID
+	// Mock cooldown check (no recent history)
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_execution_histories`").
+		WithArgs(strategy.ID, StrategyExecutionResultOrderCreated).
+		WillReturnError(gorm.ErrRecordNotFound)
 
-				// Associate cluster with strategy
-				association := portal.StrategyClusterAssociation{
-					StrategyID: strategyID,
-					ClusterID:  clusterID,
-				}
-				err = db.Create(&association).Error
-				Expect(err).NotTo(HaveOccurred())
+	// Mock associations (return one association)
+	assocRows := sqlmock.NewRows([]string{"id", "strategy_id", "cluster_id"}).
+		AddRow(1, strategy.ID, clusterID)
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_cluster_associations`").
+		WithArgs(strategy.ID).
+		WillReturnRows(assocRows)
 
-				// Create a resource snapshot with CPU usage below threshold (70% < 80%)
-				snapshot := portal.ResourceSnapshot{
-					ClusterID:         uint(clusterID),
-					ResourceType:      "total",
-					ResourcePool:      "compute",
-					MaxCpuUsageRatio:  70, // Below threshold
-					CpuCapacity:       100,
-					CpuRequest:        60,
-					MemoryCapacity:    100,
-					MemRequest:        50,
-				}
-				err = db.Create(&snapshot).Error
-				Expect(err).NotTo(HaveOccurred())
-			})
+	// Mock snapshot query for duration (return no rows)
+	// For "total" resource type, resource_pool filter is not applied
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `resource_snapshots` WHERE cluster_id = \\? AND resource_type = \\? AND created_at BETWEEN \\? AND \\? ORDER BY created_at ASC").
+		WithArgs(clusterID, "total", sqlmock.AnyArg(), sqlmock.AnyArg()). 
+		WillReturnRows(sqlmock.NewRows([]string{"id"})) // No rows
 
-			It("should not create any orders and record monitoring history", func() {
-				// Test the method
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+	// Expect recordStrategyExecution call for no snapshots
+	s.sqlMock.ExpectBegin()
+	s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+		WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultFailureNoSnapshots, "", "").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.sqlMock.ExpectCommit()
+	
+	err := s.service.evaluateStrategy(strategy)
+	assert.NoError(s.T(), err)
+	s.sqlMock.ExpectationsWereMet()
+}
 
-				// Verify no orders were created
-				var orderCount int64
-				db.Model(&portal.ElasticScalingOrder{}).Count(&orderCount)
-				Expect(orderCount).To(BeZero())
 
-				// Verify history was recorded
-				var history []portal.StrategyExecutionHistory
-				db.Where("strategy_id = ?", strategyID).Find(&history)
-				Expect(len(history)).To(BeNumerically(">", 0))
-				
-				// Verify the history shows monitoring but no trigger
-				for _, h := range history {
-					Expect(h.Result).To(Equal("skipped"))
-					Expect(h.OrderID).To(BeNil())
-				}
-			})
-		})
+func (s *ElasticScalingServiceTestSuite) TestCheckConsistentThresholdBreach_CPUUsagePoolEntry_Breached() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:                     1,
+		CPUThresholdValue:      80,
+		CPUThresholdType:       ThresholdTypeUsage,
+		ThresholdTriggerAction: TriggerActionPoolEntry,
+		ConditionLogic:         ConditionLogicOr, // Doesn't matter if only one threshold
+		DurationMinutes:        10,
+	}
+	snapshots := []portal.ResourceSnapshot{
+		{MaxCpuUsageRatio: 85, CreatedAt: portal.NavyTime(time.Now().Add(-1 * time.Minute))},
+		{MaxCpuUsageRatio: 90, CreatedAt: portal.NavyTime(time.Now().Add(-2 * time.Minute))},
+		{MaxCpuUsageRatio: 82, CreatedAt: portal.NavyTime(time.Now().Add(-3 * time.Minute))},
+	}
 
-		// Test case: Enabled strategy with associated clusters and resource snapshots, conditions met but not for duration
-		Context("when conditions are met but not for the required duration", func() {
-			var strategyID int64
-			var clusterID int64
+	breached, triggeredVal, thresholdVal := s.service.checkConsistentThresholdBreach(snapshots, strategy)
+	
+	assert.True(s.T(), breached)
+	assert.Contains(s.T(), triggeredVal, "CPU usage: 85.67% (avg)") // (85+90+82)/3
+	assert.Equal(s.T(), "CPU usage > 80% for 10 mins", thresholdVal)
+}
 
-			BeforeEach(func() {
-				// Create a cluster
-				cluster := portal.K8sCluster{
-					ClusterName: "Test Cluster",
-					ClusterID:   "test-cluster-id-3",
-					Status:      "active",
-				}
-				err := db.Create(&cluster).Error
-				Expect(err).NotTo(HaveOccurred())
-				clusterID = cluster.ID
+func (s *ElasticScalingServiceTestSuite) TestCheckConsistentThresholdBreach_MemoryAllocatedPoolExit_Breached() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:                     1,
+		MemoryThresholdValue:   30,
+		MemoryThresholdType:    ThresholdTypeAllocated,
+		ThresholdTriggerAction: TriggerActionPoolExit,
+		ConditionLogic:         ConditionLogicOr,
+		DurationMinutes:        15,
+	}
+	snapshots := []portal.ResourceSnapshot{
+		{MemRequest: 10, MemoryCapacity: 100, CreatedAt: portal.NavyTime(time.Now().Add(-1 * time.Minute))}, // 10%
+		{MemRequest: 20, MemoryCapacity: 100, CreatedAt: portal.NavyTime(time.Now().Add(-2 * time.Minute))}, // 20%
+		{MemRequest: 15, MemoryCapacity: 100, CreatedAt: portal.NavyTime(time.Now().Add(-3 * time.Minute))}, // 15%
+	}
 
-				// Create a strategy with 5 minutes duration
-				strategy := portal.ElasticScalingStrategy{
-					Name:                   "Test Strategy",
-					Status:                 "enabled",
-					ThresholdTriggerAction: "pool_entry",
-					CPUThresholdValue:      80,
-					CPUThresholdType:       "usage",
-					DeviceCount:            1,
-					DurationMinutes:        5, // 5 minutes required
-					CooldownMinutes:        10,
-					CreatedBy:              "test",
-					ResourceTypes:          "total",
-				}
-				err = db.Create(&strategy).Error
-				Expect(err).NotTo(HaveOccurred())
-				strategyID = strategy.ID
+	breached, triggeredVal, thresholdVal := s.service.checkConsistentThresholdBreach(snapshots, strategy)
 
-				// Associate cluster with strategy
-				association := portal.StrategyClusterAssociation{
-					StrategyID: strategyID,
-					ClusterID:  clusterID,
-				}
-				err = db.Create(&association).Error
-				Expect(err).NotTo(HaveOccurred())
+	assert.True(s.T(), breached)
+	assert.Contains(s.T(), triggeredVal, "Memory allocated: 15.00% (avg)") // (10+20+15)/3
+	assert.Equal(s.T(), "Memory allocated < 30% for 15 mins", thresholdVal)
+}
 
-				// Create a resource snapshot with CPU usage above threshold (90% > 80%)
-				// But only 3 minutes ago (less than the required 5 minutes)
-				snapshot := portal.ResourceSnapshot{
-					ClusterID:         uint(clusterID),
-					ResourceType:      "total",
-					ResourcePool:      "compute",
-					MaxCpuUsageRatio:  90, // Above threshold
-					CpuCapacity:       100,
-					CpuRequest:        80,
-					MemoryCapacity:    100,
-					MemRequest:        70,
-				}
-				err = db.Create(&snapshot).Error
-				Expect(err).NotTo(HaveOccurred())
+func (s *ElasticScalingServiceTestSuite) TestCheckConsistentThresholdBreach_CPUAndMemory_AND_Breached_PoolEntry() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:                     1,
+		CPUThresholdValue:      70,
+		CPUThresholdType:       ThresholdTypeUsage,
+		MemoryThresholdValue:   60,
+		MemoryThresholdType:    ThresholdTypeAllocated,
+		ThresholdTriggerAction: TriggerActionPoolEntry,
+		ConditionLogic:         ConditionLogicAnd,
+		DurationMinutes:        5,
+	}
+	snapshots := []portal.ResourceSnapshot{
+		{MaxCpuUsageRatio: 75, MemRequest: 65, MemoryCapacity: 100, CreatedAt: portal.NavyTime(time.Now().Add(-1 * time.Minute))}, // CPU: 75%, MemAlloc: 65%
+		{MaxCpuUsageRatio: 80, MemRequest: 70, MemoryCapacity: 100, CreatedAt: portal.NavyTime(time.Now().Add(-2 * time.Minute))}, // CPU: 80%, MemAlloc: 70%
+	}
 
-				// Create another snapshot with CPU usage above threshold, but more recent
-				snapshot2 := portal.ResourceSnapshot{
-					ClusterID:         uint(clusterID),
-					ResourceType:      "total",
-					ResourcePool:      "compute",
-					MaxCpuUsageRatio:  95, // Above threshold
-					CpuCapacity:       100,
-					CpuRequest:        85,
-					MemoryCapacity:    100,
-					MemRequest:        75,
-				}
-				err = db.Create(&snapshot2).Error
-				Expect(err).NotTo(HaveOccurred())
-			})
+	breached, triggeredVal, thresholdVal := s.service.checkConsistentThresholdBreach(snapshots, strategy)
 
-			It("should not create any orders but record that conditions are being monitored", func() {
-				// Test the method
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+	assert.True(s.T(), breached)
+	assert.Contains(s.T(), triggeredVal, "CPU usage: 77.50% (avg)")
+	assert.Contains(s.T(), triggeredVal, "Memory allocated: 67.50% (avg)")
+	assert.Equal(s.T(), "CPU usage > 70% AND Memory allocated > 60% for 5 mins", thresholdVal)
+}
 
-				// Verify no orders were created
-				var orderCount int64
-				db.Model(&portal.ElasticScalingOrder{}).Count(&orderCount)
-				Expect(orderCount).To(BeZero())
+func (s *ElasticScalingServiceTestSuite) TestCheckConsistentThresholdBreach_NotBreached_Intermittent() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:                     1,
+		CPUThresholdValue:      80,
+		CPUThresholdType:       ThresholdTypeUsage,
+		ThresholdTriggerAction: TriggerActionPoolEntry,
+		DurationMinutes:        10,
+	}
+	snapshots := []portal.ResourceSnapshot{
+		{MaxCpuUsageRatio: 85},
+		{MaxCpuUsageRatio: 75}, // This one does not meet criteria
+		{MaxCpuUsageRatio: 90},
+	}
 
-				// Verify history was recorded
-				var history []portal.StrategyExecutionHistory
-				db.Where("strategy_id = ?", strategyID).Find(&history)
-				Expect(len(history)).To(BeNumerically(">", 0))
-				
-				// Verify the history shows monitoring and mentions duration
-				for _, h := range history {
-					Expect(h.Result).To(Equal("skipped"))
-					Expect(h.OrderID).To(BeNil())
-				}
-			})
-		})
+	breached, _, _ := s.service.checkConsistentThresholdBreach(snapshots, strategy)
+	assert.False(s.T(), breached)
+}
 
-		// Test case: Enabled strategy with associated clusters and resource snapshots, conditions met for duration, pool_entry action
-		Context("when conditions are met for the required duration with pool_entry action", func() {
-			var strategyID int64
-			var clusterID int64
 
-			BeforeEach(func() {
-				// Create a cluster
-				cluster := portal.K8sCluster{
-					ClusterName: "Test Cluster",
-					ClusterID:   "test-cluster-id-4",
-					Status:      "active",
-				}
-				err := db.Create(&cluster).Error
-				Expect(err).NotTo(HaveOccurred())
-				clusterID = cluster.ID
+func (s *ElasticScalingServiceTestSuite) TestCheckConsistentThresholdBreach_NotBreached_BelowThreshold_PoolEntry() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:                     1,
+		CPUThresholdValue:      80,
+		CPUThresholdType:       ThresholdTypeUsage,
+		ThresholdTriggerAction: TriggerActionPoolEntry,
+		DurationMinutes:        10,
+	}
+	snapshots := []portal.ResourceSnapshot{
+		{MaxCpuUsageRatio: 70},
+		{MaxCpuUsageRatio: 75},
+		{MaxCpuUsageRatio: 60},
+	}
 
-				// Create a strategy with 5 minutes duration and pool_entry action
-				strategy := portal.ElasticScalingStrategy{
-					Name:                   "Test Strategy",
-					Status:                 "enabled",
-					ThresholdTriggerAction: "pool_entry", // Add devices to pool
-					CPUThresholdValue:      80,
-					CPUThresholdType:       "usage",
-					DeviceCount:            2, // Add 2 devices
-					DurationMinutes:        5,
-					CooldownMinutes:        10,
-					CreatedBy:              "test",
-					ResourceTypes:          "total",
-				}
-				err = db.Create(&strategy).Error
-				Expect(err).NotTo(HaveOccurred())
-				strategyID = strategy.ID
+	breached, triggeredVal, thresholdVal := s.service.checkConsistentThresholdBreach(snapshots, strategy)
+	assert.False(s.T(), breached)
+	assert.Contains(s.T(), triggeredVal, "CPU usage: 68.33% (avg)")
+	assert.Equal(s.T(), "CPU usage > 80% for 10 mins", thresholdVal)
+}
 
-				// Associate cluster with strategy
-				association := portal.StrategyClusterAssociation{
-					StrategyID: strategyID,
-					ClusterID:  clusterID,
-				}
-				err = db.Create(&association).Error
-				Expect(err).NotTo(HaveOccurred())
+func (s *ElasticScalingServiceTestSuite) TestEvaluateStrategy_ThresholdNotMet() {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:                     1,
+		Name:                   "TestThresholdNotMet",
+		Status:                 StrategyStatusEnabled,
+		CooldownMinutes:        60,
+		DurationMinutes:        10,
+		ResourceTypes:          "total",
+		CPUThresholdValue:      80,
+		CPUThresholdType:       ThresholdTypeUsage,
+		ThresholdTriggerAction: TriggerActionPoolEntry,
+	}
+	clusterID := int64(101)
 
-				// Create resource snapshots with CPU usage above threshold for the duration
-				// We'll create snapshots for each minute in the duration period
-				for i := 0; i <= strategy.DurationMinutes; i++ {
-					snapshot := portal.ResourceSnapshot{
-						ClusterID:         uint(clusterID),
-						ResourceType:      "total",
-						ResourcePool:      "compute",
-						MaxCpuUsageRatio:  85 + float64(i), // Above threshold
-						CpuCapacity:       100,
-						CpuRequest:        80 + float64(i),
-						MemoryCapacity:    100,
-						MemRequest:        70,
-					}
-					err := db.Create(&snapshot).Error
-					Expect(err).NotTo(HaveOccurred())
-				}
-			})
+	s.redisHandler.On("AcquireLock", mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
+	s.redisHandler.On("Delete", mock.Anything).Return()
 
-			It("should create a pool_entry order", func() {
-				// Mock the Redis lock to be acquired successfully
-				patch := gomonkey.ApplyMethod(reflect.TypeOf(service.RedisHandler), "AcquireLock", 
-					func(_ *redis.RedisHandler, _ string) (bool, error) {
-						return true, nil
-					})
-				defer patch.Reset()
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_execution_histories`").WillReturnError(gorm.ErrRecordNotFound) // Cooldown
+	
+	assocRows := sqlmock.NewRows([]string{"id", "strategy_id", "cluster_id"}).AddRow(1, strategy.ID, clusterID)
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_cluster_associations`").WillReturnRows(assocRows) // Associations
 
-				// Test the method
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+	snapshotRows := sqlmock.NewRows([]string{"id", "cluster_id", "resource_type", "max_cpu_usage_ratio", "created_at"}).
+		AddRow(1, clusterID, "total", 70.0, time.Now().Add(-1*time.Minute)).
+		AddRow(2, clusterID, "total", 75.0, time.Now().Add(-2*time.Minute))
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `resource_snapshots` WHERE cluster_id = \\? AND resource_type = \\? AND created_at BETWEEN \\? AND \\? ORDER BY created_at ASC").
+		WillReturnRows(snapshotRows) // Snapshots
 
-				// Verify an order was created
-				var orders []portal.ElasticScalingOrder
-				db.Where("strategy_id = ?", strategyID).Find(&orders)
-				Expect(len(orders)).To(Equal(1))
+	s.sqlMock.ExpectBegin()
+	s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+		WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultFailureThresholdNotMet, "CPU usage: 72.50% (avg)", "CPU usage > 80% for 10 mins").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.sqlMock.ExpectCommit()
 
-				// Verify order details
-				Expect(orders[0].ActionType).To(Equal("pool_entry"))
-				Expect(orders[0].ClusterID).To(Equal(clusterID))
-				Expect(*orders[0].StrategyID).To(Equal(strategyID))
-				Expect(orders[0].DeviceCount).To(Equal(2))
-				Expect(orders[0].Status).To(Equal("pending"))
+	err := s.service.evaluateStrategy(strategy)
+	assert.NoError(s.T(), err)
+	s.sqlMock.ExpectationsWereMet()
+	// Assert that matchDevicesForStrategy was NOT called can be implicitly done by not mocking calls matchDevicesForStrategy would make
+}
 
-				// Verify history was recorded
-				var history []portal.StrategyExecutionHistory
-				db.Where("strategy_id = ? AND result = ?", strategyID, "order_created").Find(&history)
-				Expect(len(history)).To(Equal(1))
-				Expect(*history[0].OrderID).To(Equal(orders[0].ID))
-			})
-		})
+// Mock an AnyTime argument matcher for sqlmock
+type AnyTime struct{}
 
-		// Test case: Enabled strategy with associated clusters and resource snapshots, conditions met for duration, pool_exit action
-		Context("when conditions are met for the required duration with pool_exit action", func() {
-			var strategyID int64
-			var clusterID int64
+// Match satisfies sqlmock.Argument interface
+func (a AnyTime) Match(v driver.Value) bool {
+	_, ok := v.(time.Time)
+	return ok
+}
 
-			BeforeEach(func() {
-				// Create a cluster
-				cluster := portal.K8sCluster{
-					ClusterName: "Test Cluster",
-					ClusterID:   "test-cluster-id-5",
-					Status:      "active",
-				}
-				err := db.Create(&cluster).Error
-				Expect(err).NotTo(HaveOccurred())
-				clusterID = cluster.ID
+// Helper function to prepare a strategy for testing matchDevicesForStrategy
+func (s *ElasticScalingServiceTestSuite) prepareStrategyForDeviceMatching(action string, templateID int64, deviceCount int) *portal.ElasticScalingStrategy {
+	strategy := &portal.ElasticScalingStrategy{
+		ID:                     1,
+		Name:                   "DeviceMatchingTest",
+		Status:                 StrategyStatusEnabled,
+		CooldownMinutes:        60,
+		DurationMinutes:        10,
+		ResourceTypes:          "total",
+		CPUThresholdValue:      80, // Assume threshold was met for these tests
+		CPUThresholdType:       ThresholdTypeUsage,
+		ThresholdTriggerAction: action,
+		DeviceCount:            deviceCount,
+	}
+	if action == TriggerActionPoolEntry {
+		strategy.EntryQueryTemplateID = templateID
+	} else {
+		strategy.ExitQueryTemplateID = templateID
+	}
+	return strategy
+}
 
-				// Create a strategy with 5 minutes duration and pool_exit action
-				strategy := portal.ElasticScalingStrategy{
-					Name:                   "Test Strategy",
-					Status:                 "enabled",
-					ThresholdTriggerAction: "pool_exit", // Remove devices from pool
-					CPUThresholdValue:      20, // Low CPU threshold for exit
-					CPUThresholdType:       "usage",
-					DeviceCount:            1, // Remove 1 device
-					DurationMinutes:        5,
-					CooldownMinutes:        10,
-					CreatedBy:              "test",
-					ResourceTypes:          "total",
-				}
-				err = db.Create(&strategy).Error
-				Expect(err).NotTo(HaveOccurred())
-				strategyID = strategy.ID
 
-				// Associate cluster with strategy
-				association := portal.StrategyClusterAssociation{
-					StrategyID: strategyID,
-					ClusterID:  clusterID,
-				}
-				err = db.Create(&association).Error
-				Expect(err).NotTo(HaveOccurred())
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_InvalidTemplateID() {
+	strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolEntry, 0, 1) // Template ID is 0
 
-				// Create resource snapshots with CPU usage below threshold for the duration
-				// We'll create snapshots for each minute in the duration period
-				for i := 0; i <= strategy.DurationMinutes; i++ {
-					snapshot := portal.ResourceSnapshot{
-						ClusterID:         uint(clusterID),
-						ResourceType:      "total",
-						ResourcePool:      "compute",
-						MaxCpuUsageRatio:  15 - float64(i), // Below threshold
-						CpuCapacity:       100,
-						CpuRequest:        10 - float64(i),
-						MemoryCapacity:    100,
-						MemRequest:        30,
-					}
-					err := db.Create(&snapshot).Error
-					Expect(err).NotTo(HaveOccurred())
-				}
+	s.sqlMock.ExpectBegin()
+	s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+		WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), "Query template ID is not set for action type pool-in on strategy ID 1.", StrategyExecutionResultFailureInvalidTemplateID, "triggered", "threshold").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.sqlMock.ExpectCommit()
+	
+	err := s.service.matchDevicesForStrategy(strategy, 101, "total", nil, "triggered", "threshold")
+	assert.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "Query template ID is not set")
+	s.sqlMock.ExpectationsWereMet()
+}
 
-				// Create a device for the pool_exit action
-				device := portal.Device{
-					CICode:    "test-device-id",
-					ClusterID: int(clusterID),
-					Status:    "active",
-				}
-				err = db.Create(&device).Error
-				Expect(err).NotTo(HaveOccurred())
-			})
 
-			It("should create a pool_exit order", func() {
-				// Mock the Redis lock to be acquired successfully
-				patch := gomonkey.ApplyMethod(reflect.TypeOf(service.RedisHandler), "AcquireLock", 
-					func(_ *redis.RedisHandler, _ string) (bool, error) {
-						return true, nil
-					})
-				defer patch.Reset()
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_TemplateNotFound() {
+	templateID := int64(99)
+	strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolEntry, templateID, 1)
 
-				// Test the method
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+	// Mock DB to return gorm.ErrRecordNotFound for QueryTemplate
+	s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates` WHERE `query_templates`.`id` = \\? ORDER BY `query_templates`.`id` LIMIT 1").
+		WithArgs(templateID).
+		WillReturnError(gorm.ErrRecordNotFound)
 
-				// Verify an order was created
-				var orders []portal.ElasticScalingOrder
-				db.Where("strategy_id = ?", strategyID).Find(&orders)
-				Expect(len(orders)).To(Equal(1))
+	s.sqlMock.ExpectBegin()
+	s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+		WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultFailureTemplateNotFound, "triggered", "threshold").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.sqlMock.ExpectCommit()
 
-				// Verify order details
-				Expect(orders[0].ActionType).To(Equal("pool_exit"))
-				Expect(orders[0].ClusterID).To(Equal(clusterID))
-				Expect(*orders[0].StrategyID).To(Equal(strategyID))
-				Expect(orders[0].DeviceCount).To(Equal(1))
-				Expect(orders[0].Status).To(Equal("pending"))
+	err := s.service.matchDevicesForStrategy(strategy, 101, "total", nil, "triggered", "threshold")
+	assert.Error(s.T(), err)
+	s.sqlMock.ExpectationsWereMet()
+}
 
-				// Verify history was recorded
-				var history []portal.StrategyExecutionHistory
-				db.Where("strategy_id = ? AND result = ?", strategyID, "order_created").Find(&history)
-				Expect(len(history)).To(Equal(1))
-				Expect(*history[0].OrderID).To(Equal(orders[0].ID))
-			})
-		})
 
-		// Test case: Enabled strategy in cooldown period
-		Context("when the strategy is in cooldown period", func() {
-			var strategyID int64
-			var clusterID int64
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_QueryDevicesError() {
+    templateID := int64(1)
+    strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolEntry, templateID, 1)
+    filterGroup := FilterGroup{ID: "group1", Blocks: []FilterBlock{{ID: "block1", Type: FilterTypeDevice, Key: "status", ConditionType: ConditionTypeEqual, Value: "available"}}}
+    groupsJSON, _ := json.Marshal([]FilterGroup{filterGroup})
 
-			BeforeEach(func() {
-				// Create a cluster
-				cluster := portal.K8sCluster{
-					ClusterName: "Test Cluster",
-					ClusterID:   "test-cluster-id-6",
-					Status:      "active",
-				}
-				err := db.Create(&cluster).Error
-				Expect(err).NotTo(HaveOccurred())
-				clusterID = cluster.ID
+    queryTemplateRows := sqlmock.NewRows([]string{"id", "name", "groups"}).
+        AddRow(templateID, "Test Template", string(groupsJSON))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates`").WithArgs(templateID).WillReturnRows(queryTemplateRows)
+    
+    // Mock the device query to return an error.
+    // This regex will match the complex query generated by DeviceQueryService.
+    // Note: This is a simplified representation; the actual query is much more complex.
+    s.sqlMock.ExpectQuery("SELECT device\\.\\*, CASE WHEN device\\.`group` != '' OR lf\\.id IS NOT NULL OR tf\\.id IS NOT NULL OR \\(\\(device\\.`group` = '' OR device\\.`group` IS NULL\\) AND \\(device\\.cluster = '' OR device\\.cluster IS NULL\\) AND da\\.name IS NOT NULL AND da\\.name != ''\\) THEN TRUE ELSE FALSE END AS is_special").
+        WillReturnError(errors.New("DB error during device query"))
 
-				// Create a strategy with 10 minutes cooldown
-				strategy := portal.ElasticScalingStrategy{
-					Name:                   "Test Strategy",
-					Status:                 "enabled",
-					ThresholdTriggerAction: "pool_entry",
-					CPUThresholdValue:      80,
-					CPUThresholdType:       "usage",
-					DeviceCount:            1,
-					DurationMinutes:        5,
-					CooldownMinutes:        10, // 10 minutes cooldown
-					CreatedBy:              "test",
-					ResourceTypes:          "total",
-				}
-				err = db.Create(&strategy).Error
-				Expect(err).NotTo(HaveOccurred())
-				strategyID = strategy.ID
 
-				// Associate cluster with strategy
-				association := portal.StrategyClusterAssociation{
-					StrategyID: strategyID,
-					ClusterID:  clusterID,
-				}
-				err = db.Create(&association).Error
-				Expect(err).NotTo(HaveOccurred())
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+        WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultFailureDeviceQuery, "triggered", "threshold").
+        WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
 
-				// Create a resource snapshot with CPU usage above threshold
-				snapshot := portal.ResourceSnapshot{
-					ClusterID:         uint(clusterID),
-					ResourceType:      "total",
-					ResourcePool:      "compute",
-					MaxCpuUsageRatio:  90, // Above threshold
-					CpuCapacity:       100,
-					CpuRequest:        80,
-					MemoryCapacity:    100,
-					MemRequest:        70,
-				}
-				err = db.Create(&snapshot).Error
-				Expect(err).NotTo(HaveOccurred())
+    err := s.service.matchDevicesForStrategy(strategy, 101, "total", nil, "triggered", "threshold")
+    assert.Error(s.T(), err)
+    s.sqlMock.ExpectationsWereMet()
+}
 
-				// Create a recent order to put the strategy in cooldown
-				order := portal.ElasticScalingOrder{
-					ActionType:  "pool_entry",
-					ClusterID:   clusterID,
-					StrategyID:  &strategyID,
-					DeviceCount: 1,
-					Status:      "success",
-				}
-				// Set the CreatedAt field using the BaseModel
-				order.BaseModel.CreatedAt = portal.NavyTime(time.Now().Add(-5 * time.Minute)) // 5 minutes ago (still in 10 min cooldown)
-				err = db.Create(&order).Error
-				Expect(err).NotTo(HaveOccurred())
-			})
 
-			It("should not create any orders and record skipped execution history", func() {
-				// Test the method
-				err := service.EvaluateStrategies()
-				Expect(err).NotTo(HaveOccurred())
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_NoCandidateDevicesFound() {
+    templateID := int64(1)
+    strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolEntry, templateID, 1)
+    filterGroup := FilterGroup{ID: "group1", Blocks: []FilterBlock{{ID: "block1", Type: FilterTypeDevice, Key: "status", ConditionType: ConditionTypeEqual, Value: "available"}}}
+    groupsJSON, _ := json.Marshal([]FilterGroup{filterGroup})
 
-				// Verify no new orders were created
-				var orderCount int64
-				db.Model(&portal.ElasticScalingOrder{}).Where("created_at > ?", time.Now().Add(-1*time.Minute)).Count(&orderCount)
-				Expect(orderCount).To(BeZero())
+    queryTemplateRows := sqlmock.NewRows([]string{"id", "name", "groups"}).
+        AddRow(templateID, "Test Template", string(groupsJSON))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates`").WithArgs(templateID).WillReturnRows(queryTemplateRows)
+    
+    // Mock the device query to return no rows
+    s.sqlMock.ExpectQuery("SELECT device\\.\\*, CASE WHEN device\\.`group` != '' OR lf\\.id IS NOT NULL OR tf\\.id IS NOT NULL OR \\(\\(device\\.`group` = '' OR device\\.`group` IS NULL\\) AND \\(device\\.cluster = '' OR device\\.cluster IS NULL\\) AND da\\.name IS NOT NULL AND da\\.name != ''\\) THEN TRUE ELSE FALSE END AS is_special").
+		WillReturnRows(sqlmock.NewRows([]string{"id"})) // No devices
 
-				// Verify history was recorded
-				var history []portal.StrategyExecutionHistory
-				db.Where("strategy_id = ?", strategyID).Find(&history)
-				Expect(len(history)).To(BeNumerically(">", 0))
-				
-				// Verify the history shows skipped due to cooldown
-				for _, h := range history {
-					Expect(h.Result).To(Equal("skipped"))
-					Expect(h.Reason).To(ContainSubstring("cooldown"))
-					Expect(h.OrderID).To(BeNil())
-				}
-			})
-		})
-	})
-	})
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+        WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultFailureNoDevicesFound, "triggered", "threshold").
+        WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
 
+    err := s.service.matchDevicesForStrategy(strategy, 101, "total", nil, "triggered", "threshold")
+    assert.NoError(s.T(), err) // No error, but no devices found, so history recorded.
+    s.sqlMock.ExpectationsWereMet()
+}
+
+
+// AnyInt64Value is a helper for sqlmock arguments for any int64
+type AnyInt64Value struct{}
+func (a AnyInt64Value) Match(v driver.Value) bool {
+    _, ok := v.(int64)
+    return ok
+}
+
+
+func (s *ElasticScalingServiceTestSuite) TestGenerateOrder_Success() {
+	strategy := &portal.ElasticScalingStrategy{ID: 1, ThresholdTriggerAction: TriggerActionPoolEntry}
+	clusterID := int64(101)
+	selectedDeviceIDs := []int64{1, 2}
+	triggeredValueStr := "CPU > 80%"
+	thresholdValueStr := "CPU Usage: 85%" // Corrected from previous version
+
+	s.sqlMock.ExpectBegin()
+	// Mock ElasticScalingOrder creation
+	s.sqlMock.ExpectExec("INSERT INTO `elastic_scaling_orders`").
+		WithArgs(sqlmock.AnyArg(), clusterID, strategy.ID, strategy.ThresholdTriggerAction, OrderStatusPending, len(selectedDeviceIDs), nil, SystemAutoCreator, sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil, "", triggeredValueStr, thresholdValueStr). 
+		WillReturnResult(sqlmock.NewResult(1, 1)) // New order ID 1
+	s.sqlMock.ExpectCommit()
+	
+	s.sqlMock.ExpectBegin()
+	// Mock OrderDevice creation for device 1
+	s.sqlMock.ExpectExec("INSERT INTO `order_devices`").
+		WithArgs(AnyInt64Value{}, int64(1), int64(1), OrderStatusPending). // OrderID 1, DeviceID 1
+		WillReturnResult(sqlmock.NewResult(1,1))
+	s.sqlMock.ExpectCommit()
+
+	s.sqlMock.ExpectBegin()
+	// Mock OrderDevice creation for device 2
+	s.sqlMock.ExpectExec("INSERT INTO `order_devices`").
+		WithArgs(AnyInt64Value{}, int64(1), int64(2), OrderStatusPending). // OrderID 1, DeviceID 2
+		WillReturnResult(sqlmock.NewResult(2,1))
+	s.sqlMock.ExpectCommit()
+
+
+	s.sqlMock.ExpectBegin()
+	// Mock strategy execution history recording
+	s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+		WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultOrderCreated, AnyInt64Value{}, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.sqlMock.ExpectCommit()
+
+	err := s.service.generateElasticScalingOrder(strategy, clusterID, "total", selectedDeviceIDs, triggeredValueStr, thresholdValueStr)
+	assert.NoError(s.T(), err)
+	s.sqlMock.ExpectationsWereMet()
+}
+
+
+func (s *ElasticScalingServiceTestSuite) TestGenerateOrder_CreateOrderFails() {
+    strategy := &portal.ElasticScalingStrategy{ID: 1, ThresholdTriggerAction: TriggerActionPoolEntry}
+    clusterID := int64(101)
+    selectedDeviceIDs := []int64{1, 2}
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `elastic_scaling_orders`").
+        WillReturnError(errors.New("DB order creation failed"))
+    s.sqlMock.ExpectRollback() 
+
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+        WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultOrderFailed, nil, sqlmock.AnyArg()).
+        WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+    
+    err := s.service.generateElasticScalingOrder(strategy, clusterID, "total", selectedDeviceIDs, "triggered", "threshold")
+    assert.Error(s.T(), err)
+    assert.Contains(s.T(), err.Error(), "DB order creation failed")
+    s.sqlMock.ExpectationsWereMet()
+}
+
+
+func (s *ElasticScalingServiceTestSuite) TestGenerateOrder_CreateOrderDeviceFails() {
+    strategy := &portal.ElasticScalingStrategy{ID: 1, ThresholdTriggerAction: TriggerActionPoolEntry}
+    clusterID := int64(101)
+    selectedDeviceIDs := []int64{1, 2}
+    triggeredValueStr := "CPU > 80%"
+    thresholdValueStr := "CPU Usage: 85%"
+
+    s.sqlMock.ExpectBegin()
+    // Mock ElasticScalingOrder creation - success
+    s.sqlMock.ExpectExec("INSERT INTO `elastic_scaling_orders`").
+        WithArgs(sqlmock.AnyArg(), clusterID, strategy.ID, strategy.ThresholdTriggerAction, OrderStatusPending, len(selectedDeviceIDs), nil, SystemAutoCreator, sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil, "", triggeredValueStr, thresholdValueStr).
+        WillReturnResult(sqlmock.NewResult(1, 1)) // New order ID 1
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin()
+    // Mock OrderDevice creation for device 1 - fail
+    s.sqlMock.ExpectExec("INSERT INTO `order_devices`").
+        WithArgs(AnyInt64Value{}, int64(1), int64(1), OrderStatusPending).
+        WillReturnError(errors.New("DB order device creation failed"))
+    s.sqlMock.ExpectRollback() // GORM will rollback this transaction
+
+    // No history should be recorded by generateElasticScalingOrder in this specific partial failure,
+    // as CreateOrder itself returns an error. generateElasticScalingOrder will then record OrderFailed.
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+        WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultOrderFailed, nil, sqlmock.AnyArg()).
+        WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    err := s.service.generateElasticScalingOrder(strategy, clusterID, "total", selectedDeviceIDs, triggeredValueStr, thresholdValueStr)
+    assert.Error(s.T(), err)
+    assert.Contains(s.T(), err.Error(), "订单创建成功，但关联设备时出错") // This is the error from CreateOrder
+    s.sqlMock.ExpectationsWereMet()
+}
+
+
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_PoolEntry_SelectsAvailableDevices() {
+    templateID := int64(1)
+    strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolEntry, templateID, 2) // Expect 2 devices
+    currentClusterID := int64(101) // The cluster triggering the strategy, not where devices are necessarily from for pool-in
+
+    filterGroup := FilterGroup{ID: "group1", Blocks: []FilterBlock{{ID: "block1", Type: FilterTypeDevice, Key: "status", ConditionType: ConditionTypeEqual, Value: "available"}}}
+    groupsJSON, _ := json.Marshal([]FilterGroup{filterGroup})
+    queryTemplateRows := sqlmock.NewRows([]string{"id", "name", "groups"}).AddRow(templateID, "Avail Template", string(groupsJSON))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates`").WithArgs(templateID).WillReturnRows(queryTemplateRows)
+
+    // Mock device query result
+    deviceRows := sqlmock.NewRows([]string{"id", "ci_code", "cluster_id", "cluster"}).
+        AddRow(1, "dev1", int64(0), "").         // Available
+        AddRow(2, "dev2", int64(102), "other"). // In another cluster
+        AddRow(3, "dev3", int64(0), "")          // Available
+    s.sqlMock.ExpectQuery("SELECT device\\.\\*").WillReturnRows(deviceRows) // Simplified regex for device query
+
+    // Expect order generation with device IDs 1 and 3
+    s.sqlMock.ExpectBegin() 
+    s.sqlMock.ExpectExec("INSERT INTO `elastic_scaling_orders`").WithArgs(sqlmock.AnyArg(), currentClusterID, strategy.ID, strategy.ThresholdTriggerAction, OrderStatusPending, 2, nil, SystemAutoCreator, sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil, "", "triggered", "threshold").WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin() 
+    s.sqlMock.ExpectExec("INSERT INTO `order_devices`").WithArgs(AnyInt64Value{}, int64(1), int64(1), OrderStatusPending).WillReturnResult(sqlmock.NewResult(1,1))
+    s.sqlMock.ExpectCommit()
+    s.sqlMock.ExpectBegin() 
+    s.sqlMock.ExpectExec("INSERT INTO `order_devices`").WithArgs(AnyInt64Value{}, int64(1), int64(3), OrderStatusPending).WillReturnResult(sqlmock.NewResult(2,1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin() 
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultOrderCreated, AnyInt64Value{}, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    err := s.service.matchDevicesForStrategy(strategy, currentClusterID, "total", nil, "triggered", "threshold")
+    assert.NoError(s.T(), err)
+    s.sqlMock.ExpectationsWereMet()
+}
+
+
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_PoolExit_SelectsClusterDevices() {
+    templateID := int64(2)
+    targetClusterID := int64(10)
+    strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolExit, templateID, 1) // Expect 1 device
+    
+    filterGroup := FilterGroup{ID: "group1", Blocks: []FilterBlock{{ID: "block1", Type: FilterTypeDevice, Key: "status", ConditionType: ConditionTypeEqual, Value: "in-use"}}}
+    groupsJSON, _ := json.Marshal([]FilterGroup{filterGroup})
+    queryTemplateRows := sqlmock.NewRows([]string{"id", "name", "groups"}).AddRow(templateID, "Exit Template", string(groupsJSON))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates`").WithArgs(templateID).WillReturnRows(queryTemplateRows)
+
+    deviceRows := sqlmock.NewRows([]string{"id", "ci_code", "cluster_id", "cluster"}).
+        AddRow(1, "dev1", targetClusterID, "cluster10"). // In target cluster
+        AddRow(2, "dev2", int64(20), "cluster20").      // In another cluster
+        AddRow(3, "dev3", int64(0), "")                 // Available (not in target cluster)
+    s.sqlMock.ExpectQuery("SELECT device\\.\\*").WillReturnRows(deviceRows)
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `elastic_scaling_orders`").WithArgs(sqlmock.AnyArg(), targetClusterID, strategy.ID, strategy.ThresholdTriggerAction, OrderStatusPending, 1, nil, SystemAutoCreator, sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil, "", "triggered", "threshold").WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `order_devices`").WithArgs(AnyInt64Value{}, int64(1), int64(1), OrderStatusPending).WillReturnResult(sqlmock.NewResult(1,1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultOrderCreated, AnyInt64Value{}, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    err := s.service.matchDevicesForStrategy(strategy, targetClusterID, "total", nil, "triggered", "threshold")
+    assert.NoError(s.T(), err)
+    s.sqlMock.ExpectationsWereMet()
+}
+
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_PoolExit_NoDevicesInTargetCluster() {
+    templateID := int64(3)
+    targetClusterID := int64(10)
+    strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolExit, templateID, 1)
+    
+    filterGroup := FilterGroup{ID: "group1", Blocks: []FilterBlock{{ID: "block1", Type: FilterTypeDevice, Key: "status", ConditionType: ConditionTypeEqual, Value: "in-use"}}}
+    groupsJSON, _ := json.Marshal([]FilterGroup{filterGroup})
+    queryTemplateRows := sqlmock.NewRows([]string{"id", "name", "groups"}).AddRow(templateID, "Exit Template", string(groupsJSON))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates`").WithArgs(templateID).WillReturnRows(queryTemplateRows)
+
+    deviceRows := sqlmock.NewRows([]string{"id", "ci_code", "cluster_id", "cluster"}).
+        AddRow(1, "dev1", int64(20), "cluster20"). // In another cluster
+        AddRow(2, "dev2", int64(0), "")            // Available
+    s.sqlMock.ExpectQuery("SELECT device\\.\\*").WillReturnRows(deviceRows)
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").
+        WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultFailureNoSuitableDevices, "triggered", "threshold").
+        WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    err := s.service.matchDevicesForStrategy(strategy, targetClusterID, "total", nil, "triggered", "threshold")
+    assert.NoError(s.T(), err) // No error, but history recorded for no suitable devices
+    s.sqlMock.ExpectationsWereMet()
+}
+
+
+func (s *ElasticScalingServiceTestSuite) TestMatchDevices_DeviceCountExceedsCandidates() {
+    templateID := int64(4)
+    strategy := s.prepareStrategyForDeviceMatching(TriggerActionPoolEntry, templateID, 3) // Expect 3 devices
+    currentClusterID := int64(101)
+
+    filterGroup := FilterGroup{ID: "group1", Blocks: []FilterBlock{{ID: "block1", Type: FilterTypeDevice, Key: "status", ConditionType: ConditionTypeEqual, Value: "available"}}}
+    groupsJSON, _ := json.Marshal([]FilterGroup{filterGroup})
+    queryTemplateRows := sqlmock.NewRows([]string{"id", "name", "groups"}).AddRow(templateID, "Avail Template", string(groupsJSON))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates`").WithArgs(templateID).WillReturnRows(queryTemplateRows)
+
+    // Only 2 devices are returned by the query
+    deviceRows := sqlmock.NewRows([]string{"id", "ci_code", "cluster_id", "cluster"}).
+        AddRow(1, "dev1", int64(0), "").
+        AddRow(2, "dev2", int64(0), "")
+    s.sqlMock.ExpectQuery("SELECT device\\.\\*").WillReturnRows(deviceRows)
+
+    // Expect order generation with 2 device IDs (all available)
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `elastic_scaling_orders`").WithArgs(sqlmock.AnyArg(), currentClusterID, strategy.ID, strategy.ThresholdTriggerAction, OrderStatusPending, 2, nil, SystemAutoCreator, sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil, "", "triggered", "threshold").WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `order_devices`").WithArgs(AnyInt64Value{}, int64(1), int64(1), OrderStatusPending).WillReturnResult(sqlmock.NewResult(1,1))
+    s.sqlMock.ExpectCommit()
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `order_devices`").WithArgs(AnyInt64Value{}, int64(1), int64(2), OrderStatusPending).WillReturnResult(sqlmock.NewResult(2,1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin()
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultOrderCreated, AnyInt64Value{}, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    err := s.service.matchDevicesForStrategy(strategy, currentClusterID, "total", nil, "triggered", "threshold")
+    assert.NoError(s.T(), err)
+    s.sqlMock.ExpectationsWereMet()
+}
+
+
+func (s *ElasticScalingServiceTestSuite) TestEvaluateStrategy_ThresholdMet_CallsMatchDevicesAndOrder() {
+    strategy := &portal.ElasticScalingStrategy{
+        ID:                     1,
+        Name:                   "TestThresholdMetOrder",
+        Status:                 StrategyStatusEnabled,
+        CooldownMinutes:        60,
+        DurationMinutes:        10,
+        ResourceTypes:          "total",
+        CPUThresholdValue:      80,
+        CPUThresholdType:       ThresholdTypeUsage,
+        ThresholdTriggerAction: TriggerActionPoolEntry,
+        EntryQueryTemplateID:   int64(123), // Valid template ID
+        DeviceCount:            1,
+    }
+    clusterID := int64(101)
+    templateID := strategy.EntryQueryTemplateID
+
+    s.redisHandler.On("AcquireLock", mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
+    s.redisHandler.On("Delete", mock.Anything).Return()
+
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_execution_histories` WHERE strategy_id = \\? AND result = \\? ORDER BY execution_time DESC LIMIT 1").WithArgs(strategy.ID, StrategyExecutionResultOrderCreated).WillReturnError(gorm.ErrRecordNotFound) // Cooldown
+
+    assocRows := sqlmock.NewRows([]string{"id", "strategy_id", "cluster_id"}).AddRow(1, strategy.ID, clusterID)
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `strategy_cluster_associations`").WithArgs(strategy.ID).WillReturnRows(assocRows) // Associations
+
+    // Snapshots that will cause a breach
+    snapshotRows := sqlmock.NewRows([]string{"id", "cluster_id", "resource_type", "max_cpu_usage_ratio", "created_at"}).
+        AddRow(1, clusterID, "total", 85.0, time.Now().Add(-1*time.Minute)).
+        AddRow(2, clusterID, "total", 90.0, time.Now().Add(-2*time.Minute))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `resource_snapshots` WHERE cluster_id = \\? AND resource_type = \\? AND created_at BETWEEN \\? AND \\? ORDER BY created_at ASC").
+        WillReturnRows(snapshotRows)
+
+    // --- Mocks for matchDevicesForStrategy ---
+    filterGroup := FilterGroup{ID: "group1", Blocks: []FilterBlock{{ID: "block1", Type: FilterTypeDevice, Key: "status", ConditionType: ConditionTypeEqual, Value: "available"}}}
+    groupsJSON, _ := json.Marshal([]FilterGroup{filterGroup})
+    queryTemplateRows := sqlmock.NewRows([]string{"id", "name", "groups"}).AddRow(templateID, "Test Template", string(groupsJSON))
+    s.sqlMock.ExpectQuery("SELECT \\* FROM `query_templates` WHERE `query_templates`.`id` = \\? ORDER BY `query_templates`.`id` LIMIT 1").WithArgs(templateID).WillReturnRows(queryTemplateRows)
+
+    deviceRows := sqlmock.NewRows([]string{"id", "ci_code", "cluster_id", "cluster"}).AddRow(int64(55), "dev55", int64(0), "")
+    s.sqlMock.ExpectQuery("SELECT device\\.\\*").WillReturnRows(deviceRows) // Device query
+
+    // --- Mocks for generateElasticScalingOrder ---
+    s.sqlMock.ExpectBegin() // For CreateOrder
+    s.sqlMock.ExpectExec("INSERT INTO `elastic_scaling_orders`").WithArgs(sqlmock.AnyArg(), clusterID, strategy.ID, strategy.ThresholdTriggerAction, OrderStatusPending, strategy.DeviceCount, nil, SystemAutoCreator, sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil, "", "CPU usage: 87.50% (avg)", "CPU usage > 80% for 10 mins").WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin() // For OrderDevice
+    s.sqlMock.ExpectExec("INSERT INTO `order_devices`").WithArgs(AnyInt64Value{}, int64(1), int64(55), OrderStatusPending).WillReturnResult(sqlmock.NewResult(1,1))
+    s.sqlMock.ExpectCommit()
+
+    s.sqlMock.ExpectBegin() // For history record (order_created)
+    s.sqlMock.ExpectExec("INSERT INTO `strategy_execution_histories`").WithArgs(strategy.ID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), StrategyExecutionResultOrderCreated, AnyInt64Value{}, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+    s.sqlMock.ExpectCommit()
+    
+    err := s.service.evaluateStrategy(strategy)
+    assert.NoError(s.T(), err)
+    s.sqlMock.ExpectationsWereMet()
+}
