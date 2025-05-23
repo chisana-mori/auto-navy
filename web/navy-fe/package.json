@@ -33,7 +33,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "PORT=3099 react-scripts start",
+    "start": "cross-env PORT=3099 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@stagewise/toolbar-react": "^0.1.2",
-    "@types/uuid": "^10.0.0"
+    "@types/uuid": "^10.0.0",
+    "cross-env": "^7.0.3"
   }
 }
