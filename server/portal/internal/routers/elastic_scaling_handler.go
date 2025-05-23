@@ -24,8 +24,11 @@ func NewElasticScalingHandler(db *gorm.DB) *ElasticScalingHandler {
 	redisHandler := redis.NewRedisHandler("default")
 	// Create a logger for the service
 	logger, _ := zap.NewProduction()
+	// 创建设备缓存
+	deviceCache := service.NewDeviceCache(redisHandler, redis.NewKeyBuilder("navy", "v1"))
+
 	return &ElasticScalingHandler{
-		service: service.NewElasticScalingService(db, redisHandler, logger), // Pass redisHandler and logger here
+		service: service.NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
 	}
 }
 

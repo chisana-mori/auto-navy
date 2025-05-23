@@ -53,10 +53,13 @@ func NewMaintenanceService(db *gorm.DB, logger *zap.Logger) *MaintenanceService 
 	// 使用默认Redis连接
 	redisHandler := redis.NewRedisHandler("default")
 
+	// 创建设备缓存
+	deviceCache := NewDeviceCache(redisHandler, redis.NewKeyBuilder("navy", "v1"))
+
 	return &MaintenanceService{
 		db:             db,
-		scalingService: NewElasticScalingService(db, redisHandler, logger), // Pass redisHandler and logger here
-		logger:         logger,                                           // Assign logger
+		scalingService: NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
+		logger:         logger,                                                          // Assign logger
 	}
 }
 

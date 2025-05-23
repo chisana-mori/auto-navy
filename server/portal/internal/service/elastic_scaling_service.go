@@ -8,6 +8,7 @@ import (
 
 	"math/rand"
 	"navy-ng/models/portal"
+	"navy-ng/pkg/redis"
 	"strings"
 	"time"
 
@@ -17,43 +18,17 @@ import (
 
 	"context"
 	"encoding/json"
-	"strconv"
 
 	"go.uber.org/zap" // Added zap import
 	"gorm.io/gorm"
 )
 
-// Constants for Strategy Execution Results and Order Statuses
+// Constants for Strategy Execution Results
 const (
-	StrategyStatusEnabled  = "enabled"
-	StrategyStatusDisabled = "disabled"
-
-	TriggerActionPoolEntry = "pool-in"  // 入池动作 (scale out)
-	TriggerActionPoolExit  = "pool-out" // 退池动作 (scale in)
-
-	ThresholdTypeUsage     = "usage"     // 使用率
-	ThresholdTypeAllocated = "allocated" // 分配率
-
-	ConditionLogicAnd = "AND"
-	ConditionLogicOr  = "OR"
-
-	ResourceTypeTotal    = "total"
-	ResourceTypeCompute  = "compute"
-	ResourceTypeMemory   = "memory"
-	ResourceTypeStorage  = "storage"
-	ResourceTypeNetwork  = "network"
-	ResourceTypeDatabase = "database"
-	ResourceTypeGPU      = "gpu"
-
-	// Order Statuses
-	OrderStatusPending   = "pending"
-	OrderStatusCompleted = "completed"
-	OrderStatusFailed    = "failed"
-	// ... other order statuses if used by CreateOrder or other logic
 
 	// Strategy Execution Results (add more as needed from previous/future steps)
-	StrategyExecutionResultOrderCreated             = "order_created"
-	StrategyExecutionResultOrderFailed              = "failure_order_creation_failed"
+	StrategyExecutionResultOrderCreated               = "order_created"
+	StrategyExecutionResultOrderFailed                = "failure_order_creation_failed"
 	StrategyExecutionResultBreachedPendingDeviceMatch = "breached_pending_device_match" // From previous step
 	StrategyExecutionResultFailureNoSnapshots         = "failure_no_snapshots_for_duration"
 	StrategyExecutionResultFailureThresholdNotMet     = "failure_threshold_not_met"
@@ -72,17 +47,14 @@ const (
 	// DB error during strategy evaluation stages
 	StrategyExecutionResultFailureDBError = "failure_db_error"
 
-
 	SystemAutoCreator = "system/auto"
 )
 
-// DeviceCache defines the interface for a device cache.
-// This is a placeholder based on usage in DeviceQueryService.
-// The actual implementation of DeviceCache is not provided in this context.
-type DeviceCache interface {
+// DeviceCacheInterface defines the interface for a device cache.
+type DeviceCacheInterface interface {
 	GetDeviceList(queryHash string) (*DeviceListResponse, error)
 	SetDeviceList(queryHash string, response *DeviceListResponse) error
-	InvalidateDeviceLists()
+	InvalidateDeviceLists() error
 	GetDevice(deviceID int64) (*DeviceResponse, error)
 	SetDevice(deviceID int64, device *DeviceResponse) error
 	GetDeviceFieldValues(field string) ([]string, error)
@@ -104,12 +76,12 @@ type ElasticScalingService struct {
 	db           *gorm.DB
 	redisHandler RedisHandlerInterface // Use RedisHandlerInterface
 	logger       *zap.Logger           // Added logger
-	cache        *DeviceCache          // Added cache
+	cache        DeviceCacheInterface  // Changed to DeviceCacheInterface
 }
 
 // NewElasticScalingService 创建弹性伸缩服务实例
 // 接受数据库连接、RedisHandlerInterface 实例、logger 和 cache 作为参数
-func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, logger *zap.Logger, cache *DeviceCache) *ElasticScalingService {
+func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, logger *zap.Logger, cache DeviceCacheInterface) *ElasticScalingService {
 	return &ElasticScalingService{
 		db:           db,
 		redisHandler: redisHandler,
@@ -1655,7 +1627,8 @@ func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScaling
 					zap.String("strategyName", strategy.Name),
 					zap.Int64("clusterID", clusterId),
 					zap.String("resourceType", resourceType))
-				s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureNoSnapshots, nil, logMsg, "", "", &portal.NavyTime{Time: time.Now()})
+				currentTime := portal.NavyTime(time.Now())
+				s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureNoSnapshots, nil, logMsg, "", "", &currentTime)
 				continue // Continue to next resource type or cluster
 			}
 
@@ -1879,8 +1852,14 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 		return err
 	}
 
-	deviceQuerySvc := NewDeviceQueryService(s.db, s.cache) // Pass s.cache
-	deviceRequest := &DeviceQueryRequest{                 // Assuming service.DeviceQueryRequest
+	// 创建设备查询服务，使用缓存接口
+	deviceCache, ok := s.cache.(*DeviceCache)
+	if !ok {
+		// 如果类型断言失败，创建一个新的设备缓存
+		deviceCache = NewDeviceCache(s.redisHandler.(*redis.Handler), redis.NewKeyBuilder("navy", "v1"))
+	}
+	deviceQuerySvc := NewDeviceQueryService(s.db, deviceCache) // Pass deviceCache
+	deviceRequest := &DeviceQueryRequest{                      // Assuming service.DeviceQueryRequest
 		Groups: filterGroups,
 		Page:   1,
 		Size:   1000, // Fetch a large number of candidates
@@ -1940,7 +1919,7 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 
 	} else if strategy.ThresholdTriggerAction == TriggerActionPoolExit {
 		for _, device := range candidateDevicesResponse.List {
-			if device.ClusterID == clusterID { // Must be part of the current cluster
+			if int64(device.ClusterID) == clusterID { // Must be part of the current cluster
 				suitableCandidates = append(suitableCandidates, device)
 			}
 		}
@@ -2042,7 +2021,7 @@ func (s *ElasticScalingService) buildTriggeredValueString(cpuValues []float64, m
 	} else if strategy.MemoryThresholdValue > 0 {
 		parts = append(parts, fmt.Sprintf("Memory %s: N/A (no values)", strategy.MemoryThresholdType))
 	}
-	
+
 	if len(parts) == 0 {
 		return "No relevant metrics recorded"
 	}
@@ -2131,7 +2110,6 @@ func (s *ElasticScalingService) recordStrategyExecution(
 	} else {
 		s.logger.Debug("Using current time for history record", zap.Time("execTime", time.Time(execTime)))
 	}
-
 
 	history := portal.StrategyExecutionHistory{
 		StrategyID:     strategyID,
