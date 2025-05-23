@@ -37,3 +37,4 @@ node_modules/
 *.csv
 *.json
 *.toml  
+*.DS_Store
