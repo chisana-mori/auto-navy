@@ -15,9 +15,79 @@ import (
 
 	// 移除 . "navy-ng/server/portal/internal/service"，避免 import cycle
 
+	"context"
+	"encoding/json"
+	"strconv"
+
 	"go.uber.org/zap" // Added zap import
 	"gorm.io/gorm"
 )
+
+// Constants for Strategy Execution Results and Order Statuses
+const (
+	StrategyStatusEnabled  = "enabled"
+	StrategyStatusDisabled = "disabled"
+
+	TriggerActionPoolEntry = "pool-in"  // 入池动作 (scale out)
+	TriggerActionPoolExit  = "pool-out" // 退池动作 (scale in)
+
+	ThresholdTypeUsage     = "usage"     // 使用率
+	ThresholdTypeAllocated = "allocated" // 分配率
+
+	ConditionLogicAnd = "AND"
+	ConditionLogicOr  = "OR"
+
+	ResourceTypeTotal    = "total"
+	ResourceTypeCompute  = "compute"
+	ResourceTypeMemory   = "memory"
+	ResourceTypeStorage  = "storage"
+	ResourceTypeNetwork  = "network"
+	ResourceTypeDatabase = "database"
+	ResourceTypeGPU      = "gpu"
+
+	// Order Statuses
+	OrderStatusPending   = "pending"
+	OrderStatusCompleted = "completed"
+	OrderStatusFailed    = "failed"
+	// ... other order statuses if used by CreateOrder or other logic
+
+	// Strategy Execution Results (add more as needed from previous/future steps)
+	StrategyExecutionResultOrderCreated             = "order_created"
+	StrategyExecutionResultOrderFailed              = "failure_order_creation_failed"
+	StrategyExecutionResultBreachedPendingDeviceMatch = "breached_pending_device_match" // From previous step
+	StrategyExecutionResultFailureNoSnapshots         = "failure_no_snapshots_for_duration"
+	StrategyExecutionResultFailureThresholdNotMet     = "failure_threshold_not_met"
+	StrategyExecutionResultFailureInvalidTemplateID   = "failure_invalid_query_template_id"
+	StrategyExecutionResultFailureTemplateNotFound    = "failure_query_template_not_found"
+	StrategyExecutionResultFailureTemplateUnmarshal   = "failure_query_template_unmarshal_error"
+	StrategyExecutionResultFailureDeviceQuery         = "failure_device_query_error"
+	StrategyExecutionResultFailureNoDevicesFound      = "failure_no_devices_found"
+	StrategyExecutionResultFailureNoSuitableDevices   = "failure_no_suitable_devices_selected"
+	StrategyExecutionResultFailureNoDevicesForOrder   = "failure_no_devices_for_order" // If selection leads to zero, though unlikely now
+	// Results for order status updates
+	StrategyExecutionResultOrderProcessingStarted     = "order_processing_started"
+	StrategyExecutionResultOrderCompleted             = "order_completed"
+	StrategyExecutionResultOrderProcStartedNoExecTime = "order_processing_started_no_exec_time"
+	StrategyExecutionResultOrderComplNoComplTime      = "order_completed_no_compl_time"
+	// DB error during strategy evaluation stages
+	StrategyExecutionResultFailureDBError = "failure_db_error"
+
+
+	SystemAutoCreator = "system/auto"
+)
+
+// DeviceCache defines the interface for a device cache.
+// This is a placeholder based on usage in DeviceQueryService.
+// The actual implementation of DeviceCache is not provided in this context.
+type DeviceCache interface {
+	GetDeviceList(queryHash string) (*DeviceListResponse, error)
+	SetDeviceList(queryHash string, response *DeviceListResponse) error
+	InvalidateDeviceLists()
+	GetDevice(deviceID int64) (*DeviceResponse, error)
+	SetDevice(deviceID int64, device *DeviceResponse) error
+	GetDeviceFieldValues(field string) ([]string, error)
+	SetDeviceFieldValues(field string, values []string, isLabelField bool) error
+}
 
 // RedisHandlerInterface 定义 ElasticScalingService 所需的 Redis 方法
 type RedisHandlerInterface interface {
@@ -34,15 +104,17 @@ type ElasticScalingService struct {
 	db           *gorm.DB
 	redisHandler RedisHandlerInterface // Use RedisHandlerInterface
 	logger       *zap.Logger           // Added logger
+	cache        *DeviceCache          // Added cache
 }
 
 // NewElasticScalingService 创建弹性伸缩服务实例
-// 接受数据库连接、RedisHandlerInterface 实例和 logger 作为参数
-func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, logger *zap.Logger) *ElasticScalingService {
+// 接受数据库连接、RedisHandlerInterface 实例、logger 和 cache 作为参数
+func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, logger *zap.Logger, cache *DeviceCache) *ElasticScalingService {
 	return &ElasticScalingService{
 		db:           db,
 		redisHandler: redisHandler,
 		logger:       logger, // Assign logger
+		cache:        cache,  // Assign cache
 	}
 }
 
@@ -938,10 +1010,10 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 		var executionTimeForHistory portal.NavyTime
 
 		if status == "processing" && order.ExecutionTime != nil {
-			historyResult = "order_processing_started"
+			historyResult = StrategyExecutionResultOrderProcessingStarted
 			executionTimeForHistory = *order.ExecutionTime
 		} else if status == "completed" && order.CompletionTime != nil {
-			historyResult = "order_completed"
+			historyResult = StrategyExecutionResultOrderCompleted
 			executionTimeForHistory = *order.CompletionTime
 		} else {
 			// 如果时间戳缺失，则使用当前时间，但这不理想
@@ -950,9 +1022,9 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 				zap.String("status", status))
 			executionTimeForHistory = portal.NavyTime(time.Now())
 			if status == "processing" {
-				historyResult = "order_processing_started_no_exec_time"
+				historyResult = StrategyExecutionResultOrderProcStartedNoExecTime
 			} else {
-				historyResult = "order_completed_no_compl_time"
+				historyResult = StrategyExecutionResultOrderComplNoComplTime
 			}
 		}
 
@@ -1537,9 +1609,497 @@ func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScaling
 				continue
 			}
 
-			// ... existing monitoring and condition checking code ...
+			// Determine startTime for fetching snapshots
+			startTime := time.Now().Add(-time.Duration(strategy.DurationMinutes) * time.Minute)
+			s.logger.Info("Determined snapshot fetch window for strategy",
+				zap.Int64("strategyID", strategy.ID),
+				zap.Int64("clusterID", clusterId),
+				zap.String("resourceType", resourceType),
+				zap.Time("startTime", startTime),
+				zap.Time("endTime", time.Now()))
+
+			// Fetch snapshots for the duration
+			var snapshots []portal.ResourceSnapshot
+			snapshotQuery := s.db.Where("cluster_id = ? AND resource_type = ? AND created_at BETWEEN ? AND ?",
+				clusterId, resourceType, startTime, time.Now())
+
+			// Apply resource_pool filter only if resourceType is not "total"
+			// This logic seems to have a slight flaw in the original, if strategy.ResourceTypes is "total",
+			// then resourceType will be "total". If it's "compute,memory", then resourceType will be "compute" or "memory".
+			// The filter `resource_pool = ?` should apply if `resourceType` itself is not "total".
+			if resourceType != "total" {
+				snapshotQuery = snapshotQuery.Where("resource_pool = ?", resourceType)
+				s.logger.Debug("Applying resource_pool filter for snapshot query",
+					zap.Int64("strategyID", strategy.ID),
+					zap.Int64("clusterID", clusterId),
+					zap.String("resourceType", resourceType),
+					zap.String("resourcePoolForQuery", resourceType))
+			}
+
+			if err := snapshotQuery.Order("created_at ASC").Find(&snapshots).Error; err != nil {
+				s.logger.Error("Failed to fetch resource snapshots for duration",
+					zap.Int64("strategyID", strategy.ID),
+					zap.String("strategyName", strategy.Name),
+					zap.Int64("clusterID", clusterId),
+					zap.String("resourceType", resourceType),
+					zap.Error(err))
+				// s.recordStrategyExecution(strategy.ID, "failure_db_error", nil, "Failed to query snapshots: "+err.Error(), "", "", &portal.NavyTime{Time: time.Now()})
+				continue // Continue to next resource type or cluster
+			}
+
+			if len(snapshots) == 0 {
+				logMsg := fmt.Sprintf("No resource snapshots found for cluster %d, resource type %s within the last %d minutes.",
+					clusterId, resourceType, strategy.DurationMinutes)
+				s.logger.Info(logMsg,
+					zap.Int64("strategyID", strategy.ID),
+					zap.String("strategyName", strategy.Name),
+					zap.Int64("clusterID", clusterId),
+					zap.String("resourceType", resourceType))
+				s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureNoSnapshots, nil, logMsg, "", "", &portal.NavyTime{Time: time.Now()})
+				continue // Continue to next resource type or cluster
+			}
+
+			s.logger.Info("Successfully fetched snapshots for duration",
+				zap.Int64("strategyID", strategy.ID),
+				zap.Int64("clusterID", clusterId),
+				zap.String("resourceType", resourceType),
+				zap.Int("snapshotCount", len(snapshots)))
+
+			// Check for consistent threshold breach
+			breached, triggeredValueStr, thresholdValueStr := s.checkConsistentThresholdBreach(snapshots, strategy)
+
+			currentTime := portal.NavyTime(time.Now())
+			if breached {
+				s.logger.Info("Threshold consistently breached for strategy",
+					zap.Int64("strategyID", strategy.ID),
+					zap.String("strategyName", strategy.Name),
+					zap.Int64("clusterID", clusterId),
+					zap.String("resourceType", resourceType),
+					zap.String("triggeredValue", triggeredValueStr),
+					zap.String("thresholdValue", thresholdValueStr))
+
+				// TODO: Call s.matchDevicesForStrategy(strategy, clusterId, resourceType, snapshots, triggeredValueStr, thresholdValueStr)
+				// For now, we'll just log that it would be called and record a temporary history.
+				// Call matchDevicesForStrategy
+				errMatch := s.matchDevicesForStrategy(strategy, clusterId, resourceType, snapshots, triggeredValueStr, thresholdValueStr)
+				if errMatch != nil {
+					s.logger.Error("Error during device matching for strategy",
+						zap.Int64("strategyID", strategy.ID),
+						zap.Int64("clusterID", clusterId),
+						zap.String("resourceType", resourceType),
+						zap.Error(errMatch))
+					// History recording for matchDevicesForStrategy errors should be handled within that function.
+				}
+
+			} else {
+				s.logger.Info("Threshold not consistently breached for strategy",
+					zap.Int64("strategyID", strategy.ID),
+					zap.String("strategyName", strategy.Name),
+					zap.Int64("clusterID", clusterId),
+					zap.String("resourceType", resourceType),
+					zap.String("evaluatedTriggerValue", triggeredValueStr), // Log what was evaluated
+					zap.String("targetThresholdValue", thresholdValueStr))  // Log the target
+
+				reason := fmt.Sprintf("Threshold not consistently met for cluster %d and resource type %s during the %d minute duration.",
+					clusterId, resourceType, strategy.DurationMinutes)
+				s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureThresholdNotMet, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+			}
 		}
 	}
+
+	return nil
+}
+
+// checkConsistentThresholdBreach checks if the strategy's threshold was consistently breached over the given snapshots.
+func (s *ElasticScalingService) checkConsistentThresholdBreach(snapshots []portal.ResourceSnapshot, strategy *portal.ElasticScalingStrategy) (
+	breached bool, triggeredValueStr string, thresholdValueStr string) {
+
+	// If there are no snapshots, it cannot be a consistent breach.
+	// Note: The caller `evaluateStrategy` already checks for len(snapshots) == 0.
+	// This check is an additional safeguard.
+	if len(snapshots) == 0 {
+		s.logger.Warn("checkConsistentThresholdBreach called with zero snapshots", zap.Int64("strategyID", strategy.ID))
+		return false, "No snapshots available", s.buildThresholdString(strategy)
+	}
+
+	// For now, we consider a breach consistent if *all* snapshots in the duration meet the criteria.
+	// This could be adjusted (e.g., a certain percentage of snapshots).
+
+	var actualCPUValues []float64
+	var actualMemValues []float64
+
+	allSnapshotsMetCriteria := true
+	for _, snapshot := range snapshots {
+		cpuMet := false
+		memMet := false
+		snapshotCpuVal := -1.0 // Use -1 to indicate not applicable or not calculated
+		snapshotMemVal := -1.0
+
+		// CPU Check
+		if strategy.CPUThresholdValue > 0 {
+			var currentCPUValue float64
+			if strategy.CPUThresholdType == ThresholdTypeUsage {
+				currentCPUValue = snapshot.MaxCpuUsageRatio
+			} else if strategy.CPUThresholdType == ThresholdTypeAllocated {
+				currentCPUValue = safePercentage(snapshot.CpuRequest, snapshot.CpuCapacity)
+			}
+			snapshotCpuVal = currentCPUValue
+			actualCPUValues = append(actualCPUValues, currentCPUValue)
+
+			if strategy.ThresholdTriggerAction == TriggerActionPoolEntry { // Scale Out (Pool Entry) - value > threshold
+				cpuMet = currentCPUValue > float64(strategy.CPUThresholdValue)
+			} else { // Scale In (Pool Exit) - value < threshold
+				cpuMet = currentCPUValue < float64(strategy.CPUThresholdValue)
+			}
+		} else {
+			cpuMet = true // No CPU threshold defined, so condition is met by default for CPU part
+		}
+
+		// Memory Check
+		if strategy.MemoryThresholdValue > 0 {
+			var currentMemValue float64
+			if strategy.MemoryThresholdType == ThresholdTypeUsage {
+				currentMemValue = snapshot.MaxMemoryUsageRatio
+			} else if strategy.MemoryThresholdType == ThresholdTypeAllocated {
+				currentMemValue = safePercentage(snapshot.MemRequest, snapshot.MemoryCapacity)
+			}
+			snapshotMemVal = currentMemValue
+			actualMemValues = append(actualMemValues, currentMemValue)
+
+			if strategy.ThresholdTriggerAction == TriggerActionPoolEntry { // Scale Out - value > threshold
+				memMet = currentMemValue > float64(strategy.MemoryThresholdValue)
+			} else { // Scale In - value < threshold
+				memMet = currentMemValue < float64(strategy.MemoryThresholdValue)
+			}
+		} else {
+			memMet = true // No Memory threshold defined, so condition is met by default for Memory part
+		}
+
+		// Condition Logic
+		snapshotMeetsCondition := false
+		if strategy.CPUThresholdValue > 0 && strategy.MemoryThresholdValue > 0 { // Both thresholds defined
+			if strategy.ConditionLogic == ConditionLogicAnd {
+				snapshotMeetsCondition = cpuMet && memMet
+			} else { // OR logic
+				snapshotMeetsCondition = cpuMet || memMet
+			}
+		} else if strategy.CPUThresholdValue > 0 { // Only CPU defined
+			snapshotMeetsCondition = cpuMet
+		} else if strategy.MemoryThresholdValue > 0 { // Only Memory defined
+			snapshotMeetsCondition = memMet
+		} else {
+			snapshotMeetsCondition = false // Should not happen due to validation, but good to handle
+			s.logger.Warn("Strategy has neither CPU nor Memory threshold defined during breach check", zap.Int64("strategyID", strategy.ID))
+		}
+
+		s.logger.Debug("Snapshot evaluation for consistent breach",
+			zap.Int64("strategyID", strategy.ID),
+			zap.Time("snapshotTime", time.Time(snapshot.CreatedAt)),
+			zap.Float64("cpuValue", snapshotCpuVal),
+			zap.Bool("cpuMet", cpuMet),
+			zap.Float64("memValue", snapshotMemVal),
+			zap.Bool("memMet", memMet),
+			zap.String("conditionLogic", strategy.ConditionLogic),
+			zap.Bool("snapshotMeetsCondition", snapshotMeetsCondition))
+
+		if !snapshotMeetsCondition {
+			allSnapshotsMetCriteria = false
+			break // If any snapshot fails, the consistent breach condition is not met
+		}
+	}
+
+	// Construct triggeredValueStr and thresholdValueStr
+	triggeredValueStr = s.buildTriggeredValueString(actualCPUValues, actualMemValues, strategy)
+	thresholdValueStr = s.buildThresholdString(strategy)
+
+	if allSnapshotsMetCriteria {
+		s.logger.Info("All snapshots met criteria for consistent breach",
+			zap.Int64("strategyID", strategy.ID),
+			zap.Int("numSnapshots", len(snapshots)),
+			zap.String("durationMinutes", fmt.Sprintf("%d", strategy.DurationMinutes)))
+		return true, triggeredValueStr, thresholdValueStr
+	}
+
+	s.logger.Info("Not all snapshots met criteria for consistent breach",
+		zap.Int64("strategyID", strategy.ID),
+		zap.Int("numSnapshots", len(snapshots)),
+		zap.String("durationMinutes", fmt.Sprintf("%d", strategy.DurationMinutes)))
+	return false, triggeredValueStr, thresholdValueStr
+}
+
+// matchDevicesForStrategy finds suitable devices based on the strategy and query template.
+func (s *ElasticScalingService) matchDevicesForStrategy(
+	strategy *portal.ElasticScalingStrategy,
+	clusterID int64,
+	resourceType string,
+	latestSnapshots []portal.ResourceSnapshot, // Keep this parameter for potential future use in numDevicesToChange calculation
+	triggeredValueStr string,
+	thresholdValueStr string,
+) error {
+	s.logger.Info("Starting device matching for strategy",
+		zap.Int64("strategyID", strategy.ID),
+		zap.Int64("clusterID", clusterID),
+		zap.String("resourceType", resourceType),
+		zap.String("action", strategy.ThresholdTriggerAction))
+
+	currentTime := portal.NavyTime(time.Now())
+
+	var queryTemplateID int64
+	if strategy.ThresholdTriggerAction == TriggerActionPoolEntry {
+		queryTemplateID = strategy.EntryQueryTemplateID
+	} else if strategy.ThresholdTriggerAction == TriggerActionPoolExit {
+		queryTemplateID = strategy.ExitQueryTemplateID
+	}
+
+	if queryTemplateID == 0 {
+		reason := fmt.Sprintf("Query template ID is not set for action type %s on strategy ID %d.", strategy.ThresholdTriggerAction, strategy.ID)
+		s.logger.Error(reason, zap.Int64("strategyID", strategy.ID))
+		s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureInvalidTemplateID, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		return errors.New(reason)
+	}
+	s.logger.Info("Using query template for device matching", zap.Int64("templateID", queryTemplateID), zap.Int64("strategyID", strategy.ID))
+
+	var queryTemplateModel portal.QueryTemplate
+	if err := s.db.First(&queryTemplateModel, queryTemplateID).Error; err != nil {
+		reason := fmt.Sprintf("Failed to find query template ID %d: %v", queryTemplateID, err)
+		s.logger.Error(reason, zap.Int64("strategyID", strategy.ID), zap.Error(err))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureTemplateNotFound, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		} else {
+			s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureDBError, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		}
+		return err
+	}
+
+	var filterGroups []FilterGroup // Assuming service.FilterGroup from device_query.go is used
+	if err := json.Unmarshal([]byte(queryTemplateModel.Groups), &filterGroups); err != nil {
+		reason := fmt.Sprintf("Failed to unmarshal filter groups from query template ID %d: %v", queryTemplateID, err)
+		s.logger.Error(reason, zap.Int64("strategyID", strategy.ID), zap.Error(err))
+		s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureTemplateUnmarshal, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		return err
+	}
+
+	deviceQuerySvc := NewDeviceQueryService(s.db, s.cache) // Pass s.cache
+	deviceRequest := &DeviceQueryRequest{                 // Assuming service.DeviceQueryRequest
+		Groups: filterGroups,
+		Page:   1,
+		Size:   1000, // Fetch a large number of candidates
+	}
+
+	s.logger.Info("Querying candidate devices using template",
+		zap.Int64("strategyID", strategy.ID),
+		zap.Int64("templateID", queryTemplateID),
+		zap.Any("requestGroups", deviceRequest.Groups))
+
+	candidateDevicesResponse, err := deviceQuerySvc.QueryDevices(context.Background(), deviceRequest)
+	if err != nil {
+		reason := fmt.Sprintf("Error querying devices for template ID %d: %v", queryTemplateID, err)
+		s.logger.Error(reason, zap.Int64("strategyID", strategy.ID), zap.Error(err))
+		s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureDeviceQuery, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		// TODO: Placeholder for notification
+		return err
+	}
+
+	if candidateDevicesResponse == nil || len(candidateDevicesResponse.List) == 0 {
+		reason := fmt.Sprintf("No candidate devices found for cluster %d, resource type %s using template %d", clusterID, resourceType, queryTemplateID)
+		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
+		s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureNoDevicesFound, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		// TODO: Placeholder for notification
+		return nil // No error, but no devices found
+	}
+
+	s.logger.Info("Successfully queried candidate devices",
+		zap.Int64("strategyID", strategy.ID),
+		zap.Int64("templateID", queryTemplateID),
+		zap.Int("candidateCount", len(candidateDevicesResponse.List)))
+
+	numDevicesToChange := strategy.DeviceCount
+	if numDevicesToChange <= 0 { // Safety check, though validation should prevent this
+		numDevicesToChange = 1
+		s.logger.Warn("Strategy DeviceCount is not positive, defaulting to 1", zap.Int64("strategyID", strategy.ID), zap.Int("originalDeviceCount", strategy.DeviceCount))
+	}
+
+	var selectedDeviceIDs []int64
+	var suitableCandidates []DeviceResponse // Using DeviceResponse from device_query.go
+
+	if strategy.ThresholdTriggerAction == TriggerActionPoolEntry {
+		// Prefer devices not in any cluster
+		var unassignedDevices []DeviceResponse
+		var assignedDevicesFromQuery []DeviceResponse
+
+		for _, device := range candidateDevicesResponse.List {
+			if device.ClusterID == 0 || device.Cluster == "" {
+				unassignedDevices = append(unassignedDevices, device)
+			} else {
+				assignedDevicesFromQuery = append(assignedDevicesFromQuery, device)
+			}
+		}
+		// Fill with unassigned first, then with others if needed
+		suitableCandidates = append(suitableCandidates, unassignedDevices...)
+		suitableCandidates = append(suitableCandidates, assignedDevicesFromQuery...)
+
+	} else if strategy.ThresholdTriggerAction == TriggerActionPoolExit {
+		for _, device := range candidateDevicesResponse.List {
+			if device.ClusterID == clusterID { // Must be part of the current cluster
+				suitableCandidates = append(suitableCandidates, device)
+			}
+		}
+	}
+
+	if len(suitableCandidates) == 0 {
+		reason := fmt.Sprintf("No suitable devices selected after filtering for action %s on cluster %d, template %d. Candidates from query: %d.",
+			strategy.ThresholdTriggerAction, clusterID, queryTemplateID, len(candidateDevicesResponse.List))
+		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
+		s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureNoSuitableDevices, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		// TODO: Placeholder for notification
+		return nil
+	}
+
+	// Select up to numDevicesToChange
+	for i := 0; i < len(suitableCandidates) && len(selectedDeviceIDs) < int(numDevicesToChange); i++ {
+		selectedDeviceIDs = append(selectedDeviceIDs, suitableCandidates[i].ID)
+	}
+
+	s.logger.Info("Selected devices for strategy action",
+		zap.Int64("strategyID", strategy.ID),
+		zap.Int64s("selectedDeviceIDs", selectedDeviceIDs),
+		zap.Int("numDevicesToChange", int(numDevicesToChange)),
+		zap.Int("suitableCandidateCount", len(suitableCandidates)))
+
+	if len(selectedDeviceIDs) > 0 {
+		s.logger.Info("Selected devices, proceeding to generate elastic scaling order",
+			zap.Int64("strategyID", strategy.ID),
+			zap.Int64s("selectedDeviceIDs", selectedDeviceIDs))
+
+		// Call generateElasticScalingOrder
+		err := s.generateElasticScalingOrder(strategy, clusterID, resourceType, selectedDeviceIDs, triggeredValueStr, thresholdValueStr)
+		if err != nil {
+			// Error logging and history recording are handled within generateElasticScalingOrder
+			s.logger.Error("Failed to generate elastic scaling order",
+				zap.Int64("strategyID", strategy.ID),
+				zap.Error(err))
+			// No need to record history here as generateElasticScalingOrder does it.
+		}
+		// The history recording for "success_devices_matched_order_pending" is removed.
+		// generateElasticScalingOrder will record "order_created" or "failure_order_creation_failed".
+
+	} else {
+		// This case should ideally be caught by "no suitable devices selected"
+		reason := fmt.Sprintf("No devices were ultimately selected for order generation for strategy %d on cluster %d.", strategy.ID, clusterID)
+		s.logger.Warn(reason, zap.Int64("strategyID", strategy.ID))
+		s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureNoDevicesForOrder, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		return nil
+	}
+
+	return nil
+}
+
+// buildThresholdString constructs a string representation of the strategy's thresholds.
+func (s *ElasticScalingService) buildThresholdString(strategy *portal.ElasticScalingStrategy) string {
+	var parts []string
+	actionStr := ">"
+	if strategy.ThresholdTriggerAction == TriggerActionPoolExit {
+		actionStr = "<"
+	}
+
+	if strategy.CPUThresholdValue > 0 {
+		parts = append(parts, fmt.Sprintf("CPU %s %s %d%%", strategy.CPUThresholdType, actionStr, strategy.CPUThresholdValue))
+	}
+	if strategy.MemoryThresholdValue > 0 {
+		parts = append(parts, fmt.Sprintf("Memory %s %s %d%%", strategy.MemoryThresholdType, actionStr, strategy.MemoryThresholdValue))
+	}
+
+	logic := " "
+	if len(parts) > 1 {
+		logic = fmt.Sprintf(" %s ", strategy.ConditionLogic)
+	}
+
+	return fmt.Sprintf("%s for %d mins", strings.Join(parts, logic), strategy.DurationMinutes)
+}
+
+// buildTriggeredValueString constructs a string representation of the actual values observed.
+// It calculates averages if multiple snapshots were involved.
+func (s *ElasticScalingService) buildTriggeredValueString(cpuValues []float64, memValues []float64, strategy *portal.ElasticScalingStrategy) string {
+	var parts []string
+	if strategy.CPUThresholdValue > 0 && len(cpuValues) > 0 {
+		avgCPU := 0.0
+		for _, v := range cpuValues {
+			avgCPU += v
+		}
+		avgCPU /= float64(len(cpuValues))
+		parts = append(parts, fmt.Sprintf("CPU %s: %.2f%% (avg)", strategy.CPUThresholdType, avgCPU))
+	} else if strategy.CPUThresholdValue > 0 {
+		parts = append(parts, fmt.Sprintf("CPU %s: N/A (no values)", strategy.CPUThresholdType))
+	}
+
+	if strategy.MemoryThresholdValue > 0 && len(memValues) > 0 {
+		avgMem := 0.0
+		for _, v := range memValues {
+			avgMem += v
+		}
+		avgMem /= float64(len(memValues))
+		parts = append(parts, fmt.Sprintf("Memory %s: %.2f%% (avg)", strategy.MemoryThresholdType, avgMem))
+	} else if strategy.MemoryThresholdValue > 0 {
+		parts = append(parts, fmt.Sprintf("Memory %s: N/A (no values)", strategy.MemoryThresholdType))
+	}
+	
+	if len(parts) == 0 {
+		return "No relevant metrics recorded"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// generateElasticScalingOrder creates an order based on a successful strategy evaluation and device selection.
+func (s *ElasticScalingService) generateElasticScalingOrder(
+	strategy *portal.ElasticScalingStrategy,
+	clusterID int64,
+	resourceType string, // Keep for logging/reason context
+	selectedDeviceIDs []int64,
+	triggeredValueStr string,
+	thresholdValueStr string,
+) error {
+	s.logger.Info("Generating elastic scaling order",
+		zap.Int64("strategyID", strategy.ID),
+		zap.Int64("clusterID", clusterID),
+		zap.String("actionType", strategy.ThresholdTriggerAction),
+		zap.Int("deviceCount", len(selectedDeviceIDs)))
+
+	orderDTO := OrderDTO{
+		ClusterID:              clusterID,
+		StrategyID:             &strategy.ID,
+		ActionType:             strategy.ThresholdTriggerAction,
+		DeviceCount:            len(selectedDeviceIDs),
+		Devices:                selectedDeviceIDs,
+		StrategyTriggeredValue: triggeredValueStr,
+		StrategyThresholdValue: thresholdValueStr,
+		CreatedBy:              SystemAutoCreator,
+		// Status will be set by CreateOrder, typically to "pending"
+	}
+
+	orderID, err := s.CreateOrder(orderDTO)
+	currentTime := portal.NavyTime(time.Now())
+
+	if err != nil {
+		s.logger.Error("Failed to create elastic scaling order",
+			zap.Int64("strategyID", strategy.ID),
+			zap.Int64("clusterID", clusterID),
+			zap.Error(err))
+
+		reason := fmt.Sprintf("Failed to create order for cluster %d, resource type %s: %v", clusterID, resourceType, err)
+		s.recordStrategyExecution(strategy.ID, StrategyExecutionResultOrderFailed, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		return err
+	}
+
+	s.logger.Info("Successfully created elastic scaling order",
+		zap.Int64("orderID", orderID),
+		zap.Int64("strategyID", strategy.ID),
+		zap.Int64("clusterID", clusterID))
+
+	reason := fmt.Sprintf("Successfully created order %d for cluster %d, resource type %s", orderID, clusterID, resourceType)
+	s.recordStrategyExecution(strategy.ID, StrategyExecutionResultOrderCreated, &orderID, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+
+	// TODO: Trigger notification to duty roster about the new order.
+	s.logger.Info("Placeholder: Trigger notification to duty roster about the new order.", zap.Int64("orderID", orderID))
 
 	return nil
 }
@@ -1551,24 +2111,27 @@ func (s *ElasticScalingService) recordStrategyExecution(
 	result string,
 	orderID *int64,
 	reason string,
-	triggeredValue string, // 新增：从订单传递过来的触发值
-	thresholdValue string, // 新增：从订单传递过来的阈值
-	specificExecutionTime *portal.NavyTime, // 新增：特定的执行时间，如订单的执行/完成时间
+	triggeredValue string, // 新增：从订单传递过来的触发值 或 评估过程中的实际值
+	thresholdValue string, // 新增：从订单传递过来的阈值 或 策略定义的阈值
+	specificExecutionTime *portal.NavyTime, // 新增：特定的执行时间，如订单的执行/完成时间或评估发生时间
 ) error {
 	s.logger.Info("Recording strategy execution history",
 		zap.Int64("strategyID", strategyID),
 		zap.String("result", result),
-		zap.Any("orderID", orderID),
+		zap.Any("orderID", orderID), // Use Any for potentially nil pointer
 		zap.String("reason", reason),
 		zap.String("triggeredValue", triggeredValue),
 		zap.String("thresholdValue", thresholdValue),
-		zap.Time("specificExecutionTime", time.Time(*specificExecutionTime)),
 	)
 
 	execTime := portal.NavyTime(time.Now()) // 默认使用当前时间
 	if specificExecutionTime != nil {
 		execTime = *specificExecutionTime // 如果提供了特定时间，则使用它
+		s.logger.Debug("Using specific execution time for history record", zap.Time("execTime", time.Time(execTime)))
+	} else {
+		s.logger.Debug("Using current time for history record", zap.Time("execTime", time.Time(execTime)))
 	}
+
 
 	history := portal.StrategyExecutionHistory{
 		StrategyID:     strategyID,
