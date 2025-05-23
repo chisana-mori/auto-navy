@@ -20,6 +20,8 @@ type ElasticScalingStrategy struct {
 	ResourceTypes          string  `gorm:"column:resource_types;size:255" json:"resourceTypes"`                            // 资源类型列表，逗号分隔（计算、存储、网络等）
 	Status                 string  `gorm:"column:status;size:20;not null" json:"status"`                                   // enabled 或 disabled
 	CreatedBy              string  `gorm:"column:created_by;size:50;not null" json:"createdBy"`
+	EntryQueryTemplateID   int64   `gorm:"column:entry_query_template_id" json:"entryQueryTemplateId"` // 入池查询模板ID
+	ExitQueryTemplateID    int64   `gorm:"column:exit_query_template_id" json:"exitQueryTemplateId"`   // 退池查询模板ID
 }
 
 // TableName 指定表名

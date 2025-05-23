@@ -48,10 +48,13 @@ func NewElasticScalingMonitor(db *gorm.DB, config MonitorConfig, logger *zap.Log
 	// 设置锁的过期时间
 	redisHandler.Expire(config.LockTimeout)
 
+	// 创建设备缓存
+	deviceCache := NewDeviceCache(redisHandler, redis.NewKeyBuilder("navy", "v1"))
+
 	return &ElasticScalingMonitor{
 		db:             db,
 		redisHandler:   redisHandler,
-		scalingService: NewElasticScalingService(db, redisHandler, logger), // Pass redisHandler and logger here
+		scalingService: NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
 		config:         config,
 		logger:         logger, // Assign logger
 		stopChan:       make(chan struct{}),
