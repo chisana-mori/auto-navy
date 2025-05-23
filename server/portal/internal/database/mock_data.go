@@ -955,7 +955,7 @@ func seedOpsJobs(db *gorm.DB) error {
 // ConfigureCORS - Keep this utility function if used by the main application setup
 func ConfigureCORS(r *gin.Engine) {
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost", "http://localhost:8080"}, // Allow both frontend origins
+		AllowOrigins:     []string{"*", "*"}, // Allow both frontend origins
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "X-CSRF-Token"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
