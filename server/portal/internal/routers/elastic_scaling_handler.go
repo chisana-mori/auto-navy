@@ -65,6 +65,7 @@ func (h *ElasticScalingHandler) RegisterRoutes(api *gin.RouterGroup) {
 		statsGroup.GET("/dashboard", h.GetDashboardStats)
 		statsGroup.GET("/resource-trend", h.GetResourceAllocationTrend)
 		statsGroup.GET("/orders", h.GetOrderStats)
+		statsGroup.GET("/resource-pool-types", h.GetResourcePoolTypes) // 新增获取资源池类型接口
 	}
 }
 
@@ -551,4 +552,22 @@ func (h *ElasticScalingHandler) GetOrderStats(c *gin.Context) {
 	}
 
 	render.Success(c, stats)
+}
+
+// GetResourcePoolTypes 获取资源池类型列表
+// @Summary 获取资源池类型列表
+// @Description 获取当天所有资源池类型
+// @Tags 弹性伸缩
+// @Accept json
+// @Produce json
+// @Success 200 {object} render.Response
+// @Router /fe-v1/elastic-scaling/stats/resource-pool-types [get]
+func (h *ElasticScalingHandler) GetResourcePoolTypes(c *gin.Context) {
+	types, err := h.service.GetResourcePoolTypes()
+	if err != nil {
+		render.Fail(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	render.Success(c, types)
 }

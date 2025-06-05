@@ -166,23 +166,26 @@
 .order-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 16px;
   margin-bottom: 16px;
+  width: 100%;
 }
 
 .order-meta-item {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
+  min-width: 120px;
 }
 
 .order-meta-label {
-  font-size: 13px;
   color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
   margin-bottom: 4px;
 }
 
 .order-meta-value {
+  color: rgba(0, 0, 0, 0.88);
   font-weight: 600;
+  font-size: 14px;
 }
 
 .order-card-footer {
@@ -203,6 +206,7 @@
 /* 策略详情抽屉 */
 .detail-drawer .ant-drawer-body {
   padding: 0;
+  background-color: #f9fbfd;
 }
 
 .detail-drawer-header {
@@ -212,17 +216,45 @@
 
 .detail-drawer-content {
   padding: 24px;
+  background-color: #f9fbfd;
 }
 
 .detail-section {
   margin-bottom: 24px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.detail-section .ant-descriptions {
+  margin-bottom: 0;
+}
+
+.detail-section .ant-descriptions-bordered .ant-descriptions-item-label {
+  background-color: #f5f7fa;
+  font-weight: 500;
 }
 
 .detail-section-title {
   font-weight: 600;
   margin-bottom: 16px;
-  padding-left: 10px;
-  border-left: 3px solid #1890ff;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  background-color: #f5f7fa;
+  color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+}
+
+.detail-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background-color: #1890ff;
+  margin-right: 8px;
+  border-radius: 2px;
 }
 
 /* 加载状态样式 */
@@ -299,24 +331,30 @@
 
 /* 设备列表样式 */
 .device-list {
-  margin-top: 20px;
+  margin-top: 8px;
 }
 
 .device-item {
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background-color: #fafafa;
+  margin-bottom: 12px;
+  border: 1px solid #f0f0f0;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  transition: background-color 0.3s ease;
+  align-items: center;
+  transition: all 0.3s;
 }
 
 .device-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .device-item:hover {
-  background-color: #f5f5f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+  transform: translateY(-2px);
+  border-color: #e6f7ff;
+  background-color: #f0f9ff;
 }
 
 .device-info {
@@ -327,35 +365,61 @@
 
 .device-name {
   font-weight: 600;
+  font-size: 15px;
+  color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .device-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
-  color: rgba(0, 0, 0, 0.45);
+  margin-top: 6px;
+  color: rgba(0, 0, 0, 0.65);
   font-size: 13px;
 }
 
-.device-status {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 13px;
+.device-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #f5f5f5;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.device-meta-label {
+  color: rgba(0, 0, 0, 0.45);
   font-weight: 500;
 }
 
+.device-status {
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .status-special {
-  background-color: #fff7e6;
-  color: #d46b08;
+  background-color: #fff2e8;
+  color: #fa541c;
+  border: 1px solid #ffbb96;
 }
 
 .status-in-cluster {
-  background-color: #f6ffed;
-  color: #389e0d;
+  background-color: #e6f7ff;
+  color: #1890ff;
+  border: 1px solid #91d5ff;
 }
 
 .status-available {
-  background-color: #e6f7ff;
-  color: #096dd9;
+  background-color: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
 }
 
 /* 订单标签页样式 */
@@ -695,4 +759,323 @@
 .strategy-form .ant-form-item-has-error .ant-select-focused .ant-select-selector {
   border-color: #ff4d4f;
   box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2);
+}
+
+/* 统一模态框样式 */
+.create-strategy-modal,
+.edit-strategy-modal,
+.create-order-modal,
+.policy-modal {
+  .ant-modal-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #ffffff;
+    border-radius: 6px 6px 0 0;
+    position: relative;
+
+    .ant-modal-title {
+      font-weight: 600;
+      font-size: 16px;
+      color: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .ant-modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s cubic-bezier(0.2, 0, 0.1, 1);
+      backdrop-filter: blur(4px);
+
+      &:hover {
+        background-color: #fff;
+        border-color: rgba(255, 77, 79, 0.3);
+        box-shadow: 0 4px 16px rgba(255, 77, 79, 0.2);
+        transform: scale(1.1);
+      }
+
+      .ant-modal-close-x {
+        width: 18px;
+        height: 18px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(0, 0, 0, 0.65);
+        transition: all 0.3s ease;
+        font-weight: 500;
+
+        &:hover {
+          color: #ff4d4f;
+        }
+      }
+    }
+  }
+
+  .ant-modal-body {
+    padding: 24px;
+    background-color: #f9fbfd;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .ant-modal-footer {
+    border-top: 1px solid #f0f0f0;
+    padding: 16px 24px;
+    background-color: #fff;
+    border-radius: 0 0 6px 6px;
+    text-align: right;
+
+    .ant-btn {
+      height: 40px;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 14px;
+      margin-left: 12px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      &:first-child {
+        margin-left: 0;
+      }
+    }
+
+    .ant-btn-default {
+      color: rgba(0, 0, 0, 0.65);
+      border-color: #d9d9d9;
+      background: #fff;
+
+      &:hover {
+        color: #40a9ff;
+        border-color: #40a9ff;
+        background: #f0f9ff;
+      }
+    }
+
+    .ant-btn-primary {
+      background: linear-gradient(135deg, #1890ff, #40a9ff);
+      border: none;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+
+      &:hover {
+        background: linear-gradient(135deg, #40a9ff, #69c0ff);
+        box-shadow: 0 4px 16px rgba(24, 144, 255, 0.4);
+      }
+
+      &:disabled {
+        background: #f5f5f5;
+        color: rgba(0, 0, 0, 0.25);
+        box-shadow: none;
+        transform: none;
+      }
+    }
+  }
+
+  .ant-form-item-label > label {
+    font-weight: 500;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.85);
+  }
+
+  .ant-card {
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid #f0f0f0;
+
+    &:hover {
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+      border-color: #e6f7ff;
+    }
+
+    .ant-card-head {
+      background-color: #f5f7fa;
+      min-height: 48px;
+      padding: 0 20px;
+      border-bottom: 1px solid #f0f0f0;
+
+      .ant-card-head-title {
+        padding: 12px 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(0, 0, 0, 0.85);
+      }
+    }
+
+    .ant-card-body {
+      padding: 20px 24px;
+      background: #fff;
+    }
+  }
+
+  .ant-input,
+  .ant-select-selector,
+  .ant-input-number,
+  .ant-input-affix-wrapper {
+    border-radius: 6px;
+    border-color: #d9d9d9;
+    transition: all 0.3s ease;
+    font-size: 14px;
+
+    &:hover {
+      border-color: #40a9ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+    }
+
+    &:focus,
+    &.ant-input-focused,
+    &.ant-select-focused .ant-select-selector {
+      border-color: #40a9ff;
+      box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.2);
+      outline: none;
+    }
+  }
+
+  .ant-input-number-handler-wrap {
+    border-radius: 0 6px 6px 0;
+  }
+
+  .ant-alert {
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 1px solid;
+
+    &.ant-alert-info {
+      background-color: #f0f9ff;
+      border-color: #bae7ff;
+    }
+  }
+
+  .ant-form-item {
+    margin-bottom: 20px;
+  }
+
+  .ant-form-item-label {
+    padding-bottom: 8px;
+  }
+
+  .ant-input {
+    padding: 10px 12px;
+    height: 40px;
+
+    &::placeholder {
+      color: rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  .ant-input-number {
+    width: 100%;
+    height: 40px;
+
+    .ant-input-number-input {
+      height: 38px;
+      padding: 10px 12px;
+    }
+  }
+
+  .ant-select {
+    .ant-select-selector {
+      height: 40px;
+      padding: 6px 12px;
+
+      .ant-select-selection-search-input {
+        height: 28px;
+      }
+
+      .ant-select-selection-item {
+        line-height: 28px;
+        padding: 0;
+      }
+
+      .ant-select-selection-placeholder {
+        line-height: 28px;
+        color: rgba(0, 0, 0, 0.35);
+      }
+    }
+  }
+
+  .ant-select-multiple .ant-select-selector {
+    padding: 4px 8px;
+    min-height: 40px;
+
+    .ant-select-selection-item {
+      height: 28px;
+      line-height: 26px;
+      margin: 2px 4px 2px 0;
+      padding: 0 8px;
+      border-radius: 4px;
+    }
+  }
+
+  .ant-radio-group {
+    .ant-radio-button-wrapper {
+      height: 40px;
+      line-height: 38px;
+      padding: 0 16px;
+      border-radius: 0;
+      transition: all 0.3s ease;
+
+      &:first-child {
+        border-radius: 6px 0 0 6px;
+      }
+
+      &:last-child {
+        border-radius: 0 6px 6px 0;
+      }
+
+      &:hover {
+        color: #40a9ff;
+      }
+
+      &.ant-radio-button-wrapper-checked {
+        background: #1890ff;
+        border-color: #1890ff;
+        color: #fff;
+        box-shadow: -1px 0 0 0 #1890ff;
+
+        &:hover {
+          background: #40a9ff;
+          border-color: #40a9ff;
+        }
+      }
+    }
+  }
+
+  .ant-checkbox-wrapper {
+    font-size: 14px;
+
+    .ant-checkbox {
+      .ant-checkbox-inner {
+        border-radius: 4px;
+        transition: all 0.3s ease;
+      }
+
+      &.ant-checkbox-checked .ant-checkbox-inner {
+        background-color: #1890ff;
+        border-color: #1890ff;
+      }
+    }
+  }
 }

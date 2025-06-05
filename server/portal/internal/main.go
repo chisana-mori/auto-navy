@@ -55,6 +55,8 @@ func main() {
 	elasticScalingHandler := routers.NewElasticScalingHandler(db)
 	maintenanceHandler := routers.NewMaintenanceHandler(db)
 	resourcePoolDeviceMatchingPolicyHandler := routers.NewResourcePoolDeviceMatchingPolicyHandler(db)
+	clusterResourceHandler := routers.NewClusterResourceHandler(db)
+	k8sClusterHandler := routers.NewK8sClusterHandler(db)
 
 	// 创建 Gin 引擎
 	r := gin.Default()
@@ -71,6 +73,8 @@ func main() {
 	elasticScalingHandler.RegisterRoutes(api)
 	maintenanceHandler.RegisterRoutes(api)
 	resourcePoolDeviceMatchingPolicyHandler.RegisterRoutes(api)
+	clusterResourceHandler.RegisterRoutes(api)
+	k8sClusterHandler.RegisterRoutes(api)
 
 	// 注册 Swagger 路由
 	routers.RegisterSwaggerRoutes(r)

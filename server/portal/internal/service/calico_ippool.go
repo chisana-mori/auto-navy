@@ -14,23 +14,24 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// Constants for default values and configuration
+// IPPool相关常量
 const (
 	defaultBlockSize      = 26
 	defaultIPIPMode       = "Never"
 	defaultVXLANMode      = "Never"
 	dateTimeFormat        = "2006-01-02T15:04:05Z"
-	maxConcurrentRequests = 10 // Limit concurrent cluster requests
+	maxConcurrentRequests = 10 // 限制并发请求数
 )
 
-
-// CalicoIPPoolService 提供 Calico IPPool 信息检索服务
+// CalicoIPPoolService 提供Calico IPPool信息检索服务
 // 支持多集群环境下的 IPPool 查询与转换。
+// 该服务设计用于集中管理多个K8s集群的场景，每个集群都有独立的客户端配置。
 type CalicoIPPoolService struct {
 	clusterClients map[string]*kubernetes.Clientset
 	dynamicClients map[string]dynamic.Interface
+	restConfigs    map[string]*rest.Config
+	mu             sync.RWMutex // 保护动态客户端和配置的并发访问
 }
-
 
 // IPPoolInfo 表示Calico IPPool的信息
 type IPPoolInfo struct {
@@ -62,37 +63,67 @@ type IPPoolInfo struct {
 	Raw map[string]interface{} `json:"raw,omitempty"`
 }
 
-// NewCalicoIPPoolService 创建 CalicoIPPoolService 实例。
-func NewCalicoIPPoolService(clusterClients map[string]*kubernetes.Clientset) *CalicoIPPoolService {
+// IPPoolGVR 定义Calico IPPool资源的GVR (GroupVersionResource)
+var ipPoolGVR = schema.GroupVersionResource{
+	Group:    "crd.projectcalico.org",
+	Version:  "v1",
+	Resource: "ippools",
+}
+
+// NewCalicoIPPoolService 创建CalicoIPPoolService实例
+// 参数:
+//   - clusterClients: 集群名称到Kubernetes客户端的映射
+//   - restConfigs: (可选) 集群名称到REST配置的映射，可传入nil
+//
+// 返回:
+//   - CalicoIPPoolService实例
+func NewCalicoIPPoolService(clusterClients map[string]*kubernetes.Clientset, restConfigs map[string]*rest.Config) *CalicoIPPoolService {
 	service := &CalicoIPPoolService{
 		clusterClients: clusterClients,
 		dynamicClients: make(map[string]dynamic.Interface, len(clusterClients)),
+		restConfigs:    make(map[string]*rest.Config, len(clusterClients)),
 	}
-	for clusterName, clientset := range clusterClients {
-		if clientset == nil {
-			continue
-		}
-		restConfig, err := service.getRESTConfigFromClientset(clientset)
-		if err != nil {
-			continue
-		}
-		dynamicClient, err := dynamic.NewForConfig(restConfig)
-		if err != nil {
-			continue
-		}
-		service.dynamicClients[clusterName] = dynamicClient
+
+	// 如果提供了REST配置，直接使用
+	for name, config := range restConfigs {
+		if config != nil {
+			// 保存配置副本
+			configCopy := rest.CopyConfig(config)
+			service.restConfigs[name] = configCopy
+
+			// 创建动态客户端
+			if dynamicClient, err := dynamic.NewForConfig(configCopy); err == nil {
+				service.dynamicClients[name] = dynamicClient
 	}
+		}
+	}
+
 	return service
 }
 
+// NewCalicoIPPoolServiceLegacy 创建CalicoIPPoolService实例的兼容版本
+// 这是为了保持向后兼容性提供的简化版构造函数
+// 参数:
+//   - clusterClients: 集群名称到Kubernetes客户端的映射
+//
+// 返回:
+//   - CalicoIPPoolService实例
+func NewCalicoIPPoolServiceLegacy(clusterClients map[string]*kubernetes.Clientset) *CalicoIPPoolService {
+	return NewCalicoIPPoolService(clusterClients, nil)
+}
 
 // GetAllIPPools 获取所有管理的集群中的Calico IPPool信息
 // 该函数会并发地从所有集群中获取IPPool信息，并返回一个按集群名称分组的映射
 func (s *CalicoIPPoolService) GetAllIPPools(ctx context.Context) (map[string][]IPPoolInfo, error) {
+	// TODO: 优化建议 - 并发控制逻辑可以简化，错误处理可以更优雅
+	fmt.Printf("[DEBUG] GetAllIPPools: 开始获取所有集群的 IPPool 信息\n")
+	
 	clusterNames := make([]string, 0, len(s.clusterClients))
 	for clusterName := range s.clusterClients {
 		clusterNames = append(clusterNames, clusterName)
 	}
+	
+	fmt.Printf("[DEBUG] GetAllIPPools: 发现 %d 个集群: %v\n", len(clusterNames), clusterNames)
 
 	result := make(map[string][]IPPoolInfo, len(clusterNames))
 	var resultMu sync.Mutex
@@ -100,18 +131,25 @@ func (s *CalicoIPPoolService) GetAllIPPools(ctx context.Context) (map[string][]I
 	semaphore := make(chan struct{}, maxConcurrentRequests)
 	errCh := make(chan error, len(clusterNames))
 
+	fmt.Printf("[DEBUG] GetAllIPPools: 开始并发处理，最大并发数: %d\n", maxConcurrentRequests)
+
 	for _, clusterName := range clusterNames {
 		wg.Add(1)
 		go func(name string) {
 			defer wg.Done()
+			fmt.Printf("[DEBUG] GetAllIPPools: 开始处理集群 %s\n", name)
+			
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
 			ipPools, err := s.GetClusterIPPools(ctx, name)
 			if err != nil {
+				fmt.Printf("[ERROR] GetAllIPPools: 集群 %s 处理失败: %v\n", name, err)
 				errCh <- fmt.Errorf("failed to get IPPools from cluster %s: %w", name, err)
 				return
 			}
+			
+			fmt.Printf("[DEBUG] GetAllIPPools: 集群 %s 成功获取 %d 个 IPPool\n", name, len(ipPools))
 			resultMu.Lock()
 			result[name] = ipPools
 			resultMu.Unlock()
@@ -120,6 +158,8 @@ func (s *CalicoIPPoolService) GetAllIPPools(ctx context.Context) (map[string][]I
 
 	wg.Wait()
 	close(errCh)
+
+	fmt.Printf("[DEBUG] GetAllIPPools: 所有 goroutine 完成，开始处理错误\n")
 
 	var firstErr error
 	errCount := 0
@@ -130,58 +170,34 @@ func (s *CalicoIPPoolService) GetAllIPPools(ctx context.Context) (map[string][]I
 		errCount++
 	}
 	if errCount > 0 {
+		fmt.Printf("[ERROR] GetAllIPPools: 遇到 %d 个错误，第一个错误: %v\n", errCount, firstErr)
 		return result, fmt.Errorf("encountered %d errors, first error: %w", errCount, firstErr)
 	}
+	
+	fmt.Printf("[DEBUG] GetAllIPPools: 成功完成，返回 %d 个集群的结果\n", len(result))
 	return result, nil
-}
-
-
-// 定义Calico IPPool资源的GVR (GroupVersionResource)
-var ipPoolGVR = schema.GroupVersionResource{
-	Group:    "crd.projectcalico.org",
-	Version:  "v1",
-	Resource: "ippools",
 }
 
 // GetClusterIPPools 获取指定集群的Calico IPPool信息
 func (s *CalicoIPPoolService) GetClusterIPPools(ctx context.Context, clusterName string) ([]IPPoolInfo, error) {
-	// 获取Dynamic客户端
-	dynamicClient, ok := s.dynamicClients[clusterName]
-	if !ok {
-		// 如果没有找到dynamic客户端，尝试从原始clientset创建
-		clientset, clientOk := s.clusterClients[clusterName]
-		if !clientOk {
-			return nil, fmt.Errorf("no client found for cluster: %s", clusterName)
-		}
-
-		// 从客户端创建dynamic客户端
-		restConfig, err := s.getRESTConfigFromClientset(clientset)
+	// 获取动态客户端
+		dynamicClient, err := s.getOrCreateDynamicClient(clusterName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get REST config: %w", err)
-		}
-
-		newDynamicClient, err := dynamic.NewForConfig(restConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create dynamic client: %w", err)
-		}
-
-		// 缓存新创建的dynamic客户端
-		s.dynamicClients[clusterName] = newDynamicClient
-		dynamicClient = newDynamicClient
+			return nil, fmt.Errorf("failed to get dynamic client for cluster %s: %w", clusterName, err)
 	}
 
 	// 获取IPPool列表
 	ipPoolList, err := dynamicClient.Resource(ipPoolGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list IPPools: %w", err)
+		return nil, fmt.Errorf("failed to list IPPools in cluster %s: %w", clusterName, err)
 	}
 
-	// 转换为IPPoolInfo
+	// 转换结果
 	ipPools := make([]IPPoolInfo, 0, len(ipPoolList.Items))
 	for _, ipPool := range ipPoolList.Items {
-		poolInfo, err := convertUnstructuredToIPPoolInfo(ipPool, clusterName)
+		poolInfo, err := convertToIPPoolInfo(ipPool, clusterName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert IPPool: %w", err)
+			return nil, fmt.Errorf("failed to convert IPPool in cluster %s: %w", clusterName, err)
 		}
 		ipPools = append(ipPools, poolInfo)
 	}
@@ -191,42 +207,24 @@ func (s *CalicoIPPoolService) GetClusterIPPools(ctx context.Context, clusterName
 
 // GetIPPoolByName 根据名称获取指定集群中的IPPool信息
 func (s *CalicoIPPoolService) GetIPPoolByName(ctx context.Context, clusterName, ipPoolName string) (*IPPoolInfo, error) {
-	// 获取Dynamic客户端
-	dynamicClient, ok := s.dynamicClients[clusterName]
-	if !ok {
-		// 如果没有找到dynamic客户端，尝试从原始clientset创建
-		clientset, clientOk := s.clusterClients[clusterName]
-		if !clientOk {
-			return nil, fmt.Errorf("no client found for cluster: %s", clusterName)
-		}
-
-		// 从客户端创建dynamic客户端
-		restConfig, err := s.getRESTConfigFromClientset(clientset)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get REST config: %w", err)
-		}
-
-		newDynamicClient, err := dynamic.NewForConfig(restConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create dynamic client: %w", err)
-		}
-
-		// 缓存新创建的dynamic客户端
-		s.dynamicClients[clusterName] = newDynamicClient
-		dynamicClient = newDynamicClient
+	// 获取动态客户端
+	dynamicClient, err := s.getOrCreateDynamicClient(clusterName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dynamic client for cluster %s: %w", clusterName, err)
 	}
 
 	// 获取IPPool
 	ipPool, err := dynamicClient.Resource(ipPoolGVR).Get(ctx, ipPoolName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get IPPool %s: %w", ipPoolName, err)
+		return nil, fmt.Errorf("failed to get IPPool %s in cluster %s: %w", ipPoolName, clusterName, err)
 	}
 
 	// 转换为IPPoolInfo
-	info, err := convertUnstructuredToIPPoolInfo(*ipPool, clusterName)
+	info, err := convertToIPPoolInfo(*ipPool, clusterName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert IPPool: %w", err)
+		return nil, fmt.Errorf("failed to convert IPPool %s in cluster %s: %w", ipPoolName, clusterName, err)
 	}
+
 	return &info, nil
 }
 
@@ -249,83 +247,158 @@ func (s *CalicoIPPoolService) GetClusterIPPoolsByCIDR(ctx context.Context, clust
 	return result, nil
 }
 
-// convertUnstructuredToIPPoolInfo 将Unstructured对象转换为IPPoolInfo
-func convertUnstructuredToIPPoolInfo(obj unstructured.Unstructured, clusterName string) (IPPoolInfo, error) {
+// getOrCreateDynamicClient 获取或创建指定集群的动态客户端
+// 该方法尝试以下步骤来获取动态客户端:
+// 1. 首先尝试从缓存获取已存在的客户端
+// 2. 如果没有缓存的客户端，则尝试使用InClusterConfig创建新客户端
+// 3. 新创建的客户端会被缓存以供后续使用
+// 参数:
+//   - clusterName: 集群名称
+//
+// 返回:
+//   - dynamic.Interface: 动态客户端
+//   - error: 错误信息，如果无法创建客户端
+func (s *CalicoIPPoolService) getOrCreateDynamicClient(clusterName string) (dynamic.Interface, error) {
+	// 尝试从缓存获取客户端
+	s.mu.RLock()
+	client, exists := s.dynamicClients[clusterName]
+		s.mu.RUnlock()
+
+	if exists {
+		return client, nil
+	}
+
+	// 使用 InClusterConfig 创建一个默认配置
+	config, err := rest.InClusterConfig()
+		if err != nil {
+		return nil, fmt.Errorf("failed to get in-cluster config for %s: %w", clusterName, err)
+	}
+
+	// 创建动态客户端
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	// 缓存动态客户端
+	s.mu.Lock()
+	s.dynamicClients[clusterName] = dynamicClient
+	s.restConfigs[clusterName] = config
+	s.mu.Unlock()
+
+	return dynamicClient, nil
+}
+
+// convertToIPPoolInfo 将Unstructured对象转换为IPPoolInfo
+func convertToIPPoolInfo(obj unstructured.Unstructured, clusterName string) (IPPoolInfo, error) {
+	// 初始化基本信息
 	info := IPPoolInfo{
 		Name:              obj.GetName(),
 		ClusterName:       clusterName,
 		CreationTimestamp: obj.GetCreationTimestamp().Format(dateTimeFormat),
 		Labels:            obj.GetLabels(),
-		NodeSelector:      make(map[string]string), // 初始化空映射
+		NodeSelector:      make(map[string]string),
 		Raw:               obj.Object,
+		IPIPMode:          defaultIPIPMode,  // 默认值
+		VXLANMode:         defaultVXLANMode, // 默认值
+		BlockSize:         defaultBlockSize, // 默认值
 	}
 
-	// 从spec中提取字段
+	// 获取spec
 	spec, found, err := unstructured.NestedMap(obj.Object, "spec")
 	if err != nil {
-		return info, fmt.Errorf("failed to get spec from IPPool: %w", err)
+		return info, fmt.Errorf("failed to get spec: %w", err)
 	}
 	if !found {
-		return info, fmt.Errorf("spec not found in IPPool")
+		return info, fmt.Errorf("spec not found")
 	}
 
 	// 提取CIDR并确定IP版本
-	if cidr, found, err := unstructured.NestedString(spec, "cidr"); err == nil && found {
+	if err := extractCIDRInfo(&info, spec); err != nil {
+		return info, err
+	}
+
+	// 提取NAT出站设置
+	extractBoolField(&info.NATOutgoing, spec, "natOutgoing")
+
+	// 提取禁用状态
+	extractBoolField(&info.Disabled, spec, "disabled")
+
+	// 提取节点选择器
+	extractNodeSelector(&info, spec)
+
+	// 提取IPIP和VXLAN模式
+	extractStringField(&info.IPIPMode, spec, "ipipMode")
+	extractStringField(&info.VXLANMode, spec, "vxlanMode")
+
+	// 提取块大小
+	extractBlockSize(&info, spec)
+
+	return info, nil
+}
+
+// extractCIDRInfo 提取CIDR信息并确定IP版本
+func extractCIDRInfo(info *IPPoolInfo, spec map[string]interface{}) error {
+	cidr, found, err := unstructured.NestedString(spec, "cidr")
+	if err != nil {
+		return fmt.Errorf("failed to extract CIDR: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("CIDR not found")
+	}
+
 		info.CIDR = cidr
 		info.IPVersion = 4
 		if strings.Contains(cidr, ":") {
 			info.IPVersion = 6
 		}
-	}
 
-	// 提取NAT出站设置
-	if natOutgoing, found, _ := unstructured.NestedBool(spec, "natOutgoing"); found {
-		info.NATOutgoing = natOutgoing
-	}
+	return nil
+}
 
-	// 提取禁用状态
-	if disabled, found, _ := unstructured.NestedBool(spec, "disabled"); found {
-		info.Disabled = disabled
+// extractBoolField 从spec中提取布尔字段
+func extractBoolField(target *bool, spec map[string]interface{}, fieldName string) {
+	if value, found, _ := unstructured.NestedBool(spec, fieldName); found {
+		*target = value
 	}
+}
 
-	// 提取节点选择器
-	if nodeSelector, found, _ := unstructured.NestedString(spec, "nodeSelector"); found && nodeSelector != "" {
+// extractStringField 从spec中提取字符串字段
+func extractStringField(target *string, spec map[string]interface{}, fieldName string) {
+	if value, found, _ := unstructured.NestedString(spec, fieldName); found {
+		*target = value
+	}
+}
+
+// extractNodeSelector 提取节点选择器
+func extractNodeSelector(info *IPPoolInfo, spec map[string]interface{}) {
+	// 尝试获取字符串形式的选择器
+	nodeSelector, found, _ := unstructured.NestedString(spec, "nodeSelector")
+	if found && nodeSelector != "" {
 		info.NodeSelector = parseNodeSelector(nodeSelector)
-	} else if nodeSelectorMap, found, _ := unstructured.NestedMap(spec, "nodeSelector"); found {
-		// 处理结构化的节点选择器
+		return
+	}
+
+	// 尝试获取映射形式的选择器
+	nodeSelectorMap, found, _ := unstructured.NestedMap(spec, "nodeSelector")
+	if found {
 		for k, v := range nodeSelectorMap {
 			if strValue, ok := v.(string); ok {
 				info.NodeSelector[k] = strValue
 			}
 		}
 	}
-
-	// 设置IPIP和VXLAN模式，使用默认值
-	info.IPIPMode = defaultIPIPMode
-	if ipipMode, found, _ := unstructured.NestedString(spec, "ipipMode"); found {
-		info.IPIPMode = ipipMode
 	}
 
-	info.VXLANMode = defaultVXLANMode
-	if vxlanMode, found, _ := unstructured.NestedString(spec, "vxlanMode"); found {
-		info.VXLANMode = vxlanMode
-	}
-
-	// 设置块大小，使用默认值
-	info.BlockSize = defaultBlockSize
-	if blockSize, found, _ := unstructured.NestedInt64(spec, "blockSize"); found && blockSize > 0 {
+// extractBlockSize 提取块大小
+func extractBlockSize(info *IPPoolInfo, spec map[string]interface{}) {
+	blockSize, found, _ := unstructured.NestedInt64(spec, "blockSize")
+	if found && blockSize > 0 {
 		info.BlockSize = int(blockSize)
 	}
-
-	return info, nil
 }
 
 // parseNodeSelector 将节点选择器字符串解析为键值对映射
-// 支持以下格式：
-// - key=value
-// - key==value
-// - key in (value1, value2)
-// - 结构化的选择器对象
 func parseNodeSelector(selector string) map[string]string {
 	result := make(map[string]string)
 	if selector == "" {
@@ -334,10 +407,26 @@ func parseNodeSelector(selector string) map[string]string {
 
 	// 处理 key==value 或 key=value 格式
 	if strings.Contains(selector, "==") || strings.Contains(selector, "=") {
+		return parseEqualitySelector(selector)
+	}
+
+	// 处理 key in (value1, value2) 格式
+	if inIndex := strings.Index(selector, " in "); inIndex > 0 {
+		return parseInSelector(selector, inIndex)
+	}
+
+	return result
+}
+
+// parseEqualitySelector 解析等式选择器 (key=value 或 key==value)
+func parseEqualitySelector(selector string) map[string]string {
+	result := make(map[string]string)
+
 		sep := "=="
 		if !strings.Contains(selector, "==") {
 			sep = "="
 		}
+
 		parts := strings.SplitN(selector, sep, 2)
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
@@ -347,16 +436,22 @@ func parseNodeSelector(selector string) map[string]string {
 				result[key] = value
 			}
 		}
+
 		return result
 	}
 
-	// 处理 key in (value1, value2) 格式
-	if inIndex := strings.Index(selector, " in "); inIndex > 0 {
+// parseInSelector 解析in选择器 (key in (value1, value2))
+func parseInSelector(selector string, inIndex int) map[string]string {
+	result := make(map[string]string)
+
 		key := strings.TrimSpace(selector[:inIndex])
 		valuesStart := strings.Index(selector, "(")
 		valuesEnd := strings.LastIndex(selector, ")")
 
-		if key != "" && valuesStart > inIndex && valuesEnd > valuesStart {
+	if key == "" || valuesStart <= inIndex || valuesEnd <= valuesStart {
+		return result
+	}
+
 			valuesStr := selector[valuesStart+1 : valuesEnd]
 			values := strings.Split(valuesStr, ",")
 			var cleanValues []string
@@ -371,31 +466,7 @@ func parseNodeSelector(selector string) map[string]string {
 
 			if len(cleanValues) > 0 {
 				result[key] = strings.Join(cleanValues, ",")
-			}
-		}
 	}
 
 	return result
-}
-
-// 从kubernetes.Clientset获取REST配置
-func (s *CalicoIPPoolService) getRESTConfigFromClientset(clientset *kubernetes.Clientset) (*rest.Config, error) {
-	// 由于系统已经提前建立了到apiserver的连接
-	// 我们可以假设已经有了可用的配置
-
-	// 在实际环境中，可能需要从外部获取配置或使用其他方式
-	// 这里我们假设系统已经为我们提供了配置
-
-	// 尝试使用InClusterConfig
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		// 如果无法获取集群内配置，则创建一个基本配置
-		// 这里只是一个备用方案，实际应用中可能需要更复杂的逻辑
-		config = &rest.Config{
-			Host:    "https://kubernetes.default.svc",
-			APIPath: "/api",
-		}
-	}
-
-	return config, nil
 }

@@ -12,12 +12,12 @@ import {
   Form,
   Input,
   Badge,
-  Tag
+  Tag,
+  Checkbox
 } from 'antd';
 import {
   PlusOutlined,
   SaveOutlined,
-  DeleteOutlined,
   FilterOutlined,
   SearchOutlined,
   CloseCircleOutlined,
@@ -284,6 +284,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
       field: defaultField,
       key: defaultField,  // 确保key和field保持一致
       operator: groupOperator, // 使用组的操作符
+      isActive: true, // 默认激活
     };
 
     console.log(`Adding new block with operator: ${groupOperator} (from group)`);
@@ -414,26 +415,28 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
       const submitGroups = filterGroups || [];
 
       // 处理数组类型的value，将其转换为逗号分隔的字符串
-      // 同时确保每个block都有key字段
+      // 同时确保每个block都有key字段，并过滤掉未激活的条件
       const processedGroups = submitGroups.map(group => ({
         ...group,
-        blocks: group.blocks.map(block => {
-          let processedBlock = { ...block };
+        blocks: group.blocks
+          .filter(block => block.isActive !== false) // 过滤掉未激活的条件
+          .map(block => {
+            let processedBlock = { ...block };
 
-          // 确保key和field字段存在并保持一致
-          if (!processedBlock.key && processedBlock.field) {
-            processedBlock.key = processedBlock.field;
-          } else if (processedBlock.key && !processedBlock.field) {
-            processedBlock.field = processedBlock.key;
-          }
+            // 确保key和field字段存在并保持一致
+            if (!processedBlock.key && processedBlock.field) {
+              processedBlock.key = processedBlock.field;
+            } else if (processedBlock.key && !processedBlock.field) {
+              processedBlock.field = processedBlock.key;
+            }
 
-          // 处理数组类型的value
-          if (Array.isArray(processedBlock.value)) {
-            processedBlock.value = processedBlock.value.join(',');
-          }
+            // 处理数组类型的value
+            if (Array.isArray(processedBlock.value)) {
+              processedBlock.value = processedBlock.value.join(',');
+            }
 
-          return processedBlock;
-        })
+            return processedBlock;
+          })
       }));
 
       const template: QueryTemplate = {
@@ -580,9 +583,30 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     };
 
     return (
-      <div className="filter-block">
-        <div className="filter-block-header">
+      <div className="filter-block" style={{ 
+        background: '#fafafa', 
+        borderRadius: '4px',
+        border: '1px solid #f0f0f0',
+        marginBottom: '12px',
+        transition: 'all 0.3s',
+        opacity: block.isActive === false ? 0.6 : 1
+      }}>
+        <div className="filter-block-header" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '8px 12px',
+          borderBottom: '1px solid #f0f0f0',
+          backgroundColor: '#f5f7fa'
+        }}>
           <Space>
+            <Checkbox
+              checked={block.isActive !== false}
+              onChange={(e) => {
+                updateFilterBlock(groupId, block.id, { isActive: e.target.checked });
+              }}
+              style={{ marginRight: 8 }}
+            />
             <Tag color={getBlockTypeColor()}>{getBlockTitle()}</Tag>
             {block.field && (
               <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -590,21 +614,11 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               </Text>
             )}
           </Space>
-
-          {/* 删除按钮移动到右上角 */}
-          <div
-            className="delete-block-button"
-            onClick={() => removeFilterBlock(groupId, block.id)}
-          >
-            <Tooltip title="删除此条件">
-              <DeleteOutlined style={{ fontSize: '16px' }} />
-            </Tooltip>
-          </div>
         </div>
-        <div className="filter-block-content">
+        <div className="filter-block-content" style={{ padding: '12px 16px' }}>
           {/* 字段选择 */}
-          <div className="filter-block-item">
-            <Text>字段</Text>
+          <div className="filter-block-item" style={{ marginBottom: '8px' }}>
+            <Text strong style={{ display: 'block', marginBottom: '4px' }}>字段</Text>
             <Select
               style={{ width: '100%' }}
               placeholder="选择字段"
@@ -635,8 +649,8 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
           </div>
 
           {/* 条件类型选择 */}
-          <div className="filter-block-item">
-            <Text>条件</Text>
+          <div className="filter-block-item" style={{ marginBottom: '8px' }}>
+            <Text strong style={{ display: 'block', marginBottom: '4px' }}>条件</Text>
             <Select
               style={{ width: '100%' }}
               placeholder="选择条件"
@@ -668,8 +682,8 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
 
           {/* 值输入 */}
           {shouldShowValueInput() && (
-            <div className="filter-block-item">
-              <Text>值</Text>
+            <div className="filter-block-item" style={{ marginBottom: '8px' }}>
+              <Text strong style={{ display: 'block', marginBottom: '4px' }}>值</Text>
               <Select
                 style={{ width: '100%' }}
                 placeholder="输入或选择值"
@@ -703,8 +717,6 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
             </div>
           )}
         </div>
-
-
       </div>
     );
   };
@@ -740,16 +752,38 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
   const renderAddConditionDropdown = (groupId: string) => {
     if (activeDropdownGroupId !== groupId) return null;
 
+    const dropdownItemStyle = {
+      padding: '8px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      cursor: 'pointer',
+      transition: 'background-color 0.3s'
+    };
+
     return (
-      <div className="add-condition-dropdown" ref={dropdownRef}>
+      <div className="add-condition-dropdown" ref={dropdownRef} style={{
+        position: 'absolute',
+        top: '40px',
+        right: '20px',
+        width: '220px',
+        backgroundColor: '#fff',
+        boxShadow: '0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08)',
+        borderRadius: '4px',
+        padding: '8px 0',
+        zIndex: 1000,
+        border: '1px solid #f0f0f0'
+      }}>
         <div
           className="add-condition-dropdown-item"
           onClick={() => {
             addFilterBlock(groupId, FilterType.Device);
             setActiveDropdownGroupId(null);
           }}
+          style={dropdownItemStyle}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
-          <DesktopOutlined style={{ color: '#1890ff' }} />
+          <DesktopOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
           <span>添加设备字段条件</span>
         </div>
         <div
@@ -758,8 +792,11 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
             addFilterBlock(groupId, FilterType.NodeLabel);
             setActiveDropdownGroupId(null);
           }}
+          style={dropdownItemStyle}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
-          <TagsOutlined style={{ color: '#52c41a' }} />
+          <TagsOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
           <span>添加节点标签条件</span>
         </div>
         <div
@@ -768,11 +805,13 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
             addFilterBlock(groupId, FilterType.Taint);
             setActiveDropdownGroupId(null);
           }}
+          style={dropdownItemStyle}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
-          <ExclamationCircleOutlined style={{ color: '#fa8c16' }} />
+          <ExclamationCircleOutlined style={{ color: '#fa8c16', marginRight: '8px' }} />
           <span>添加节点污点条件</span>
         </div>
-
       </div>
     );
   };
@@ -780,8 +819,13 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
   // 渲染筛选组
   const renderFilterGroup = (group: FilterGroup) => {
     return (
-      <Card key={group.id} className="filter-group">
-        <div className="filter-group-header">
+      <Card 
+        key={group.id} 
+        className="filter-group"
+        size="small"
+        headStyle={{ backgroundColor: '#f5f7fa' }}
+        bodyStyle={{ padding: '16px 24px' }}
+        title={
           <Space>
             <Badge color="#1890ff" />
             <Text strong>条件组</Text>
@@ -793,6 +837,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               }}
               style={{ width: 240 }}
               popupMatchSelectWidth={false}
+              showSearch
             >
               <Option value={LogicalOperator.And}>
                 <Space>
@@ -808,8 +853,8 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               </Option>
             </Select>
           </Space>
-        </div>
-
+        }
+      >
         {/* 筛选块列表 */}
         {group.blocks && group.blocks.length > 0 ? (
           <div className="filter-blocks">
@@ -827,16 +872,6 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               >
                 <Tooltip title="添加条件">
                   <PlusOutlined style={{ fontSize: '18px', color: '#1890ff' }} />
-                </Tooltip>
-              </div>
-
-              {/* 浮动删除按钮 */}
-              <div
-                className="delete-condition-button"
-                onClick={() => removeFilterGroup(group.id)}
-              >
-                <Tooltip title="删除条件组">
-                  <DeleteOutlined style={{ fontSize: '18px' }} />
                 </Tooltip>
               </div>
 
@@ -863,16 +898,6 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
             <div className="filter-group-bottom-actions">
               {/* 添加条件下拉菜单 */}
               {renderAddConditionDropdown(group.id)}
-
-              {/* 浮动删除按钮 */}
-              <div
-                className="delete-condition-button"
-                onClick={() => removeFilterGroup(group.id)}
-              >
-                <Tooltip title="删除条件组">
-                  <DeleteOutlined style={{ fontSize: '18px' }} />
-                </Tooltip>
-              </div>
             </div>
           </div>
         )}
@@ -880,8 +905,24 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     );
   };
 
+  // 过滤掉未激活的条件后再执行查询
+  const handleQuery = () => {
+    // 过滤掉未激活的条件后再执行查询
+    const activeFilterGroups = filterGroups.map(group => ({
+      ...group,
+      blocks: group.blocks.filter(block => block.isActive !== false)
+    }));
+    
+    // 只有包含有效块的组才参与查询
+    const validGroups = activeFilterGroups.filter(group => group.blocks.length > 0);
+    
+    // 更新筛选组后执行查询
+    handleFilterGroupsChange(validGroups);
+    onQuery();
+  };
+
   return (
-    <div className="advanced-query-panel">
+    <>
       {/* 筛选组列表 */}
       {filterGroups && filterGroups.length > 0 ? (
         <div className="filter-groups">
@@ -892,7 +933,13 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
           ))}
         </div>
       ) : (
-        <div className="empty-groups">
+        <div className="empty-groups" style={{ 
+          padding: '24px', 
+          background: '#fff', 
+          borderRadius: '4px',
+          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+          marginBottom: '16px'
+        }}>
           <Space direction="vertical" align="center">
             <FilterOutlined style={{ fontSize: 32, color: '#bfbfbf' }} />
             <Text type="secondary">请添加条件组开始高级查询</Text>
@@ -907,19 +954,32 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
           icon={<PlusOutlined />}
           onClick={addFilterGroup}
           size="large"
-          style={{ width: '100%', height: '60px', borderRadius: '8px', borderStyle: 'dashed', borderWidth: '2px' }}
+          style={{ 
+            width: '100%', 
+            height: '60px', 
+            borderRadius: '8px', 
+            borderStyle: 'dashed', 
+            borderWidth: '2px',
+            marginBottom: '16px'
+          }}
         >
           <span style={{ fontSize: '16px' }}>添加条件组</span>
         </Button>
       </div>
 
       {/* 查询操作按钮 */}
-      <div className="query-actions">
+      <div className="query-actions" style={{
+        padding: '16px 24px',
+        background: '#fff',
+        borderRadius: '4px',
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+      }}>
         <Space size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
             <Button
               onClick={handleReset}
               icon={<CloseCircleOutlined />}
+              style={{ height: '32px', display: 'flex', alignItems: 'center' }}
             >
               重置条件
             </Button>
@@ -928,6 +988,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               ghost
               icon={<SaveOutlined />}
               onClick={handleSaveTemplate}
+              style={{ height: '32px', display: 'flex', alignItems: 'center' }}
             >
               保存模板
             </Button>
@@ -936,10 +997,10 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
           <Button
             type="primary"
             icon={<SearchOutlined />}
-            onClick={onQuery}
+            onClick={handleQuery}
             loading={loading}
             size="large"
-            style={{ minWidth: '150px' }}
+            style={{ minWidth: '150px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             执行查询
           </Button>
@@ -951,7 +1012,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
         title={
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <SaveOutlined style={{ color: '#1890ff', marginRight: 8 }} />
-            <span>{saveMode === 'save' ? '更新查询模板' : '保存查询模板'}</span>
+            <span style={{ fontSize: '14px', fontWeight: 500 }}>{saveMode === 'save' ? '更新查询模板' : '保存查询模板'}</span>
           </div>
         }
         open={templateModalVisible}
@@ -961,11 +1022,25 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
         okText="保存"
         cancelText="取消"
         centered
+        styles={{
+          header: {
+            borderBottom: '1px solid #f0f0f0',
+            padding: '16px 24px'
+          },
+          body: {
+            padding: '24px',
+            backgroundColor: '#f9fbfd'
+          },
+          footer: {
+            borderTop: '1px solid #f0f0f0',
+            padding: '12px 24px'
+          }
+        }}
       >
         <Form form={templateForm} layout="vertical">
           <Form.Item
             name="name"
-            label="模板名称"
+            label={<span style={{ fontWeight: 500 }}>模板名称</span>}
             rules={[{ required: true, message: '请输入模板名称' }]}
           >
             <Input
@@ -973,7 +1048,10 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               prefix={<FilterOutlined style={{ color: '#bfbfbf' }} />}
             />
           </Form.Item>
-          <Form.Item name="description" label="模板描述">
+          <Form.Item 
+            name="description" 
+            label={<span style={{ fontWeight: 500 }}>模板描述</span>}
+          >
             <Input.TextArea
               placeholder="输入模板描述（可选）"
               rows={4}
@@ -983,7 +1061,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </>
   );
 };
 

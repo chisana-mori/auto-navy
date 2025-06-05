@@ -482,6 +482,14 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 		// 查找关联的查询模板
 		template, exists := templateMap[dbPolicy.QueryTemplateID]
 
+		// 解析额外动态条件
+		var additionConds []string
+		if dbPolicy.AdditionConds != "" {
+			if err := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionConds); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal addition conditions for policy %d: %w", dbPolicy.ID, err)
+			}
+		}
+
 		// 创建策略对象
 		policies[i] = ResourcePoolDeviceMatchingPolicy{
 			ID:               dbPolicy.ID,
@@ -491,6 +499,7 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 			ActionType:       dbPolicy.ActionType,
 			QueryTemplateID:  int64(dbPolicy.QueryTemplateID),
 			Status:           dbPolicy.Status,
+			AdditionConds:    additionConds,
 			CreatedBy:        dbPolicy.CreatedBy,
 			UpdatedBy:        dbPolicy.UpdatedBy,
 			CreatedAt:        time.Time(dbPolicy.CreatedAt),

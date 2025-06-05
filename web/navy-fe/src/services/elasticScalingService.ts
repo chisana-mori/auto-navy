@@ -121,7 +121,7 @@ export const statsApi = {
   getResourceAllocationTrend: async (clusterId: number, timeRange: string, resourceTypes: string | string[] = 'total'): Promise<ResourceAllocationTrend> => {
     // Convert array to comma-separated string if necessary
     const resourceTypesParam = Array.isArray(resourceTypes) ? resourceTypes.join(',') : resourceTypes;
-    
+
     const response = await fetch(`/fe-v1/elastic-scaling/stats/resource-trend?clusterId=${clusterId}&timeRange=${timeRange}&resourceTypes=${resourceTypesParam}`);
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`);
@@ -138,5 +138,15 @@ export const statsApi = {
     }
     const result = await response.json();
     return result.data;
+  },
+
+  // 获取资源池类型
+  getResourcePoolTypes: async (): Promise<string[]> => {
+    const response = await fetch('/fe-v1/elastic-scaling/stats/resource-pool-types');
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const result = await response.json();
+    return result.data;
   }
-}; 
+};
