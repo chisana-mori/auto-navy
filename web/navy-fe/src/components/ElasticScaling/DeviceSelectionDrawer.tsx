@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Drawer,
   Button,
@@ -11,12 +11,20 @@ import {
   Badge,
   Typography,
   Tag,
-  Input
+  Input,
+  Tooltip,
+  Card,
+  Popover,
+  Checkbox,
+  Tabs
 } from 'antd';
 import {
   SelectOutlined,
   ReloadOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  SearchOutlined,
+  FilterOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Device } from '../../types/device';
@@ -50,17 +58,105 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [localSelectedDevices, setLocalSelectedDevices] = useState<Device[]>([]);
   const [keyword, setKeyword] = useState<string>('');
+  const [multilineKeywords, setMultilineKeywords] = useState<string>('');
+  const [clientSearchText, setClientSearchText] = useState<string>('');
+  const [displayedDevices, setDisplayedDevices] = useState<Device[]>([]);
 
   // 初始化本地选中设备
   useEffect(() => {
     if (visible) {
-      setLocalSelectedDevices(selectedDevices);
-      setSelectedRowKeys(selectedDevices.map(device => device.id));
+      // 抽屉打开时，执行查询但不自动选中任何设备
+      // 除非用户已经明确选择了设备，才保留选中状态
+      if (selectedDevices.length > 0) {
+        setLocalSelectedDevices(selectedDevices);
+        setSelectedRowKeys(selectedDevices.map(device => device.id));
+      } else {
+        // 重置选中状态
+        setLocalSelectedDevices([]);
+        setSelectedRowKeys([]);
+      }
+
+      // 重置分页信息，确保每次打开抽屉时都从第一页开始
+      setPagination({
+        current: 1,
+        pageSize: 20,
+        total: 0
+      });
+
+      // 当抽屉打开时，自动执行查询
+      fetchDevices(1, 20);
     }
   }, [visible, selectedDevices]);
 
+  // Effect to apply client-side search whenever clientSearchText or the base 'devices' list changes
+  useEffect(() => {
+    if (!clientSearchText.trim()) {
+      setDisplayedDevices(devices);
+      return;
+    }
+
+    const searchTerms = clientSearchText.toLowerCase().split('\n').filter(term => term.trim() !== '');
+    if (searchTerms.length === 0) {
+      setDisplayedDevices(devices);
+      return;
+    }
+
+    const filtered = devices.filter(device => {
+      return searchTerms.some(term => {
+        const searchableProperties = [
+          String(device.id),
+          device.ciCode,
+          device.ip,
+          device.archType,
+          device.idc,
+          device.room,
+          device.cabinet,
+          device.cabinetNO,
+          device.infraType,
+          device.netZone,
+          device.group,
+          device.appId,
+          device.appName,
+          device.model,
+          device.kvmIp,
+          device.os,
+          device.company,
+          device.osName,
+          device.osIssue,
+          device.osKernel,
+          device.status,
+          device.role,
+          device.cluster,
+          device.isLocalization ? '是' : '否',
+        ];
+        return searchableProperties.some(prop => 
+          prop && typeof prop === 'string' && prop.toLowerCase().includes(term)
+        );
+      });
+    });
+    setDisplayedDevices(filtered);
+  }, [clientSearchText, devices]);
+
+  // 处理多行关键字搜索
+  const handleMultilineSearch = () => {
+    if (!multilineKeywords.trim()) {
+      message.warning('请输入搜索关键字');
+      return;
+    }
+
+    // 按行分割关键字
+    const keywords = multilineKeywords.split('\n').filter(k => k.trim());
+    if (keywords.length === 0) {
+      message.warning('请输入有效的搜索关键字');
+      return;
+    }
+
+    // 执行查询
+    fetchDevices(1, pagination.pageSize, keywords);
+  };
+
   // 查询设备
-  const fetchDevices = async (page = 1, pageSize = 10) => {
+  const fetchDevices = async (page = 1, pageSize = 20, keywordList?: string[]) => {
     try {
       setLoading(true);
 
@@ -71,8 +167,25 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
         // 构建基本查询条件
         const queryGroups: FilterGroup[] = [];
 
-        if (keyword.trim()) {
-          // 如果有关键字，创建一个基本的查询组
+        // 处理多行关键字
+        if (keywordList && keywordList.length > 0) {
+          // 创建一个OR组合的查询组
+          const group: FilterGroup = {
+            id: '1',
+            operator: LogicalOperator.Or,
+            blocks: keywordList.map((kw, index) => ({
+              id: `${index + 1}`,
+              type: FilterType.Device,
+              field: 'ip', // 默认搜索IP字段
+              key: 'ip',
+              operator: LogicalOperator.And,
+              conditionType: ConditionType.Contains,
+              value: [kw.trim()]
+            }))
+          };
+          queryGroups.push(group);
+        } else if (keyword.trim()) {
+          // 如果有单行关键字，创建一个基本的查询组
           const group: FilterGroup = {
             id: '1',
             operator: LogicalOperator.And,
@@ -106,21 +219,29 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
         // 深拷贝筛选条件，避免修改原始数据
         const clonedGroups = JSON.parse(JSON.stringify(filterGroups));
 
-        // 处理筛选条件中的数组值
+        // 处理筛选条件中的数组值和undefined值
         const processedGroups = clonedGroups.map((group: FilterGroup) => {
           return {
             ...group,
             blocks: group.blocks.map((block) => {
               const processedBlock = { ...block };
+
+              // 处理undefined值
+              if (processedBlock.value === undefined) {
+                processedBlock.value = '';
+              }
+
+              // 处理数组值
               if (Array.isArray(processedBlock.value)) {
                 processedBlock.value = processedBlock.value.join(',');
               }
+
               return processedBlock;
             })
           };
         });
 
-        // 执行查询
+        // 执行查询，支持分页
         response = await queryDevices({
           groups: processedGroups,
           page,
@@ -144,8 +265,20 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   };
 
   // 处理表格分页变化
-  const handleTableChange = (pagination: any) => {
-    fetchDevices(pagination.current, pagination.pageSize);
+  const handleTableChange = (newPagination: any) => {
+    // 更新分页信息
+    setPagination({
+      current: newPagination.current,
+      pageSize: newPagination.pageSize,
+      total: pagination.total // 保留总记录数
+    });
+    
+    // 使用新的分页参数重新获取数据
+    fetchDevices(newPagination.current, newPagination.pageSize);
+  };
+
+  const handleClientSearchChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setClientSearchText(e.target.value);
   };
 
   // 处理行选择变化
@@ -157,7 +290,6 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   // 确认选择设备
   const handleConfirmSelection = () => {
     onSelectDevices(localSelectedDevices);
-    message.success(`已选择 ${localSelectedDevices.length} 台设备`);
     onClose();
   };
 
@@ -167,50 +299,75 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
       title: '设备编码',
       dataIndex: 'ciCode',
       key: 'ciCode',
-      width: 180,
+      width: 150,
     },
     {
       title: 'IP地址',
       dataIndex: 'ip',
       key: 'ip',
-      width: 150,
+      width: 120,
     },
     {
       title: '机器用途',
       dataIndex: 'group',
       key: 'group',
-      width: 150,
-      render: (text) => text || '-',
+      width: 120,
+      render: (text) => {
+        if (!text) return '-';
+        // 如果文本超过10个字符，显示渐变效果
+        if (text.length > 10) {
+          return (
+            <div className="truncated-text" style={{
+              maxWidth: '100px',
+              overflow: 'hidden',
+              position: 'relative',
+              whiteSpace: 'nowrap'
+            }}>
+              <span>{text}</span>
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '30px',
+                height: '100%',
+                background: 'linear-gradient(to right, transparent, #fff)'
+              }}></div>
+            </div>
+          );
+        }
+        return text;
+      },
     },
     {
       title: '所属集群',
       dataIndex: 'cluster',
       key: 'cluster',
-      width: 150,
+      width: 120,
       render: (text) => text || '-',
     },
     {
       title: '集群角色',
       dataIndex: 'role',
       key: 'role',
-      width: 120,
+      width: 100,
       render: (text) => text || '-',
     },
     {
-      title: 'CPU/内存',
-      key: 'resources',
-      width: 150,
-      render: (_, record) => (
-        <span>
-          {record.cpu || '-'} CPU / {record.memory || '-'} GB
-        </span>
+      title: '是否国产化',
+      dataIndex: 'isLocalization',
+      key: 'isLocalization',
+      width: 100,
+      render: (isLocalization) => (
+        isLocalization ?
+          <Tag color="green">是</Tag> :
+          <Tag color="orange">否</Tag>
       ),
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
+      width: 80,
       render: (status) => {
         if (status === 'active' || status === 'normal') {
           return <Tag color="success">正常</Tag>;
@@ -242,6 +399,25 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
       placement="right"
       onClose={onClose}
       open={visible}
+      mask={true}
+      maskClosable={true}
+      maskStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
+      style={{ boxShadow: '0 0 20px rgba(0, 0, 0, 0.2)' }}
+      bodyStyle={{ 
+        padding: '20px', 
+        backgroundColor: '#f5f7fa' 
+      }}
+      headerStyle={{ 
+        backgroundColor: '#fff',
+        borderBottom: '1px solid #f0f0f0',
+        padding: '16px 24px'
+      }}
+      footerStyle={{
+        backgroundColor: '#fff',
+        borderTop: '1px solid #f0f0f0',
+        padding: '12px 24px'
+      }}
+      zIndex={1001}
       extra={
         <Space>
           <Button
@@ -271,89 +447,146 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
         </div>
       }
     >
-      {simpleMode ? (
-        <div style={{ marginBottom: 16 }}>
-          <Input.Search
-            placeholder="输入关键字搜索设备（如IP、设备编码等）"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onSearch={() => fetchDevices(1, pagination.pageSize)}
-            enterButton
-            style={{ width: '100%' }}
-            allowClear
-          />
-        </div>
-      ) : (
-        <div style={{ marginBottom: 16 }}>
-          <Text>根据筛选条件找到的设备列表，请选择需要添加到订单的设备：</Text>
-        </div>
-      )}
+      <div style={{ padding: '0' }}>
+        <Spin spinning={loading || externalLoading}>
+          <div style={{ marginBottom: 16 }}>
+            <Input.TextArea
+              rows={3}
+              placeholder="输入关键字进行前端模糊搜索（多行输入，每行一个关键字）..."
+              value={clientSearchText}
+              onChange={handleClientSearchChange}
+              allowClear
+              style={{ backgroundColor: '#fff', border: '1px solid #d9d9d9', borderRadius: '6px' }}
+            />
+          </div>
+          {simpleMode && (
+            <Card 
+              size="small" 
+              style={{ 
+                marginBottom: 16, 
+                borderRadius: '8px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}
+              bodyStyle={{ padding: '16px' }}
+            >
+              <Text strong>简单设备搜索</Text>
+              <div style={{ marginBottom: 16 }}>
+                <Input.Search
+                  placeholder="输入关键字搜索设备（如IP、设备编码等）"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  onSearch={() => fetchDevices(1, pagination.pageSize)}
+                  enterButton
+                  style={{ width: '100%' }}
+                  allowClear
+                />
+              </div>
 
-      <Divider style={{ margin: '12px 0' }} />
+              <div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text>多行批量查询（每行一个关键字）：</Text>
+                </div>
+                <Input.TextArea
+                  placeholder="请输入多行关键字，每行一个，如IP地址列表"
+                  value={multilineKeywords}
+                  onChange={(e) => setMultilineKeywords(e.target.value)}
+                  rows={4}
+                  style={{ marginBottom: 8, backgroundColor: '#fff', border: '1px solid #d9d9d9' }}
+                />
+                <Button
+                  type="primary"
+                  icon={<SearchOutlined />}
+                  onClick={handleMultilineSearch}
+                  style={{ width: '100%' }}
+                >
+                  批量查询
+                </Button>
+              </div>
+            </Card>
+          )}
 
-      {loading || externalLoading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Spin size="large" tip="正在加载设备数据..." />
-        </div>
-      ) : devices.length > 0 ? (
-        <Table
-          rowSelection={{
-            type: 'checkbox',
-            selectedRowKeys,
-            onChange: handleRowSelectionChange,
-            selections: [
-              Table.SELECTION_ALL,
-              Table.SELECTION_INVERT,
-              Table.SELECTION_NONE,
-            ],
-          }}
-          columns={columns}
-          dataSource={devices}
-          rowKey="id"
-          pagination={{
-            ...pagination,
-            showTotal: (total) => `共 ${total} 条记录`,
-            showSizeChanger: true,
-            pageSizeOptions: ['10', '20', '50', '100'],
-          }}
-          onChange={handleTableChange}
-          scroll={{ y: 500 }}
-          size="middle"
-          onRow={(record) => {
-            // 根据条件决定背景色
-            let bgColor = '';
-            if (record.isSpecial) {
-              // 浅黄色背景 - 特殊设备
-              bgColor = '#fffbe6';
-            } else if (record.cluster && record.cluster.trim() !== '') {
-              // 浅绿色背景 - 集群不为空且非特殊设备
-              bgColor = '#f6ffed';
-            }
-            return {
-              style: { backgroundColor: bgColor },
-              onClick: () => {
-                // 点击行切换选中状态
-                const isSelected = selectedRowKeys.includes(record.id);
-                const newSelectedKeys = isSelected
-                  ? selectedRowKeys.filter(key => key !== record.id)
-                  : [...selectedRowKeys, record.id];
+          <div style={{ 
+            marginBottom: 16, 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            backgroundColor: '#fff',
+            padding: '12px 16px',
+            borderRadius: '6px',
+            border: '1px solid #f0f0f0'
+          }}>
+            <Text strong>根据筛选条件找到的设备列表，请选择需要添加到订单的设备：</Text>
+            <Text type="secondary">共 {pagination.total} 条记录</Text>
+          </div>
 
-                const newSelectedDevices = isSelected
-                  ? localSelectedDevices.filter(device => device.id !== record.id)
-                  : [...localSelectedDevices, record];
+          <div style={{ 
+            backgroundColor: '#fff', 
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+            padding: '1px'
+          }}>
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={displayedDevices}
+              pagination={{
+                ...pagination,
+                showTotal: (total) => `共 ${total} 条记录`,
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                showQuickJumper: true
+              }}
+              loading={loading}
+              rowSelection={{
+                type: 'checkbox',
+                selectedRowKeys,
+                onChange: handleRowSelectionChange,
+                selections: [
+                  Table.SELECTION_ALL,
+                  Table.SELECTION_INVERT,
+                  Table.SELECTION_NONE,
+                ],
+              }}
+              onChange={handleTableChange}
+              scroll={{ y: 500 }}
+              size="middle"
+              onRow={(record) => {
+                // 根据条件决定背景色
+                let bgColor = '';
+                // 特殊设备（有机器用途或其他特殊标记）使用浅黄色背景
+                if (record.isSpecial ||
+                    (record.group && record.group.trim() !== '') ||
+                    (record.featureCount && record.featureCount > 0)) {
+                  // 浅黄色背景 - 特殊设备
+                  bgColor = '#fffbe6';
+                }
+                // 有集群但不是特殊设备的使用浅绿色背景
+                else if (record.cluster && record.cluster.trim() !== '') {
+                  // 浅绿色背景 - 集群不为空且非特殊设备
+                  bgColor = '#f6ffed';
+                }
+                return {
+                  style: { backgroundColor: bgColor },
+                  onClick: () => {
+                    // 点击行切换选中状态
+                    const isSelected = selectedRowKeys.includes(record.id);
+                    const newSelectedKeys = isSelected
+                      ? selectedRowKeys.filter(key => key !== record.id)
+                      : [...selectedRowKeys, record.id];
 
-                setSelectedRowKeys(newSelectedKeys);
-                setLocalSelectedDevices(newSelectedDevices);
-              },
-            };
-          }}
-        />
-      ) : (
-        <Empty
-          description="暂无设备数据"
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
-      )}
+                    const newSelectedDevices = isSelected
+                      ? localSelectedDevices.filter(device => device.id !== record.id)
+                      : [...localSelectedDevices, record];
+
+                    setSelectedRowKeys(newSelectedKeys);
+                    setLocalSelectedDevices(newSelectedDevices);
+                  },
+                };
+              }}
+            />
+          </div>
+        </Spin>
+      </div>
     </Drawer>
   );
 };

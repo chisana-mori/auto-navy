@@ -18,7 +18,7 @@ type ResourcePoolDeviceMatchingPolicyHandler struct {
 func NewResourcePoolDeviceMatchingPolicyHandler(db *gorm.DB) *ResourcePoolDeviceMatchingPolicyHandler {
 	// 创建 Redis 客户端和键构建器
 	redisHandler := redis.NewRedisHandler("default")
-	keyBuilder := redis.NewKeyBuilder("", service.CacheVersion)
+	keyBuilder := redis.NewKeyBuilder("navy", service.CacheVersion)
 
 	// 创建设备缓存服务
 	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)

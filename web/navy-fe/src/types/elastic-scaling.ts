@@ -50,10 +50,13 @@ export interface OrderListItem {
   strategyId?: number;
   strategyName?: string;
   actionType: 'pool_entry' | 'pool_exit' | 'maintenance_request' | 'maintenance_uncordon';
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'pending_confirmation' | 'scheduled_for_maintenance' | 'maintenance_in_progress';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'pending_confirmation' | 'scheduled_for_maintenance' | 'maintenance_in_progress' | 'ignored';
   deviceCount: number;
   createdBy: string;
   createdAt: string;
+  resourcePoolType?: string;
+  cpuAllocation?: number;
+  memAllocation?: number;
 }
 
 // 设备类型定义

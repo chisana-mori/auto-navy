@@ -35,6 +35,7 @@ import {
 import {
   getQueryTemplates
 } from '../../services/queryTemplateService';
+import { statsApi } from '../../services/elasticScalingService';
 
 // 扩展Window接口，添加openCreateOrderModal方法
 declare global {
@@ -102,21 +103,57 @@ const DeviceMatchingPolicy: React.FC = () => {
   const [editForm] = Form.useForm();
 
   // 资源池类型选项
-  const resourcePoolTypeOptions = [
+  const [resourcePoolTypeOptions, setResourcePoolTypeOptions] = useState([
     { label: '计算资源池', value: 'compute' },
     { label: '存储资源池', value: 'storage' },
     { label: '网络资源池', value: 'network' },
     { label: 'GPU资源池', value: 'gpu' },
     { label: '内存资源池', value: 'memory' },
-  ];
+  ]);
 
   // 初始化
   useEffect(() => {
     fetchPolicies();
     fetchFilterOptions();
     fetchQueryTemplates();
+    fetchResourcePoolTypes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 获取资源池类型
+  const fetchResourcePoolTypes = async () => {
+    try {
+      // 从后端API获取资源池类型
+      const resourceTypes = await statsApi.getResourcePoolTypes();
+
+      // 将API返回的资源池类型转换为前端需要的格式
+      const poolTypes = resourceTypes.map((type: string) => {
+        // 根据资源池类型生成对应的名称
+        let label = '未知资源池';
+        if (type === 'total') label = '全局资源';
+        else if (type === 'total_intel') label = 'Intel资源池';
+        else if (type === 'total_arm') label = 'ARM资源池';
+        else if (type === 'total_hg') label = '高性能资源池';
+        else if (type === 'total_gpu') label = 'GPU资源池';
+        else if (type === 'total_taint') label = '特殊节点资源池';
+        else if (type === 'total_common') label = '通用资源池';
+        else if (type === 'compute') label = '计算资源池';
+        else if (type === 'storage') label = '存储资源池';
+        else if (type === 'network') label = '网络资源池';
+        else if (type === 'gpu') label = 'GPU资源池';
+        else if (type === 'memory') label = '内存资源池';
+        else label = `${type}资源池`;
+
+        return { label, value: type };
+      });
+
+      console.log('DeviceMatchingPolicy - 获取到资源池类型:', poolTypes);
+      setResourcePoolTypeOptions(poolTypes);
+    } catch (error) {
+      console.error('获取资源池类型失败:', error);
+      // 出错时保留默认值，不更新
+    }
+  };
 
   // 监听表单值变化，用于更新预览按钮状态
   useEffect(() => {
@@ -652,9 +689,13 @@ const DeviceMatchingPolicy: React.FC = () => {
                 }
               }}
               style={{ width: 200, marginRight: 8 }}
+              loading={loadingValues}
+              allowClear
               showSearch
               optionFilterProp="children"
-              allowClear
+              filterOption={(input, option) =>
+                (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+              }
             >
               {block.type === FilterType.NodeLabel && filterOptions.nodeLabelKeys?.map((option: any) => (
                 <Option key={option.value} value={option.value}>{option.label}</Option>
@@ -673,9 +714,13 @@ const DeviceMatchingPolicy: React.FC = () => {
                 updateFilterBlock(formInstance, groupId, block.id, { key: value, value: undefined });
               }}
               style={{ width: 200, marginRight: 8 }}
+              loading={loadingValues}
+              allowClear
               showSearch
               optionFilterProp="children"
-              allowClear
+              filterOption={(input, option) =>
+                (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+              }
             >
               {filterOptions.deviceFieldValues?.map((field: any) => (
                 <Option key={field.field} value={field.field}>{field.field}</Option>
@@ -695,6 +740,11 @@ const DeviceMatchingPolicy: React.FC = () => {
               }
             }}
             style={{ width: 120, marginRight: 8 }}
+            showSearch
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+            }
           >
             <Option value={ConditionType.Equal}>等于</Option>
             <Option value={ConditionType.NotEqual}>不等于</Option>
@@ -727,9 +777,12 @@ const DeviceMatchingPolicy: React.FC = () => {
               style={{ width: 200 }}
               mode={(block.type !== FilterType.Device || block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn) ? 'multiple' : undefined}
               loading={loadingValues}
+              allowClear
               showSearch
               optionFilterProp="children"
-              allowClear
+              filterOption={(input, option) =>
+                (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+              }
               maxTagCount={3}
               maxTagTextLength={10}
             >
@@ -754,6 +807,11 @@ const DeviceMatchingPolicy: React.FC = () => {
             value={block.operator}
             onChange={(value) => updateFilterBlock(formInstance, groupId, block.id, { operator: value })}
             style={{ width: 80 }}
+            showSearch
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+            }
           >
             <Option value={LogicalOperator.And}>
               <Tag color="blue" style={{ margin: 0 }}>AND</Tag>
@@ -821,9 +879,10 @@ const DeviceMatchingPolicy: React.FC = () => {
         onOk={handleCreateSubmit}
         onCancel={() => setCreateModalVisible(false)}
         width={800}
+        okText="确定"
+        cancelText="取消"
         confirmLoading={loading}
         destroyOnClose
-        bodyStyle={{ padding: '24px', background: '#f9fbfd' }}
         className="policy-modal"
       >
         <Alert
@@ -891,11 +950,18 @@ const DeviceMatchingPolicy: React.FC = () => {
                   label={<span style={{ fontWeight: 500 }}>资源池类型</span>}
                   rules={[{ required: true, message: '请选择资源池类型' }]}
                 >
-                  <Select placeholder="请选择资源池类型">
+                  <Select
+                    placeholder="请选择资源池类型"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                    }
+                  >
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
                         <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
-                        {option.label}
+                        {option.value}
                       </Option>
                     ))}
                   </Select>
@@ -907,7 +973,14 @@ const DeviceMatchingPolicy: React.FC = () => {
                   label={<span style={{ fontWeight: 500 }}>动作类型</span>}
                   rules={[{ required: true, message: '请选择动作类型' }]}
                 >
-                  <Select placeholder="请选择动作类型">
+                  <Select
+                    placeholder="请选择动作类型"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                    }
+                  >
                     <Option value="pool_entry">
                       <CloudUploadOutlined style={{ color: '#1890ff', marginRight: 4 }} /> 入池
                     </Option>
@@ -1065,9 +1138,10 @@ const DeviceMatchingPolicy: React.FC = () => {
         onOk={handleEditSubmit}
         onCancel={() => setEditModalVisible(false)}
         width={800}
+        okText="确定"
+        cancelText="取消"
         confirmLoading={loading}
         destroyOnClose
-        bodyStyle={{ padding: '24px', background: '#f9fbfd' }}
         className="policy-modal"
       >
         <Form
@@ -1122,11 +1196,18 @@ const DeviceMatchingPolicy: React.FC = () => {
                   label={<span style={{ fontWeight: 500 }}>资源池类型</span>}
                   rules={[{ required: true, message: '请选择资源池类型' }]}
                 >
-                  <Select placeholder="请选择资源池类型">
+                  <Select
+                    placeholder="请选择资源池类型"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                    }
+                  >
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
                         <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
-                        {option.label}
+                        {option.value}
                       </Option>
                     ))}
                   </Select>
@@ -1138,7 +1219,14 @@ const DeviceMatchingPolicy: React.FC = () => {
                   label={<span style={{ fontWeight: 500 }}>动作类型</span>}
                   rules={[{ required: true, message: '请选择动作类型' }]}
                 >
-                  <Select placeholder="请选择动作类型">
+                  <Select
+                    placeholder="请选择动作类型"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                    }
+                  >
                     <Option value="pool_entry">
                       <CloudUploadOutlined style={{ color: '#1890ff', marginRight: 4 }} /> 入池
                     </Option>

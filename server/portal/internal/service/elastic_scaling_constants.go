@@ -37,12 +37,6 @@ const (
 	DeviceStatusFailed     = "failed"
 )
 
-// 触发动作类型
-const (
-	TriggerActionPoolEntry = "pool_entry"
-	TriggerActionPoolExit  = "pool_exit"
-)
-
 // 阈值类型
 const (
 	ThresholdTypeUsage     = "usage"
@@ -53,4 +47,11 @@ const (
 const (
 	ConditionLogicAnd = "AND"
 	ConditionLogicOr  = "OR"
+)
+
+// 将所有常量和类型定义移到独立文件
+const (
+	TriggerActionPoolEntry = "pool_entry"
+	TriggerActionPoolExit  = "pool_exit"
+	// 其他常量...
 )
