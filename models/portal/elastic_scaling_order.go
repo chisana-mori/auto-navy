@@ -1,6 +1,13 @@
 package portal
 
-// ElasticScalingOrder 弹性伸缩订单表
+// ElasticScalingOrder 弹性伸缩订单表（已废弃）
+//
+// 废弃说明：此模型已被新的通用订单系统替代
+// - 新代码应使用 Order + ElasticScalingOrderDetail 模型
+// - 此模型仅保留用于数据迁移和向后兼容
+// - 请勿在新功能中使用此模型
+//
+// Deprecated: 使用 Order + ElasticScalingOrderDetail 替代
 type ElasticScalingOrder struct {
 	BaseModel
 	OrderNumber            string    `gorm:"column:order_number;type:varchar(50);unique" json:"orderNumber"`                  // 唯一订单号
@@ -11,8 +18,6 @@ type ElasticScalingOrder struct {
 	ActionType             string    `gorm:"column:action_type;type:varchar(50)" json:"actionType"`                           // 订单操作类型
 	Status                 string    `gorm:"column:status;type:varchar(50)" json:"status"`                                    // 订单状态
 	DeviceCount            int       `gorm:"column:device_count;type:int" json:"deviceCount"`                                 // 请求的设备数量
-	DeviceID               *int64    `gorm:"column:device_id;type:bigint" json:"deviceId"`                                    // 涉及的特定设备ID(维护订单)
-	Approver               string    `gorm:"column:approver;type:varchar(100)" json:"approver"`                               // 审批人
 	Executor               string    `gorm:"column:executor;type:varchar(100)" json:"executor"`                               // 执行人
 	ExecutionTime          *NavyTime `gorm:"column:execution_time;type:datetime" json:"executionTime"`                        // 执行时间
 	CreatedBy              string    `gorm:"column:created_by;type:varchar(100)" json:"createdBy"`                            //
@@ -23,6 +28,9 @@ type ElasticScalingOrder struct {
 	ExternalTicketID       string    `gorm:"column:external_ticket_id;type:varchar(100)" json:"externalTicketId"`             // 外部工单号
 	StrategyTriggeredValue string    `gorm:"column:strategy_triggered_value;type:varchar(255)" json:"strategyTriggeredValue"` // 策略触发时的具体指标值 (用于延迟记录历史)
 	StrategyThresholdValue string    `gorm:"column:strategy_threshold_value;type:varchar(255)" json:"strategyThresholdValue"` // 策略触发时的阈值设定 (用于延迟记录历史)
+
+	// 关联关系 - 通过OrderDevice表建立与设备的多对多关系
+	Devices []Device `gorm:"many2many:order_device;" json:"devices,omitempty"` // 关联的设备列表
 }
 
 // TableName 指定表名

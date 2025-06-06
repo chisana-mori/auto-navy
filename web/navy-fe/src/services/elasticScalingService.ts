@@ -10,6 +10,8 @@ import {
   OrderStats,
   PaginatedResponse
 } from '../types/elastic-scaling';
+import { orderService } from './orderService';
+import type { OrderStatusUpdateRequest } from '../types/order';
 
 const API_BASE = '/fe-v1/elastic-scaling';
 
@@ -88,9 +90,13 @@ export const orderApi = {
     return response.data.data;
   },
 
-  // 更新订单状态
+  // 更新订单状态 - 使用新的通用订单服务
   updateOrderStatus: async (id: number, status: string, reason?: string): Promise<void> => {
-    await axios.put(`${API_BASE}/orders/${id}/status`, { status, reason });
+    const statusUpdate: OrderStatusUpdateRequest = {
+      status: status as any,
+      reason
+    };
+    await orderService.updateOrderStatus(id, statusUpdate);
   },
 
   // 获取订单设备

@@ -7,7 +7,7 @@ import {
   Select, Tabs, Empty, Divider, Alert, Tooltip, Badge,
   Modal, Form, Input, InputNumber, Radio, Drawer, Descriptions, message,
   Spin,
-  Result // Added Result import
+  Result, Checkbox // Added Result and Checkbox import
 } from 'antd';
 import {
   CloudServerOutlined, RocketOutlined, AppstoreOutlined, SettingOutlined,
@@ -17,10 +17,10 @@ import {
   ClockCircleOutlined, PauseCircleOutlined, WarningOutlined,
   LinkOutlined, DisconnectOutlined, AreaChartOutlined,
   DesktopOutlined, ExclamationCircleOutlined, CloseCircleOutlined, EyeOutlined,
-  StopOutlined, DatabaseOutlined
+  StopOutlined, DatabaseOutlined, CopyOutlined
 } from '@ant-design/icons';
 import { statsApi, strategyApi, orderApi } from '../../services/elasticScalingService';
-import clusterService from '../../services/clusterService';
+import clusterService, { getResourcePoolAllocationRate, ResourcePoolAllocationRate } from '../../services/clusterService';
 import {
   ResourceAllocationTrend,
   ResourceTypeData,
@@ -30,7 +30,8 @@ import {
   OrderListItem,
   Device,
   DashboardStats,
-  PaginatedResponse
+  PaginatedResponse,
+  OrderStats
 } from '../../types/elastic-scaling';
 import ReactECharts from 'echarts-for-react';
 import DeviceMatchingPolicy from './DeviceMatchingPolicy';
@@ -47,6 +48,7 @@ type OrdersState = PaginatedResponse<OrderListItem> | null;
 const Dashboard: React.FC = () => {
   // 状态管理
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const createOrderModalRef = useRef<any>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [strategies, setStrategies] = useState<StrategiesState>(null);
   const [orders, setOrders] = useState<OrdersState>(null);
@@ -57,7 +59,7 @@ const Dashboard: React.FC = () => {
   }, [pendingOrders]);
   const [processingOrders, setProcessingOrders] = useState<OrderListItem[]>([]);
   const [completedOrders, setCompletedOrders] = useState<OrderListItem[]>([]);
-  const [allOrders, setAllOrders] = useState<OrdersState>(null);
+  const [allOrders, setAllOrders] = useState<PaginatedResponse<OrderListItem> | null>(null);
   const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState('7d');
   const [selectedResourceTypes, setSelectedResourceTypes] = useState<string[]>([]);
@@ -75,7 +77,37 @@ const Dashboard: React.FC = () => {
   const [editStrategyModalVisible, setEditStrategyModalVisible] = useState(false);
   const [currentEditStrategyId, setCurrentEditStrategyId] = useState<number | null>(null);
   const [createOrderModalVisible, setCreateOrderModalVisible] = useState(false);
+  const [clonedOrderInfo, setClonedOrderInfo] = useState<any>(null);
   const [resourcePools, setResourcePools] = useState<any[]>([]);
+
+  const handleCloneOrder = async (order: OrderListItem) => {
+    try {
+      // 先获取订单详情以获取设备列表
+      const orderDetail = await orderApi.getOrder(order.id);
+
+      setCreateOrderModalVisible(true);
+      if (createOrderModalRef.current) {
+        createOrderModalRef.current.open({
+          name: order.name || order.orderNumber,
+          resourcePoolType: order.resourcePoolType,
+          deviceCount: order.deviceCount,
+          devices: orderDetail.devices || []
+        });
+      }
+    } catch (error) {
+      console.error('获取订单详情失败:', error);
+      // 如果获取详情失败，仍然打开模态框但不包含设备信息
+      setCreateOrderModalVisible(true);
+      if (createOrderModalRef.current) {
+        createOrderModalRef.current.open({
+          name: order.name || order.orderNumber,
+          resourcePoolType: order.resourcePoolType,
+          deviceCount: order.deviceCount,
+          devices: []
+        });
+      }
+    }
+  };
 
   // 资源池类型列表
   const [resourceTypeOptions, setResourceTypeOptions] = useState<string[]>([]);
@@ -86,6 +118,9 @@ const Dashboard: React.FC = () => {
   const [cancelledOrders, setCancelledOrders] = useState<OrderListItem[]>([]);
   const [cancelledOrdersLoading, setCancelledOrdersLoading] = useState<boolean>(false);
   const [cancelledOrdersError, setCancelledOrdersError] = useState<string | null>(null);
+  const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
+  const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
 
   // 策略表单
   const [form] = Form.useForm();
@@ -392,6 +427,9 @@ const Dashboard: React.FC = () => {
     // 如果缓存有效且不强制刷新，直接使用缓存
     if (!forceRefresh && dataCache.resourceTypes && isCacheValid('resourceTypes')) {
       console.log('使用缓存的资源池类型数据');
+      // 从缓存中获取数据时，同时更新相关状态
+      setResourceTypeOptions(dataCache.resourceTypes.resourceTypes);
+      setResourcePools(dataCache.resourceTypes.poolTypes);
       return dataCache.resourceTypes;
     }
 
@@ -425,22 +463,11 @@ const Dashboard: React.FC = () => {
       return { resourceTypes, poolTypes };
     } catch (error) {
       console.error('获取资源池类型失败:', error);
-      // 出错时使用默认值
-      const defaultResourceTypes = ['total', 'compute', 'memory', 'storage', 'gpu', 'network'];
-      const defaultPoolTypes = [
-        { type: 'total', name: 'total' },
-        { type: 'total_intel', name: 'total_intel' },
-        { type: 'total_arm', name: 'total_arm' },
-        { type: 'total_hg', name: 'total_hg' },
-        { type: 'total_gpu', name: 'total_gpu' },
-        { type: 'total_taint', name: 'total_taint' },
-        { type: 'total_common', name: 'total_common' }
-      ];
-      
-      setResourceTypeOptions(defaultResourceTypes);
-      setResourcePools(defaultPoolTypes);
-      
-      return { resourceTypes: defaultResourceTypes, poolTypes: defaultPoolTypes };
+      // 出错时不使用默认值，保持空状态
+      setResourceTypeOptions([]);
+      setResourcePools([]);
+
+      return { resourceTypes: [], poolTypes: [] };
     }
   };
 
@@ -456,14 +483,32 @@ const Dashboard: React.FC = () => {
       console.log('从API获取集群列表数据');
       // 通过API获取集群列表
       const response = await clusterService.getClusters();
-      const clustersData = response.list.map(cluster => ({
-        id: cluster.id,
-        name: cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`,
-        idc: cluster.idc,
-        zone: cluster.zone,
-        room: cluster.room,
-        status: cluster.status
-      }));
+      const clustersData = response.list.map(cluster => {
+        // 从集群名中解析room信息
+        let roomFromName = '';
+        if (cluster.clusterName) {
+          // 集群名格式为 ${idc}-${zone}${room}-calico|flannel-xxx
+          // 例如: bj-zone1room2-calico-xxx 或 sh-zone3room5-flannel-xxx
+          const matches = cluster.clusterName.match(/^[^-]+-[^-]+?(\d+)-(calico|flannel)-/);
+          if (matches && matches.length >= 2) {
+            // matches[1]是room数字
+            roomFromName = matches[1];
+          } 
+          // 如果没有匹配到或者集群名不符合预期格式，roomFromName 保持初始的空字符串状态，这样在UI上会显示 room = ''
+
+        }
+
+        return {
+          id: cluster.id,
+          name: cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`,
+          // 直接使用API返回的idc和zone字段
+          idc: cluster.idc || '',
+          zone: cluster.zone || '',
+          // room仍然从集群名中解析
+          room: roomFromName || '',
+          status: cluster.status
+        };
+      });
       setClusters(clustersData);
 
       // 更新缓存
@@ -513,11 +558,16 @@ const Dashboard: React.FC = () => {
       setIsDataFetching(true);
       setIsLoading(true);
       
+      // 强制刷新时清空分配数据缓存
+      if (forceRefresh) {
+        clearAllocationDataCache();
+      }
+      
       try {
         console.log('开始获取仪表板数据');
         
         // 并行获取所有数据以提高性能
-        const [statsResult, strategiesResult, ordersResult] = await Promise.allSettled([
+        const [statsResult, strategiesResult, ordersResult, orderStatsResult] = await Promise.allSettled([
           // 获取工作台统计数据
           statsApi.getDashboardStats(),
           // 获取策略列表
@@ -527,60 +577,75 @@ const Dashboard: React.FC = () => {
             orderApi.getOrders({ status: 'pending', page: 1, pageSize: 10 }),
             orderApi.getOrders({ status: 'processing', page: 1, pageSize: 10 }),
             orderApi.getOrders({ status: 'completed', page: 1, pageSize: 10 }),
+            orderApi.getOrders({ status: 'cancelled', page: 1, pageSize: 10 }),
             orderApi.getOrders({ page: 1, pageSize: 10 })
-          ])
+          ]),
+          // 获取订单统计数据
+          statsApi.getOrderStats('week')
         ]);
 
-        // 处理统计数据
+        // 处理结果
         if (statsResult.status === 'fulfilled') {
           setStats(statsResult.value);
-        } else {
-          console.error('获取工作台统计数据失败:', statsResult.reason);
-          if (process.env.NODE_ENV === 'development') {
-            console.info('使用默认统计数据作为后备');
-          }
         }
 
-        // 处理策略数据
         if (strategiesResult.status === 'fulfilled') {
           setStrategies(strategiesResult.value);
-        } else {
-          console.error('获取策略列表失败:', strategiesResult.reason);
         }
 
-        // 处理订单数据
         if (ordersResult.status === 'fulfilled') {
-          const [pendingOrdersData, processingOrdersData, completedOrdersData, allOrdersData] = ordersResult.value;
+          const [pendingOrdersData, processingOrdersData, completedOrdersData, cancelledOrdersData, allOrdersData] = ordersResult.value;
           
-          const pendingOrdersList = pendingOrdersData.list;
-          setPendingOrders(pendingOrdersList);
-          setProcessingOrders(processingOrdersData.list);
-          setCompletedOrders(completedOrdersData.list);
-          setAllOrders(allOrdersData);
+          // 为订单获取实际分配率数据
+          const enhanceOrdersWithAllocationData = async (orders: OrderListItem[]) => {
+            const enhancedOrders = await Promise.all(
+              orders.map(async (order) => {
+                try {
+                  return await fetchOrderAllocationData(order);
+                } catch (error) {
+                  console.warn(`获取订单 ${order.id} 分配率数据失败:`, error);
+                  return { ...order, hasAllocationData: false };
+                }
+              })
+            );
+            return enhancedOrders;
+          };
 
-          // 注意：集群选择逻辑已移至初始化函数中，避免重复调用
-          // fetchData函数只负责获取数据，不负责集群选择
-        } else {
-          console.error('获取订单数据失败:', ordersResult.reason);
+          // 并行获取所有订单的分配率数据
+          const [enhancedPendingOrders, enhancedProcessingOrders, enhancedCompletedOrders, enhancedCancelledOrders] = await Promise.all([
+            enhanceOrdersWithAllocationData(pendingOrdersData.list),
+            enhanceOrdersWithAllocationData(processingOrdersData.list),
+            enhanceOrdersWithAllocationData(completedOrdersData.list),
+            enhanceOrdersWithAllocationData(cancelledOrdersData.list)
+          ]);
+
+          setPendingOrders(enhancedPendingOrders);
+          setProcessingOrders(enhancedProcessingOrders);
+          setCompletedOrders(enhancedCompletedOrders);
+          setCancelledOrders(enhancedCancelledOrders);
+          
+          // 为allOrders也更新分配率数据
+          const enhancedAllOrdersList = await enhanceOrdersWithAllocationData(allOrdersData.list);
+          setAllOrders({
+            ...allOrdersData,
+            list: enhancedAllOrdersList
+          });
         }
 
-        // 更新缓存时间
-        setDataCache(prev => ({
-          ...prev,
-          lastFetchTime: {
-            ...prev.lastFetchTime,
-            dashboard: Date.now()
-          }
-        }));
+        if (orderStatsResult.status === 'fulfilled') {
+          setOrderStats(orderStatsResult.value);
+        }
 
-        console.log('仪表板数据获取完成');
+        setIsLoading(false);
+        setIsDataFetching(false);
       } catch (error) {
-        console.error('加载工作台数据失败:', error);
-      } finally {
+        console.error('Error fetching data:', error);
+        setOrdersError('获取数据失败');
+        setOrdersLoading(false);
         setIsLoading(false);
         setIsDataFetching(false);
       }
-    }, 300); // 300ms 防抖延迟
+    }, 500);
   };
 
   // 清理定时器
@@ -835,6 +900,22 @@ const Dashboard: React.FC = () => {
     if (typesToUse.length > 0) {
       fetchResourceTrend(clusterId, range, typesToUse);
     }
+    
+    // 如果勾选了"同集群Room"，筛选出相同Room的集群
+    if (filterBySameRoom) {
+      const selectedCluster = clusters.find(c => c.id === clusterId);
+      if (selectedCluster && selectedCluster.room) {
+        // 筛选出相同Room的集群，并保存到状态中以便UI显示
+        const sameRoomClusters = clusters.filter(
+          c => c.room === selectedCluster.room && c.id !== clusterId
+        );
+        
+        // 可以根据需要显示提示信息
+        if (sameRoomClusters.length > 0) {
+          message.info(`找到${sameRoomClusters.length}个相同Room(${selectedCluster.room})的其他集群`);
+        }
+      }
+    }
   };
 
   // 使用局部加载状态，避免整个页面重新渲染
@@ -1032,7 +1113,7 @@ const Dashboard: React.FC = () => {
             <div className="resource-info-card">
               <div className="resource-header">
                 <ClusterOutlined style={{ marginRight: 8, color: '#1890ff' }} />
-                资源池: {order.resourcePoolType || 'total'}
+                资源池: {(order.resourcePoolType === 'compute' ? '' : order.resourcePoolType) || 'total'}
               </div>
               <div className="resource-grid">
                 <div>
@@ -1042,14 +1123,20 @@ const Dashboard: React.FC = () => {
                       color: getCpuColor(order),
                       fontWeight: 'bold' 
                     }}>
-                      {getCpuValue(order)}%
-                      {order.actionType === 'pool_entry' ? <ArrowUpOutlined style={{ fontSize: 12 }} /> : <ArrowDownOutlined style={{ fontSize: 12 }} />}
+                      {getCpuDisplayText(order)}
+                      {order.hasAllocationData !== false && (order.actionType === 'pool_entry' ? <ArrowUpOutlined style={{ fontSize: 12 }} /> : <ArrowDownOutlined style={{ fontSize: 12 }} />)}
+                      {order.hasAllocationData === true ? 
+                        <Tooltip title="实时数据"><Badge status="success" style={{ marginLeft: 4 }} /></Tooltip> : 
+                        order.hasAllocationData === false ?
+                        <Tooltip title="暂无数据"><Badge status="default" style={{ marginLeft: 4 }} /></Tooltip> :
+                        <Tooltip title="模拟数据"><Badge status="default" style={{ marginLeft: 4 }} /></Tooltip>
+                      }
                     </span>
                   </div>
                   <Progress
                     percent={getCpuValue(order)}
                     size="small"
-                    status={getCpuValue(order) >= 80 ? "exception" : "normal"}
+                    status={order.hasAllocationData === false ? "normal" : (getCpuValue(order) >= 80 ? "exception" : "normal")}
                     strokeColor={getCpuColor(order)}
                     strokeWidth={8}
                   />
@@ -1061,14 +1148,20 @@ const Dashboard: React.FC = () => {
                       color: getMemColor(order),
                       fontWeight: 'bold' 
                     }}>
-                      {getMemValue(order)}%
-                      {order.actionType === 'pool_entry' ? <ArrowUpOutlined style={{ fontSize: 12 }} /> : <ArrowDownOutlined style={{ fontSize: 12 }} />}
+                      {getMemDisplayText(order)}
+                      {order.hasAllocationData !== false && (order.actionType === 'pool_entry' ? <ArrowUpOutlined style={{ fontSize: 12 }} /> : <ArrowDownOutlined style={{ fontSize: 12 }} />)}
+                      {order.hasAllocationData === true ? 
+                        <Tooltip title="实时数据"><Badge status="success" style={{ marginLeft: 4 }} /></Tooltip> : 
+                        order.hasAllocationData === false ?
+                        <Tooltip title="暂无数据"><Badge status="default" style={{ marginLeft: 4 }} /></Tooltip> :
+                        <Tooltip title="模拟数据"><Badge status="default" style={{ marginLeft: 4 }} /></Tooltip>
+                      }
                     </span>
                   </div>
                   <Progress
                     percent={getMemValue(order)}
                     size="small"
-                    status={getMemValue(order) >= 80 ? "exception" : "normal"}
+                    status={order.hasAllocationData === false ? "normal" : (getMemValue(order) >= 80 ? "exception" : "normal")}
                     strokeColor={getMemColor(order)}
                     strokeWidth={8}
                   />
@@ -1076,11 +1169,17 @@ const Dashboard: React.FC = () => {
               </div>
               <Alert
                 message={
-                  order.actionType === 'pool_entry' ?
-                    `CPU分配率已超过阈值(80%)，需添加节点提升集群容量` :
-                    `CPU分配率低于阈值(55%)，可回收闲置节点`
+                  order.hasAllocationData === false ?
+                    '暂无分配率数据，无法评估集群状态' :
+                    order.actionType === 'pool_entry' ?
+                      `CPU分配率已超过阈值(80%)，需添加节点提升集群容量` :
+                      `CPU分配率低于阈值(55%)，可回收闲置节点`
                 }
-                type={order.actionType === 'pool_entry' ? "error" : "warning"}
+                type={
+                  order.hasAllocationData === false ?
+                    "info" :
+                    order.actionType === 'pool_entry' ? "error" : "warning"
+                }
                 showIcon
                 style={{ marginTop: 12 }}
                 banner
@@ -1089,12 +1188,20 @@ const Dashboard: React.FC = () => {
           )}
         </div>
         <div className="order-card-footer">
-          <Button type="link" icon={<EyeOutlined />} onClick={(e) => {
-            e.stopPropagation();
-            handleViewOrderDetails(order.id);
-          }}>
-            查看详情
-          </Button>
+          <Space>
+            <Button type="link" icon={<EyeOutlined />} onClick={(e) => {
+              e.stopPropagation();
+              handleViewOrderDetails(order.id);
+            }}>
+              查看详情
+            </Button>
+            <Button type="link" icon={<CopyOutlined />} onClick={(e) => {
+              e.stopPropagation();
+              handleCloneOrder(order);
+            }}>
+              克隆
+            </Button>
+          </Space>
           {isPendingSection && order.status === 'pending' && (
             <>
               <Button
@@ -1144,8 +1251,8 @@ const Dashboard: React.FC = () => {
     const pendingCount = pendingOrders.length;
     const processingCount = processingOrders.length;
     const completedCount = completedOrders.length;
-    // 假设忽略的订单数量，实际应从API获取
-    const ignoredCount = 2;
+    // 使用已取消订单列表的长度
+    const cancelledCount = cancelledOrders.length;
     const totalCount = allOrders.total;
 
     return (
@@ -1163,8 +1270,8 @@ const Dashboard: React.FC = () => {
           <div className="order-status-label">已完成</div>
         </div>
         <div className="order-status-item">
-          <div className="order-status-value order-status-ignored">{ignoredCount}</div>
-          <div className="order-status-label">已忽略</div>
+          <div className="order-status-value order-status-cancelled">{cancelledCount}</div>
+          <div className="order-status-label">已取消</div>
         </div>
         <div className="order-status-item">
           <div className="order-status-value">{totalCount}</div>
@@ -1220,14 +1327,14 @@ const Dashboard: React.FC = () => {
 
   // 初始化订单状态图表
   useEffect(() => {
-    // 检查是否有订单数据
-    if (pendingOrders && processingOrders && completedOrders) {
+    // 检查是否有订单数据和订单统计数据
+    if (pendingOrders && processingOrders && completedOrders && orderStats) {
       const pendingCount = pendingOrders.length;
       const processingCount = processingOrders.length;
       const completedCount = completedOrders.length;
 
-      // 假设忽略的订单数量，实际应从API获取
-      const ignoredCount = 2;
+      // 使用API返回的已取消订单数量
+      const cancelledCount = orderStats.cancelledCount || 0;
 
       // 设置饼图数据
       setOrderStatusData({
@@ -1280,8 +1387,8 @@ const Dashboard: React.FC = () => {
                 itemStyle: { color: '#52c41a' }
               },
               {
-                value: ignoredCount,
-                name: '已忽略',
+                value: cancelledCount,
+                name: '已取消',
                 itemStyle: { color: '#8c8c8c' }
               }
             ]
@@ -1289,6 +1396,7 @@ const Dashboard: React.FC = () => {
         ]
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingOrders, processingOrders, completedOrders]);
 
   // 处理查看订单详情
@@ -1325,17 +1433,17 @@ const Dashboard: React.FC = () => {
   // 忽略订单
   const ignoreOrder = async (orderId: number) => {
     try {
-      // 更新订单状态为已忽略
-      await orderApi.updateOrderStatus(orderId, 'ignored');
+      // 更新订单状态为已取消
+      await orderApi.updateOrderStatus(orderId, 'cancelled');
 
       // 提示用户
-      message.success('订单已忽略');
+      message.success('订单已取消');
 
       // 刷新订单列表
       fetchData(true);
     } catch (error) {
       console.error('Error ignoring order:', error);
-      message.error('忽略订单失败');
+      message.error('取消订单失败');
     }
   };
 
@@ -1402,13 +1510,12 @@ const Dashboard: React.FC = () => {
 
   // 添加资源类型多选
   const renderResourceTypeSelector = () => {
-    const resourceTypeOptions = [
-      { label: '所有资源', value: 'total' },
-      { label: '计算资源', value: 'compute' },
-      { label: '内存资源', value: 'memory' },
-      { label: '存储资源', value: 'storage' },
-      { label: '网络资源', value: 'network' },
-    ];
+    // 使用从后端获取的资源池类型数据，而不是硬编码的选项
+    const options = resourcePools.map(pool => ({
+      label: pool.type,
+      value: pool.type
+    }));
+
 
     return (
       <Select
@@ -1432,9 +1539,9 @@ const Dashboard: React.FC = () => {
         maxTagCount={2}
         allowClear
       >
-        {resourceTypeOptions.map(option => (
+        {options.map(option => (
           <Option key={option.value} value={option.value}>
-            {option.label}
+            {option.value === 'compute' ? '' : option.label}
           </Option>
         ))}
       </Select>
@@ -1457,7 +1564,7 @@ const Dashboard: React.FC = () => {
         >
           <Select mode="multiple" placeholder="请选择资源类型">
             {resourceTypeOptions.map(type => (
-              <Option key={type} value={type}>{type}</Option>
+              <Option key={type} value={type}>{type === 'compute' ? '' : type}</Option>
             ))}
           </Select>
         </Form.Item>
@@ -1467,13 +1574,87 @@ const Dashboard: React.FC = () => {
     );
   };
 
+  // 获取订单的实际分配率数据
+  const fetchOrderAllocationData = async (order: OrderListItem): Promise<OrderListItem> => {
+    const cacheKey = `${order.clusterName}-${order.resourcePoolType || 'total'}`;
+    
+    // 检查缓存
+    if (allocationDataCache.current.has(cacheKey)) {
+      const cachedData = allocationDataCache.current.get(cacheKey);
+      return {
+        ...order,
+        actualCpuAllocation: cachedData?.cpu_rate,
+        actualMemAllocation: cachedData?.memory_rate,
+        hasAllocationData: cachedData !== null
+      };
+    }
+
+    try {
+      const allocationData = await getResourcePoolAllocationRate(
+        order.clusterName,
+        order.resourcePoolType || 'total'
+      );
+      
+      // 缓存结果（包括null结果）
+      allocationDataCache.current.set(cacheKey, allocationData);
+      
+      if (allocationData) {
+        return {
+          ...order,
+          actualCpuAllocation: allocationData.cpu_rate,
+          actualMemAllocation: allocationData.memory_rate,
+          hasAllocationData: true
+        };
+      } else {
+        // 没有数据时保持原有mock数据但标记为无实际数据
+        return {
+          ...order,
+          hasAllocationData: false
+        };
+      }
+    } catch (error) {
+      console.warn('获取分配率数据失败:', error);
+      // 缓存错误结果
+      allocationDataCache.current.set(cacheKey, null);
+      return {
+        ...order,
+        hasAllocationData: false
+      };
+    }
+  };
+
+  // 分配数据缓存
+  const allocationDataCache = useRef<Map<string, any>>(new Map());
+
+  // 清空分配数据缓存
+  const clearAllocationDataCache = () => {
+    allocationDataCache.current.clear();
+  };
+
   // 获取CPU分配率值
   const getCpuValue = (order: OrderListItem): number => {
-    return order.cpuAllocation || (order.actionType === 'pool_entry' ? 85 : 30);
+    // 只使用实际数据，不使用mock数据
+    if (order.hasAllocationData && order.actualCpuAllocation !== undefined) {
+      return order.actualCpuAllocation;
+    }
+    // 没有实际数据时返回0
+    return 0;
+  };
+
+  // 获取CPU分配率显示文本
+  const getCpuDisplayText = (order: OrderListItem): string => {
+    if (order.hasAllocationData === false) {
+      return '暂无数据';
+    }
+    return `${getCpuValue(order)}%`;
   };
 
   // 获取CPU分配率颜色
   const getCpuColor = (order: OrderListItem): string => {
+    // 没有数据时显示灰色
+    if (order.hasAllocationData === false) {
+      return '#d9d9d9';
+    }
     const value = getCpuValue(order);
     if (value >= 80) return '#f5222d'; // 红色
     if (value >= 70) return '#faad14'; // 黄色
@@ -1483,11 +1664,28 @@ const Dashboard: React.FC = () => {
 
   // 获取内存分配率值
   const getMemValue = (order: OrderListItem): number => {
-    return order.memAllocation || (order.actionType === 'pool_entry' ? 75 : 35);
+    // 只使用实际数据，不使用mock数据
+    if (order.hasAllocationData && order.actualMemAllocation !== undefined) {
+      return order.actualMemAllocation;
+    }
+    // 没有实际数据时返回0
+    return 0;
+  };
+
+  // 获取内存分配率显示文本
+  const getMemDisplayText = (order: OrderListItem): string => {
+    if (order.hasAllocationData === false) {
+      return '暂无数据';
+    }
+    return `${getMemValue(order)}%`;
   };
 
   // 获取内存分配率颜色
   const getMemColor = (order: OrderListItem): string => {
+    // 没有数据时显示灰色
+    if (order.hasAllocationData === false) {
+      return '#d9d9d9';
+    }
     const value = getMemValue(order);
     if (value >= 80) return '#f5222d'; // 红色
     if (value >= 70) return '#faad14'; // 黄色
@@ -1507,6 +1705,74 @@ const Dashboard: React.FC = () => {
     if (numValue >= 55) return '#52c41a'; // 绿色 - 正常 (>=55%)
     return '#1890ff'; // 蓝色 - 低使用率 (<55%)
   };
+
+  // 添加是否筛选同集群Room的状态
+  const [filterBySameRoom, setFilterBySameRoom] = useState<boolean>(false);
+  // 添加是否筛选同集群IDC的状态
+  const [filterBySameIDC, setFilterBySameIDC] = useState<boolean>(false);
+
+  // 筛选集群的函数
+  const getFilteredClusters = () => {
+    if ((!filterBySameRoom && !filterBySameIDC) || !selectedClusterId) {
+      // 如果没有选择集群或没有勾选任何筛选项，返回全部集群
+      return clusters;
+    }
+    
+    const selectedCluster = clusters.find(c => c.id === selectedClusterId);
+    if (!selectedCluster) {
+      return clusters;
+    }
+    
+    // 根据选中的筛选条件进行筛选
+    return clusters.filter(c => {
+      // 如果勾选了同集群Room，需要匹配room
+      if (filterBySameRoom && (!selectedCluster.room || c.room !== selectedCluster.room)) {
+        return false;
+      }
+      
+      // 如果勾选了同集群IDC，需要匹配idc
+      if (filterBySameIDC && (!selectedCluster.idc || c.idc !== selectedCluster.idc)) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // 当筛选条件变化时处理筛选
+  useEffect(() => {
+    // 如果当前没有选中任何集群，则不需要处理
+    if (!selectedClusterId) return;
+    
+    const selectedCluster = clusters.find(c => c.id === selectedClusterId);
+    if (!selectedCluster) return;
+    
+    // 如果开启了Room筛选但当前选中的集群没有room信息，显示提示
+    if (filterBySameRoom && !selectedCluster.room) {
+      message.warning('当前选中的集群没有Room信息，无法筛选同Room集群');
+    }
+    
+    // 如果开启了IDC筛选但当前选中的集群没有idc信息，显示提示
+    if (filterBySameIDC && !selectedCluster.idc) {
+      message.warning('当前选中的集群没有IDC信息，无法筛选同IDC集群');
+    }
+    
+    // 如果有筛选条件被启用，更新筛选后的集群列表
+    if (filterBySameRoom || filterBySameIDC) {
+      const filteredClusters = getFilteredClusters();
+      if (filteredClusters.length <= 1) {
+        message.info('根据当前筛选条件，没有找到其他匹配的集群');
+      } else {
+        const filterConditions = [];
+        if (filterBySameRoom && selectedCluster.room) filterConditions.push(`Room(${selectedCluster.room})`);
+        if (filterBySameIDC && selectedCluster.idc) filterConditions.push(`IDC(${selectedCluster.idc})`);
+        
+        if (filterConditions.length > 0) {
+          message.info(`已筛选出${filteredClusters.length}个满足${filterConditions.join('和')}条件的集群`);
+        }
+      }
+    }
+  }, [filterBySameRoom, filterBySameIDC, selectedClusterId, clusters]);
 
   return (
     <div className="dashboard">
@@ -1623,15 +1889,21 @@ const Dashboard: React.FC = () => {
         title="资源用量趋势"
         extra={
           <Space>
+
             <Select
               value={selectedClusterId}
               style={{ width: 150 }}
               onChange={(value) => handleTrendParamsChange(value, selectedTimeRange, selectedResourceTypes)}
               placeholder="选择集群"
+              optionLabelProp="label"
             >
-              {clusters.map(cluster => (
-                <Option key={cluster.id} value={cluster.id}>
-                  {cluster.name || cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`}
+              {getFilteredClusters().map(cluster => (
+                <Option 
+                  key={cluster.id} 
+                  value={cluster.id}
+                  label={cluster.name || `集群-${cluster.id}`}
+                >
+                  <span>{cluster.name || cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`}</span>
                 </Option>
               ))}
             </Select>
@@ -1792,7 +2064,7 @@ const Dashboard: React.FC = () => {
               style={{ width: 100 }}
               onChange={(value) => {
                 // 检查选择的状态是否是标准标签页之一
-                const standardTabs = ['processing', 'completed', 'ignored', 'all'];
+                const standardTabs = ['processing', 'completed', 'cancelled', 'all'];
                 if (standardTabs.includes(value)) {
                   setOrderStatusFilter(value);
                   setCustomTabVisible(false);
@@ -1806,10 +2078,9 @@ const Dashboard: React.FC = () => {
             >
               <Option value="processing">处理中</Option>
               <Option value="completed">已完成</Option>
-              <Option value="ignored">已忽略</Option>
+              <Option value="cancelled">已取消</Option>
               <Option value="all">全部</Option>
               <Option value="failed">失败</Option>
-              <Option value="cancelled">已取消</Option>
               <Option value="expired">已过期</Option>
             </Select>
             <Select defaultValue="7d" style={{ width: 100 }}>
@@ -1905,7 +2176,7 @@ const Dashboard: React.FC = () => {
                   <span>
                     <Badge status="default" color="#8c8c8c" />
                     已取消订单
-                    <span className={`order-count-badge ${cancelledOrders && cancelledOrders.length > 0 ? 'ignored' : 'empty'}`}>
+                    <span className={`order-count-badge ${cancelledOrders && cancelledOrders.length > 0 ? 'cancelled' : 'empty'}`}>
                       {cancelledOrders ? cancelledOrders.length : 0}
                     </span>
                   </span>
@@ -2275,7 +2546,7 @@ const Dashboard: React.FC = () => {
                           }}
                         >
                           <DatabaseOutlined style={{ marginRight: 4, fontSize: '12px' }} />
-                          {label}
+                          {value === 'compute' ? '' : label}
                         </Tag>
                       );
                     }}
@@ -2283,7 +2554,7 @@ const Dashboard: React.FC = () => {
                     {resourcePools.map(pool => (
                       <Option key={pool.type} value={pool.type}>
                         <DatabaseOutlined style={{ marginRight: 4, color: '#1890ff' }} />
-                        {pool.type}
+                        {pool.type === 'compute' ? '' : pool.type}
                       </Option>
                     ))}
                   </Select>
@@ -2684,7 +2955,7 @@ const Dashboard: React.FC = () => {
                           }}
                         >
                           <DatabaseOutlined style={{ marginRight: 4, fontSize: '12px' }} />
-                          {label}
+                          {value === 'compute' ? '' : label}
                         </Tag>
                       );
                     }}
@@ -2692,7 +2963,7 @@ const Dashboard: React.FC = () => {
                     {resourcePools.map(pool => (
                       <Option key={pool.type} value={pool.type}>
                         <DatabaseOutlined style={{ marginRight: 4, color: '#1890ff' }} />
-                        {pool.type}
+                        {pool.type === 'compute' ? '' : pool.type}
                       </Option>
                     ))}
                   </Select>
@@ -2899,11 +3170,13 @@ const Dashboard: React.FC = () => {
 
       {/* 创建订单模态框 */}
       <CreateOrderModal
+        ref={createOrderModalRef}
         visible={createOrderModalVisible}
         onCancel={handleCloseCreateOrderModal}
         onSubmit={handleCreateOrderSubmit}
         clusters={clusters}
         resourcePools={resourcePools}
+        initialValues={clonedOrderInfo} // 传递克隆的订单信息
       />
     </div>
   );

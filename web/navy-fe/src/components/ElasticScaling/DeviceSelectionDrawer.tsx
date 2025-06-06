@@ -38,6 +38,7 @@ interface DeviceSelectionDrawerProps {
   onClose: () => void;
   onSelectDevices: (devices: Device[]) => void;
   filterGroups?: FilterGroup[];
+  appliedFilters?: any[];
   selectedDevices: Device[];
   loading?: boolean;
   simpleMode?: boolean; // 是否使用简单模式（只显示关键字搜索）
@@ -48,6 +49,7 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   onClose,
   onSelectDevices,
   filterGroups = [],
+  appliedFilters = [], // 添加 appliedFilters 的解构和默认值
   selectedDevices,
   loading: externalLoading,
   simpleMode = false
@@ -505,18 +507,33 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
             </Card>
           )}
 
-          <div style={{ 
-            marginBottom: 16, 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
+          <div style={{
+            marginBottom: 16,
             backgroundColor: '#fff',
             padding: '12px 16px',
             borderRadius: '6px',
             border: '1px solid #f0f0f0'
           }}>
-            <Text strong>根据筛选条件找到的设备列表，请选择需要添加到订单的设备：</Text>
-            <Text type="secondary">共 {pagination.total} 条记录</Text>
+            {appliedFilters && appliedFilters.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <Text strong style={{ marginRight: '8px' }}>当前筛选条件:</Text>
+                {appliedFilters.map((filterGroup: any, groupIndex: number) => (
+                  <React.Fragment key={`group-${groupIndex}`}>
+                    {filterGroup.blocks?.map((filter: any, filterIndex: number) => {
+                      return (
+                         <Tag key={`filter-${groupIndex}-${filterIndex}`} color="blue" style={{ margin: '2px' }}>
+                           {filter.label}
+                         </Tag>
+                       );
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text strong>根据筛选条件找到的设备列表，请选择需要添加到订单的设备：</Text>
+              <Text type="secondary">共 {pagination.total} 条记录</Text>
+            </div>
           </div>
 
           <div style={{ 

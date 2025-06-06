@@ -27,6 +27,7 @@ func (h *ClusterResourceHandler) RegisterRoutes(api *gin.RouterGroup) {
 	clusterResourcesGroup := api.Group("/cluster-resources")
 	{
 		clusterResourcesGroup.GET("/remaining", h.GetRemainingClusterResources)
+		clusterResourcesGroup.GET("/allocation-rate", h.GetResourcePoolAllocationRate)
 	}
 }
 
@@ -74,4 +75,48 @@ func (h *ClusterResourceHandler) GetRemainingClusterResources(c *gin.Context) {
 	// it will be rendered as such, which is acceptable.
 	// If there's a genuine calculation success, it will also be structured correctly.
 	c.JSON(http.StatusOK, resources)
+}
+
+// GetResourcePoolAllocationRate retrieves CPU and memory allocation rates for a specific cluster and resource pool.
+// @Summary Get resource pool allocation rate
+// @Description Retrieves CPU and memory allocation rates for a specific cluster and resource pool for the current day
+// @Tags Cluster Resources
+// @Accept json
+// @Produce json
+// @Param cluster_name query string true "Cluster name"
+// @Param resource_pool query string true "Resource pool name"
+// @Success 200 {object} service.ResourcePoolAllocationRateDTO "Successfully retrieved allocation rates"
+// @Failure 400 {object} render.ErrorResponse "Missing required parameters"
+// @Failure 404 {object} render.ErrorResponse "No data found for the specified cluster and resource pool"
+// @Failure 500 {object} render.ErrorResponse "Internal server error"
+// @Router /fe-v1/cluster-resources/allocation-rate [get]
+func (h *ClusterResourceHandler) GetResourcePoolAllocationRate(c *gin.Context) {
+	// Parse required parameters
+	clusterName := c.Query("cluster_name")
+	resourcePool := c.Query("resource_pool")
+
+	if clusterName == "" {
+		render.Fail(c, http.StatusBadRequest, "cluster_name parameter is required")
+		return
+	}
+
+	if resourcePool == "" {
+		render.Fail(c, http.StatusBadRequest, "resource_pool parameter is required")
+		return
+	}
+
+	// Get allocation rates for today
+	allocationRate, err := h.service.GetResourcePoolAllocationRate(clusterName, resourcePool)
+	if err != nil {
+		render.Fail(c, http.StatusInternalServerError, "Failed to get resource pool allocation rate: "+err.Error())
+		return
+	}
+
+	// Check if data was found
+	if allocationRate == nil {
+		render.Success(c, nil) // Return empty data for frontend to handle
+		return
+	}
+
+	render.Success(c, allocationRate)
 }

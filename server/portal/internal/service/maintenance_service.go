@@ -50,7 +50,7 @@ type MaintenanceResponseDTO struct {
 
 // NewMaintenanceService 创建设备维护服务
 func NewMaintenanceService(db *gorm.DB, logger *zap.Logger) *MaintenanceService {
-	// 使用默认Redis连接
+	// 创建Redis处理器
 	redisHandler := redis.NewRedisHandler("default")
 
 	// 创建设备缓存
@@ -58,8 +58,8 @@ func NewMaintenanceService(db *gorm.DB, logger *zap.Logger) *MaintenanceService 
 
 	return &MaintenanceService{
 		db:             db,
-		scalingService: NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
-		logger:         logger,                                                          // Assign logger
+		scalingService: NewElasticScalingService(db, redisHandler, logger, deviceCache),
+		logger:         logger,
 	}
 }
 
@@ -87,11 +87,14 @@ func (s *MaintenanceService) RequestMaintenance(request *MaintenanceRequestDTO) 
 		return nil, fmt.Errorf("设备不存在: %w", err)
 	}
 
-	// 检查是否已存在该设备的待处理维护订单
+	// 检查是否已存在该设备的待处理维护订单（使用新的订单表结构）
 	var existingOrderCount int64
-	err = s.db.Model(&portal.ElasticScalingOrder{}).
-		Where("device_id = ? AND action_type = 'maintenance_request' AND status IN ('pending_confirmation', 'scheduled_for_maintenance', 'maintenance_in_progress')",
-			request.DeviceID).
+	err = s.db.Table("orders o").
+		Joins("JOIN elastic_scaling_order_details d ON o.id = d.order_id").
+		Joins("JOIN order_device od ON o.id = od.order_id").
+		Where("od.device_id = ? AND d.action_type = ? AND o.type = ? AND o.status IN (?)",
+			request.DeviceID, "maintenance_request", portal.OrderTypeElasticScaling,
+			[]string{"pending_confirmation", "scheduled_for_maintenance", "maintenance_in_progress"}).
 		Count(&existingOrderCount).Error
 	if err != nil {
 		return nil, fmt.Errorf("查询现有维护订单失败: %w", err)
@@ -105,8 +108,8 @@ func (s *MaintenanceService) RequestMaintenance(request *MaintenanceRequestDTO) 
 	orderDTO := OrderDTO{
 		ClusterID:            int64(device.ClusterID), // 将int转换为int64
 		ActionType:           "maintenance_request",
-		DeviceCount:          1, // 维护订单只针对单台设备
-		DeviceID:             &request.DeviceID,
+		DeviceCount:          1,                         // 维护订单只针对单台设备
+		Devices:              []int64{request.DeviceID}, // 使用设备列表而不是单个DeviceID
 		MaintenanceStartTime: &request.MaintenanceStartTime,
 		MaintenanceEndTime:   &request.MaintenanceEndTime,
 		ExternalTicketID:     request.ExternalTicketID,
@@ -124,7 +127,7 @@ func (s *MaintenanceService) RequestMaintenance(request *MaintenanceRequestDTO) 
 	}
 
 	// 获取创建的订单信息
-	var order portal.ElasticScalingOrder
+	var order portal.Order
 	if err := s.db.First(&order, orderID).Error; err != nil {
 		return nil, fmt.Errorf("获取创建的订单失败: %w", err)
 	}
@@ -145,24 +148,28 @@ func (s *MaintenanceService) RequestMaintenance(request *MaintenanceRequestDTO) 
 // ConfirmMaintenance 确认维护请求
 func (s *MaintenanceService) ConfirmMaintenance(orderID int64, operatorID string) error {
 	// 获取订单信息
-	var order portal.ElasticScalingOrder
-	if err := s.db.First(&order, orderID).Error; err != nil {
+	var order portal.Order
+	if err := s.db.Preload("ElasticScalingDetail").First(&order, orderID).Error; err != nil {
 		return fmt.Errorf("订单不存在: %w", err)
 	}
 
 	// 验证订单类型和状态
-	if order.ActionType != "maintenance_request" {
+	if order.Type != portal.OrderTypeElasticScaling || order.ElasticScalingDetail == nil {
+		return fmt.Errorf("不是弹性伸缩订单")
+	}
+
+	if order.ElasticScalingDetail.ActionType != "maintenance_request" {
 		return fmt.Errorf("不是维护订单")
 	}
 
-	if order.Status != "pending_confirmation" {
+	if string(order.Status) != "pending_confirmation" {
 		return fmt.Errorf("订单状态不是待确认")
 	}
 
 	// 更新订单状态为已确认，等待维护
 	err := s.db.Model(&order).Updates(map[string]interface{}{
 		"status":     "scheduled_for_maintenance",
-		"approver":   operatorID,
+		"executor":   operatorID,
 		"updated_at": time.Now(),
 	}).Error
 
@@ -176,27 +183,32 @@ func (s *MaintenanceService) ConfirmMaintenance(orderID int64, operatorID string
 // StartMaintenance 开始设备维护，执行Cordon操作
 func (s *MaintenanceService) StartMaintenance(orderID int64, operatorID string) error {
 	// 获取订单信息
-	var order portal.ElasticScalingOrder
-	if err := s.db.First(&order, orderID).Error; err != nil {
+	var order portal.Order
+	if err := s.db.Preload("ElasticScalingDetail").First(&order, orderID).Error; err != nil {
 		return fmt.Errorf("订单不存在: %w", err)
 	}
 
 	// 验证订单类型和状态
-	if order.ActionType != "maintenance_request" {
+	if order.Type != portal.OrderTypeElasticScaling || order.ElasticScalingDetail == nil {
+		return fmt.Errorf("不是弹性伸缩订单")
+	}
+
+	if order.ElasticScalingDetail.ActionType != "maintenance_request" {
 		return fmt.Errorf("不是维护订单")
 	}
 
-	if order.Status != "scheduled_for_maintenance" {
+	if string(order.Status) != "scheduled_for_maintenance" {
 		return fmt.Errorf("订单状态不正确，当前状态: %s, 预期状态: scheduled_for_maintenance", order.Status)
 	}
 
-	// 获取设备信息
-	if order.DeviceID == nil {
-		return fmt.Errorf("订单没有关联设备")
+	// 获取设备信息（通过OrderDevice关联表）
+	var orderDevice portal.OrderDevice
+	if err := s.db.Where("order_id = ?", orderID).First(&orderDevice).Error; err != nil {
+		return fmt.Errorf("订单没有关联设备: %w", err)
 	}
 
 	var device portal.Device
-	if err := s.db.First(&device, *order.DeviceID).Error; err != nil {
+	if err := s.db.First(&device, orderDevice.DeviceID).Error; err != nil {
 		return fmt.Errorf("设备不存在: %w", err)
 	}
 
@@ -223,15 +235,18 @@ func (s *MaintenanceService) StartMaintenance(orderID int64, operatorID string) 
 
 // CompleteMaintenance 完成设备维护，创建Uncordon订单
 func (s *MaintenanceService) CompleteMaintenance(externalTicketID string, message string) (*MaintenanceResponseDTO, error) {
-	// 根据外部工单号查找维护订单
-	var order portal.ElasticScalingOrder
-	if err := s.db.Where("external_ticket_id = ? AND action_type = 'maintenance_request'", externalTicketID).
+	// 根据外部工单号查找维护订单（使用新的订单表结构）
+	var order portal.Order
+	if err := s.db.Preload("ElasticScalingDetail").
+		Joins("JOIN elastic_scaling_order_details d ON orders.id = d.order_id").
+		Where("d.external_ticket_id = ? AND d.action_type = ? AND orders.type = ?",
+			externalTicketID, "maintenance_request", portal.OrderTypeElasticScaling).
 		First(&order).Error; err != nil {
 		return nil, fmt.Errorf("找不到对应的维护订单: %w", err)
 	}
 
 	// 验证订单状态
-	if order.Status != "maintenance_in_progress" {
+	if string(order.Status) != "maintenance_in_progress" {
 		return nil, fmt.Errorf("订单状态不是维护中，当前状态: %s", order.Status)
 	}
 
@@ -244,17 +259,17 @@ func (s *MaintenanceService) CompleteMaintenance(externalTicketID string, messag
 	if err != nil {
 		return nil, fmt.Errorf("更新维护订单状态失败: %w", err)
 	}
-
-	// 创建Uncordon订单
-	if order.DeviceID == nil {
-		return nil, fmt.Errorf("订单没有关联设备")
+	// 获取原订单的设备信息
+	var orderDevice portal.OrderDevice
+	if err := s.db.Where("order_id = ?", order.ID).First(&orderDevice).Error; err != nil {
+		return nil, fmt.Errorf("获取订单关联设备失败: %w", err)
 	}
 
 	uncordonOrderDTO := OrderDTO{
-		ClusterID:        order.ClusterID,
+		ClusterID:        order.ElasticScalingDetail.ClusterID,
 		ActionType:       "maintenance_uncordon",
 		DeviceCount:      1,
-		DeviceID:         order.DeviceID,
+		Devices:          []int64{orderDevice.DeviceID}, // 使用相同的设备
 		ExternalTicketID: externalTicketID,
 		CreatedBy:        "system",
 	}
@@ -265,7 +280,7 @@ func (s *MaintenanceService) CompleteMaintenance(externalTicketID string, messag
 	}
 
 	// 获取创建的Uncordon订单
-	var uncordonOrder portal.ElasticScalingOrder
+	var uncordonOrder portal.Order
 	if err := s.db.First(&uncordonOrder, uncordonOrderID).Error; err != nil {
 		return nil, fmt.Errorf("获取创建的Uncordon订单失败: %w", err)
 	}
@@ -285,32 +300,37 @@ func (s *MaintenanceService) CompleteMaintenance(externalTicketID string, messag
 // ExecuteUncordon 执行Uncordon操作
 func (s *MaintenanceService) ExecuteUncordon(orderID int64, operatorID string) error {
 	// 获取订单信息
-	var order portal.ElasticScalingOrder
-	if err := s.db.First(&order, orderID).Error; err != nil {
+	var order portal.Order
+	if err := s.db.Preload("ElasticScalingDetail").First(&order, orderID).Error; err != nil {
 		return fmt.Errorf("订单不存在: %w", err)
 	}
 
 	// 验证订单类型和状态
-	if order.ActionType != "maintenance_uncordon" {
+	if order.Type != portal.OrderTypeElasticScaling || order.ElasticScalingDetail == nil {
+		return fmt.Errorf("不是弹性伸缩订单")
+	}
+
+	if order.ElasticScalingDetail.ActionType != "maintenance_uncordon" {
 		return fmt.Errorf("不是Uncordon订单")
 	}
 
-	if order.Status != "pending" && order.Status != "processing" {
+	if string(order.Status) != "pending" && string(order.Status) != "processing" {
 		return fmt.Errorf("订单状态不正确，当前状态: %s", order.Status)
 	}
 
-	// 获取设备信息
-	if order.DeviceID == nil {
-		return fmt.Errorf("订单没有关联设备")
+	// 获取设备信息（通过OrderDevice关联表）
+	var orderDevice portal.OrderDevice
+	if err := s.db.Where("order_id = ?", orderID).First(&orderDevice).Error; err != nil {
+		return fmt.Errorf("订单没有关联设备: %w", err)
 	}
 
 	var device portal.Device
-	if err := s.db.First(&device, *order.DeviceID).Error; err != nil {
+	if err := s.db.First(&device, orderDevice.DeviceID).Error; err != nil {
 		return fmt.Errorf("设备不存在: %w", err)
 	}
 
 	// 更新订单状态为处理中
-	if order.Status == "pending" {
+	if order.Status == portal.OrderStatusPending {
 		err := s.db.Model(&order).Updates(map[string]interface{}{
 			"status":         "processing",
 			"executor":       operatorID,
@@ -344,11 +364,14 @@ func (s *MaintenanceService) ExecuteUncordon(orderID int64, operatorID string) e
 
 // GetPendingMaintenanceRequests 获取所有待处理的维护请求
 func (s *MaintenanceService) GetPendingMaintenanceRequests() ([]OrderDetailDTO, error) {
-	// 查询所有待确认的维护请求
+	// 查询所有待确认的维护请求（使用新的订单表结构）
 	var orderIDs []int64
-	if err := s.db.Model(&portal.ElasticScalingOrder{}).
-		Where("action_type = 'maintenance_request' AND status IN ('pending_confirmation', 'scheduled_for_maintenance')").
-		Pluck("id", &orderIDs).Error; err != nil {
+	if err := s.db.Table("orders o").
+		Joins("JOIN elastic_scaling_order_details d ON o.id = d.order_id").
+		Where("o.type = ? AND d.action_type = ? AND o.status IN (?)",
+			portal.OrderTypeElasticScaling, "maintenance_request",
+			[]string{"pending_confirmation", "scheduled_for_maintenance"}).
+		Pluck("o.id", &orderIDs).Error; err != nil {
 		return nil, fmt.Errorf("查询待处理维护请求失败: %w", err)
 	}
 
@@ -371,11 +394,14 @@ func (s *MaintenanceService) GetPendingMaintenanceRequests() ([]OrderDetailDTO, 
 
 // GetPendingUncordonRequests 获取所有待处理的Uncordon请求
 func (s *MaintenanceService) GetPendingUncordonRequests() ([]OrderDetailDTO, error) {
-	// 查询所有待处理的Uncordon请求
+	// 查询所有待处理的Uncordon请求（使用新的订单表结构）
 	var orderIDs []int64
-	if err := s.db.Model(&portal.ElasticScalingOrder{}).
-		Where("action_type = 'maintenance_uncordon' AND status IN ('pending', 'processing')").
-		Pluck("id", &orderIDs).Error; err != nil {
+	if err := s.db.Table("orders o").
+		Joins("JOIN elastic_scaling_order_details d ON o.id = d.order_id").
+		Where("o.type = ? AND d.action_type = ? AND o.status IN (?)",
+			portal.OrderTypeElasticScaling, "maintenance_uncordon",
+			[]string{"pending", "processing"}).
+		Pluck("o.id", &orderIDs).Error; err != nil {
 		return nil, fmt.Errorf("查询待处理Uncordon请求失败: %w", err)
 	}
 

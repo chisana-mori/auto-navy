@@ -33,7 +33,7 @@ type MonitorConfig struct {
 // DefaultMonitorConfig 默认监控配置
 func DefaultMonitorConfig() MonitorConfig {
 	return MonitorConfig{
-		MonitorInterval:    5 * time.Minute,  // 每5分钟监控一次
+		MonitorInterval:    6 * time.Hour,  // 每5分钟监控一次
 		EvaluationInterval: 10 * time.Minute, // 每10分钟评估一次策略
 		LockTimeout:        30 * time.Second, // 锁超时时间30秒
 		LockRetryInterval:  1 * time.Second,  // 锁重试间隔1秒

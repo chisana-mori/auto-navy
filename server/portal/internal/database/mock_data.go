@@ -475,6 +475,7 @@ func seedK8sClusters(db *gorm.DB) ([]portal.K8sCluster, error) {
 		ApiServer:   "https://k8s-prod.example.com:6443",
 		Status:      statusRunning,
 		ClusterID:   "cluster-prod-001", // 添加唯一的 cluster_id
+		Idc:         "001",
 	}
 	if err := db.Create(&prodCluster).Error; err != nil {
 		return nil, err
@@ -486,6 +487,7 @@ func seedK8sClusters(db *gorm.DB) ([]portal.K8sCluster, error) {
 		ApiServer:   "https://k8s-test.example.com:6443",
 		Status:      statusRunning,
 		ClusterID:   "cluster-test-001", // 添加唯一的 cluster_id
+		Idc:         "002",
 	}
 	if err := db.Create(&testCluster).Error; err != nil {
 		return nil, err

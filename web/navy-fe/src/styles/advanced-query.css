@@ -178,14 +178,16 @@
 /* 添加条件下拉菜单 */
 .add-condition-dropdown {
   position: absolute;
-  bottom: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
+  top: 40px; /* 修改为顶部定位，而不是底部 */
+  right: 20px; /* 右侧定位 */
+  width: 220px;
   background-color: #fff;
+  box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08);
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 8px 0;
+  z-index: 9999; /* 增加z-index确保在最上层 */
+  border: 1px solid #f0f0f0;
+  display: block !important; /* 强制显示 */
 }
 
 .add-condition-dropdown-item {
