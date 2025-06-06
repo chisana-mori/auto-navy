@@ -13,7 +13,8 @@ import {
   Input,
   Badge,
   Tag,
-  Checkbox
+  Checkbox,
+  Dropdown
 } from 'antd';
 import {
   PlusOutlined,
@@ -23,7 +24,8 @@ import {
   CloseCircleOutlined,
   DesktopOutlined,
   TagsOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 // 使用CSS动画替代react-transition-group
 import { v4 as uuidv4 } from 'uuid';
@@ -43,6 +45,7 @@ import {
   getTaintValues,
   getDeviceFieldValues
 } from '../../services/deviceQueryService';
+import ReactDOM from 'react-dom';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -92,7 +95,9 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
   const [deviceFieldValues, setDeviceFieldValues] = useState<Record<string, FilterOption[]>>({});
   const [loadingValues, setLoadingValues] = useState(false);
 
-  // --- Data Fetching Callbacks ---
+  // 在组件开始部分添加必要的状态和引用
+  const [activeDropdownGroupId, setActiveDropdownGroupId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // 获取标签值
   const fetchLabelValues = useCallback(async (key: string) => {
@@ -614,6 +619,17 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               </Text>
             )}
           </Space>
+          
+          {/* 删除筛选条件按钮，使用div+Tooltip样式 */}
+          <div
+            className="delete-block-button"
+            onClick={() => removeFilterBlock(groupId, block.id)}
+            style={{ cursor: 'pointer', padding: '4px' }}
+          >
+            <Tooltip title="删除此条件">
+              <DeleteOutlined style={{ fontSize: '16px', color: '#ff4d4f' }} />
+            </Tooltip>
+          </div>
         </div>
         <div className="filter-block-content" style={{ padding: '12px 16px' }}>
           {/* 字段选择 */}
@@ -721,20 +737,30 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     );
   };
 
-  // 添加状态管理
-  const [activeDropdownGroupId, setActiveDropdownGroupId] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // 切换下拉菜单状态
+  // 修改toggleDropdown函数，添加更多日志
   const toggleDropdown = (groupId: string) => {
-    if (activeDropdownGroupId === groupId) {
-      setActiveDropdownGroupId(null);
-    } else {
+    console.log('Toggle dropdown for group:', groupId, 'Current active:', activeDropdownGroupId);
+    
+    // 强制关闭其他下拉菜单
+    setActiveDropdownGroupId(null);
+    
+    // 延迟一下再打开当前下拉菜单，避免立即关闭
+    setTimeout(() => {
+      console.log('Setting active dropdown to:', groupId);
       setActiveDropdownGroupId(groupId);
-    }
+      
+      // 添加调试信息
+      setTimeout(() => {
+        const dropdown = document.querySelector('.add-condition-dropdown');
+        console.log('Dropdown element:', dropdown);
+        if (dropdown) {
+          console.log('Dropdown style:', window.getComputedStyle(dropdown));
+        }
+      }, 100);
+    }, 50);
   };
 
-  // 点击外部关闭下拉菜单
+  // 添加点击外部关闭下拉菜单的逻辑
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -748,38 +774,55 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     };
   }, []);
 
-  // 渲染添加条件下拉菜单
+  // 修改renderAddConditionDropdown函数，使用Portal渲染
   const renderAddConditionDropdown = (groupId: string) => {
     if (activeDropdownGroupId !== groupId) return null;
 
-    const dropdownItemStyle = {
-      padding: '8px 16px',
-      display: 'flex',
-      alignItems: 'center',
-      cursor: 'pointer',
-      transition: 'background-color 0.3s'
+    console.log('Rendering dropdown for group:', groupId);
+
+    // 获取按钮元素的位置
+    const buttonElement = document.querySelector(`[data-group-id="${groupId}"]`);
+    if (!buttonElement) {
+      console.error('Button element not found');
+      return null;
+    }
+
+    const rect = buttonElement.getBoundingClientRect();
+    console.log('Button position:', rect);
+
+    // 使用内联样式确保可见
+    const dropdownStyle: React.CSSProperties = {
+      position: 'fixed',
+      top: `${rect.bottom + window.scrollY}px`,
+      left: `${rect.left + window.scrollX}px`,
+      width: '220px',
+      backgroundColor: '#fff',
+      boxShadow: '0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08)',
+      borderRadius: '4px',
+      padding: '8px 0',
+      zIndex: 9999,
+      border: '1px solid #f0f0f0',
+      display: 'block'
     };
 
-    return (
-      <div className="add-condition-dropdown" ref={dropdownRef} style={{
-        position: 'absolute',
-        top: '40px',
-        right: '20px',
-        width: '220px',
-        backgroundColor: '#fff',
-        boxShadow: '0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08)',
-        borderRadius: '4px',
-        padding: '8px 0',
-        zIndex: 1000,
-        border: '1px solid #f0f0f0'
-      }}>
+    const itemStyle: React.CSSProperties = {
+      padding: '8px 16px', 
+      display: 'flex', 
+      alignItems: 'center', 
+      cursor: 'pointer'
+    };
+
+    const content = (
+      <div className="add-condition-dropdown" ref={dropdownRef} style={dropdownStyle}>
         <div
           className="add-condition-dropdown-item"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            console.log('Adding device filter block');
             addFilterBlock(groupId, FilterType.Device);
             setActiveDropdownGroupId(null);
           }}
-          style={dropdownItemStyle}
+          style={itemStyle}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
@@ -788,11 +831,13 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
         </div>
         <div
           className="add-condition-dropdown-item"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            console.log('Adding node label filter block');
             addFilterBlock(groupId, FilterType.NodeLabel);
             setActiveDropdownGroupId(null);
           }}
-          style={dropdownItemStyle}
+          style={itemStyle}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
@@ -801,11 +846,13 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
         </div>
         <div
           className="add-condition-dropdown-item"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            console.log('Adding taint filter block');
             addFilterBlock(groupId, FilterType.Taint);
             setActiveDropdownGroupId(null);
           }}
-          style={dropdownItemStyle}
+          style={itemStyle}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
@@ -814,10 +861,64 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
         </div>
       </div>
     );
+
+    // 使用Portal将下拉菜单渲染到body中
+    return ReactDOM.createPortal(content, document.body);
   };
 
   // 渲染筛选组
   const renderFilterGroup = (group: FilterGroup) => {
+    // 创建下拉菜单项
+    const menu = {
+      items: [
+        {
+          key: 'device',
+          label: (
+            <div 
+              style={{ display: 'flex', alignItems: 'center' }}
+              onClick={() => {
+                console.log('Adding device filter block');
+                addFilterBlock(group.id, FilterType.Device);
+              }}
+            >
+              <DesktopOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+              <span>添加设备字段条件</span>
+            </div>
+          ),
+        },
+        {
+          key: 'nodeLabel',
+          label: (
+            <div 
+              style={{ display: 'flex', alignItems: 'center' }}
+              onClick={() => {
+                console.log('Adding node label filter block');
+                addFilterBlock(group.id, FilterType.NodeLabel);
+              }}
+            >
+              <TagsOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
+              <span>添加节点标签条件</span>
+            </div>
+          ),
+        },
+        {
+          key: 'taint',
+          label: (
+            <div 
+              style={{ display: 'flex', alignItems: 'center' }}
+              onClick={() => {
+                console.log('Adding taint filter block');
+                addFilterBlock(group.id, FilterType.Taint);
+              }}
+            >
+              <ExclamationCircleOutlined style={{ color: '#fa8c16', marginRight: '8px' }} />
+              <span>添加节点污点条件</span>
+            </div>
+          ),
+        },
+      ],
+    };
+
     return (
       <Card 
         key={group.id} 
@@ -865,18 +966,36 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
             ))}
 
             <div className="filter-group-bottom-actions">
-              {/* 浮动添加按钮 */}
+              {/* 使用Dropdown组件替换原来的添加条件按钮 */}
+              <Dropdown menu={menu} trigger={['click']} placement="bottomRight">
+                <div
+                  className="add-condition-button"
+                  data-group-id={group.id}
+                  onClick={(e) => {
+                    e.stopPropagation(); // 阻止事件冒泡
+                    console.log('Clicked add condition button');
+                  }}
+                >
+                  <Tooltip title="添加条件">
+                    <PlusOutlined style={{ fontSize: '18px', color: '#1890ff' }} />
+                  </Tooltip>
+                </div>
+              </Dropdown>
+              
+              {/* 删除所有条件按钮，使用div+Tooltip样式 */}
               <div
-                className="add-condition-button"
-                onClick={() => toggleDropdown(group.id)}
+                className="delete-condition-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // 更新组，将blocks设为空数组
+                  updateFilterGroup(group.id, { blocks: [] });
+                }}
+                style={{ cursor: 'pointer', marginLeft: '8px', padding: '4px' }}
               >
-                <Tooltip title="添加条件">
-                  <PlusOutlined style={{ fontSize: '18px', color: '#1890ff' }} />
+                <Tooltip title="删除所有条件">
+                  <DeleteOutlined style={{ fontSize: '18px', color: '#ff4d4f' }} />
                 </Tooltip>
               </div>
-
-              {/* 添加条件下拉菜单 */}
-              {renderAddConditionDropdown(group.id)}
             </div>
           </div>
         ) : (
@@ -885,19 +1004,17 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               <Space direction="vertical" align="center">
                 <FilterOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />
                 <Text type="secondary">请添加筛选条件</Text>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => toggleDropdown(group.id)}
-                >
-                  添加条件
-                </Button>
+                {/* 使用Dropdown组件替换原来的添加条件按钮 */}
+                <Dropdown menu={menu} trigger={['click']} placement="bottom">
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    data-group-id={group.id}
+                  >
+                    添加条件
+                  </Button>
+                </Dropdown>
               </Space>
-            </div>
-
-            <div className="filter-group-bottom-actions">
-              {/* 添加条件下拉菜单 */}
-              {renderAddConditionDropdown(group.id)}
             </div>
           </div>
         )}

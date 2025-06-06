@@ -102,14 +102,8 @@ const DeviceMatchingPolicy: React.FC = () => {
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
-  // 资源池类型选项
-  const [resourcePoolTypeOptions, setResourcePoolTypeOptions] = useState([
-    { label: '计算资源池', value: 'compute' },
-    { label: '存储资源池', value: 'storage' },
-    { label: '网络资源池', value: 'network' },
-    { label: 'GPU资源池', value: 'gpu' },
-    { label: '内存资源池', value: 'memory' },
-  ]);
+  // 资源池类型选项 - 从后端获取，不使用硬编码数据
+  const [resourcePoolTypeOptions, setResourcePoolTypeOptions] = useState<{ label: string; value: string }[]>([]);
 
   // 初始化
   useEffect(() => {
@@ -267,10 +261,12 @@ const DeviceMatchingPolicy: React.FC = () => {
       key: 'resourcePoolType',
       render: (text: string) => {
         const option = resourcePoolTypeOptions.find(opt => opt.value === text);
+        // 如果是compute类型，显示为空
+        const displayText = text === 'compute' ? '' : (option ? option.label : text);
         return (
           <Tag color="blue">
             <ClusterOutlined style={{ marginRight: 4 }} />
-            {option ? option.label : text}
+            {displayText}
           </Tag>
         );
       },
@@ -899,7 +895,6 @@ const DeviceMatchingPolicy: React.FC = () => {
           initialValues={{
             status: 'disabled',
             actionType: 'pool_entry',
-            resourcePoolType: 'compute',
           }}
           className="policy-form"
         >
@@ -961,7 +956,7 @@ const DeviceMatchingPolicy: React.FC = () => {
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
                         <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
-                        {option.value}
+                        {option.value === 'compute' ? '' : option.value}
                       </Option>
                     ))}
                   </Select>
@@ -1207,7 +1202,7 @@ const DeviceMatchingPolicy: React.FC = () => {
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
                         <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
-                        {option.value}
+                        {option.value === 'compute' ? '' : option.value}
                       </Option>
                     ))}
                   </Select>

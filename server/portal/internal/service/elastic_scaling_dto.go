@@ -85,9 +85,8 @@ type OrderDTO struct {
 	ActionType             string                 `json:"actionType"` // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
 	Status                 string                 `json:"status"`
 	DeviceCount            int                    `json:"deviceCount"`
-	DeviceID               *int64                 `json:"deviceId,omitempty"`
+	// DeviceID字段已移除，使用Devices列表和OrderDevice关联表
 	DeviceInfo             *DeviceDTO             `json:"deviceInfo,omitempty"`
-	Approver               string                 `json:"approver"`
 	Executor               string                 `json:"executor"`
 	ExecutionTime          *time.Time             `json:"executionTime"`
 	CreatedBy              string                 `json:"createdBy"`

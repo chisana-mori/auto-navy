@@ -564,7 +564,7 @@
   color: #52c41a;
 }
 
-.order-status-ignored {
+.order-status-cancelled {
   color: #8c8c8c;
 }
 
@@ -604,7 +604,7 @@
   color: #8c8c8c;
 }
 
-.order-count-badge.ignored {
+.order-count-badge.cancelled {
   background: #f0f0f0;
   color: #8c8c8c;
 }

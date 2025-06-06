@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, CloudUploadOutlined, CloudDownloadOutlined, SearchOutlined,
-  CloseOutlined, // Added this line
+  CloseOutlined,
   ClusterOutlined, DatabaseOutlined, InfoCircleOutlined,
   DeleteOutlined, CheckCircleOutlined
 } from '@ant-design/icons';
@@ -26,17 +26,25 @@ interface CreateOrderModalProps {
   onSubmit: (values: any) => Promise<void>;
   clusters: any[];
   resourcePools: any[];
+  initialValues?: any;
 }
 
-const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
-  visible,
-  onCancel,
-  onSubmit,
-  clusters,
-  resourcePools: initialResourcePools
-}) => {
+const CreateOrderModal = React.forwardRef<
+  { open(values?: any): void },
+  CreateOrderModalProps
+>((
+  {
+    visible,
+    onCancel,
+    onSubmit,
+    clusters,
+    resourcePools: initialResourcePools,
+    initialValues
+  },
+  ref
+) => {
   // 本地状态存储资源池列表
-  const [resourcePools, setResourcePools] = useState(initialResourcePools);
+  const [resourcePools, setResourcePools] = useState<any[]>([]);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [matchingPolicies, setMatchingPolicies] = useState<ResourcePoolDeviceMatchingPolicy[]>([]);
@@ -140,14 +148,14 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       // Add location-based filters from checkboxes
       const additionalLocationBlocks: FilterBlock[] = [];
       if (currentCheckedFilters.idc && currentCluster.idc) {
-        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'idc', conditionType: ConditionType.Equal, value: currentCluster.idc, operator: LogicalOperator.And, label: '同集群IDC' });
+        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'idc', conditionType: ConditionType.Equal, value: currentCluster.idc, operator: LogicalOperator.And, label: `idc = ${currentCluster.idc}` });
       }
       if (currentCheckedFilters.zone && currentCluster.zone) {
-        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'zone', conditionType: ConditionType.Equal, value: currentCluster.zone, operator: LogicalOperator.And, label: '同集群Zone' });
+        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'zone', conditionType: ConditionType.Equal, value: currentCluster.zone, operator: LogicalOperator.And, label: `zone = ${currentCluster.zone}` });
       }
       const roomValue = currentCluster.room || currentCluster.idc || '';
       if (currentCheckedFilters.room && roomValue) {
-        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'room', conditionType: ConditionType.Equal, value: roomValue, operator: LogicalOperator.And, label: '同集群Room' });
+        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'room', conditionType: ConditionType.Equal, value: roomValue, operator: LogicalOperator.And, label: `room = ${roomValue}` });
       }
       if (additionalLocationBlocks.length > 0) {
         newQueryGroups.push({ id: uuidv4(), blocks: additionalLocationBlocks, operator: LogicalOperator.And });
@@ -155,6 +163,40 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     }
     setFilterGroups(newQueryGroups);
   }, []);
+
+  // 暴露组件方法
+  React.useImperativeHandle(ref, () => ({
+    open: (values?: any) => {
+      if (values) {
+        const { name, devices, ...rest } = values;
+        form.setFieldsValue({
+          ...rest,
+          name: `克隆自${name}`,
+          devices: devices
+        });
+        // 同步更新设备列表状态
+        if (devices && Array.isArray(devices)) {
+          setDevices(devices);
+        }
+      }
+    }
+  }));
+
+  // 处理初始值
+  useEffect(() => {
+    if (initialValues) {
+      const { name, devices, ...rest } = initialValues;
+      form.setFieldsValue({
+        ...rest,
+        name: `克隆自${name}`,
+        devices: devices
+      });
+      // 同步更新设备列表状态
+      if (devices && Array.isArray(devices)) {
+        setDevices(devices);
+      }
+    }
+  }, [initialValues, form]);
 
   // Effect to fetch initial filter options
   useEffect(() => {
@@ -167,18 +209,20 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         console.error('获取筛选选项失败:', error);
         message.error('获取筛选选项失败');
       }
-      // Fetch resource pool types (moved from another useEffect for consolidation if preferred)
+      
+      // 从后端接口获取资源池类型
       try {
         const resourceTypes = await statsApi.getResourcePoolTypes();
         const poolTypes = resourceTypes.map((type: string) => {
-          let name = type; // Simplified naming
-          if (type === 'total') name = '全局资源';
-          else name = `${type}资源池`;
-          return { type, name };
+          // 直接使用原始值作为名称，不进行中文翻译
+          return { type, name: type };
         });
         setResourcePools(poolTypes);
       } catch (error) {
         console.error('获取资源池类型失败:', error);
+        message.error('获取资源池类型失败，请刷新重试');
+        // 如果获取失败，不使用任何默认数据，保持空状态
+        setResourcePools([]);
       }
     };
     fetchInitialData();
@@ -434,10 +478,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       <Form
         form={form}
         layout="vertical"
-        initialValues={{
-          actionType: 'pool_entry',
-          deviceCount: 10
-        }}
         onValuesChange={handleFormValuesChange}
       >
         <Card
@@ -522,7 +562,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               {resourcePools.map(pool => (
                 <Option key={pool.type} value={pool.type}>
                   <DatabaseOutlined style={{ marginRight: 4, color: '#1890ff' }} />
-                  {pool.type}
+                  {pool.type === 'compute' ? '' : pool.name}
                 </Option>
               ))}
             </Select>
@@ -1000,6 +1040,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         onClose={() => setDrawerVisible(false)}
         onSelectDevices={handleSelectDevices}
         filterGroups={filterGroups}
+        appliedFilters={filterGroups} // 将filterGroups传递给appliedFilters
         selectedDevices={devices}
         loading={loading}
         simpleMode={useSimpleMode}
@@ -1122,6 +1163,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       </Card>
     </Modal>
   );
-};
+});
 
 export default CreateOrderModal;

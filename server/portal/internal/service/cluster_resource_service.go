@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jinzhu/now"
 	"gorm.io/gorm"
 )
 
@@ -266,7 +267,6 @@ func (s *ClusterResourceService) aggregateResourcesByIDCAndZone(calculations []R
 	return aggregated
 }
 
-
 // buildResponseStructureWithPendingField builds the final response structure with device resources in Pending field
 func (s *ClusterResourceService) buildResponseStructureWithPendingField(
 	clusterAggregated map[string]map[string]*AggregatedResourceData,
@@ -383,4 +383,56 @@ func convertOrgMapToListWithPendingField(
 	}
 
 	return result
+}
+
+// GetResourcePoolAllocationRate retrieves CPU and memory allocation rates for a specific cluster and resource pool
+func (s *ClusterResourceService) GetResourcePoolAllocationRate(clusterName, resourcePool string) (*ResourcePoolAllocationRateDTO, error) {
+	// Get today's date range
+	today := time.Now()
+	startOfDay := now.BeginningOfDay()
+	endOfDay := now.EndOfDay()
+
+	// Query for the specific cluster and resource pool data
+	var snapshot portal.ResourceSnapshot
+	err := s.db.Table("k8s_cluster_resource_snapshot as s").
+		Select("s.*").
+		Joins("INNER JOIN k8s_cluster as c ON s.cluster_id = c.id").
+		Where("c.clustername = ? AND s.resource_pool = ? AND s.created_at BETWEEN ? AND ?",
+			clusterName, resourcePool, startOfDay, endOfDay).
+		Order("s.created_at DESC").
+		First(&snapshot).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// No data found for today, return nil
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query resource snapshot: %w", err)
+	}
+
+	// Calculate allocation rates
+	cpuRate := 0.0
+	if snapshot.CpuCapacity > 0 {
+		cpuRate = (snapshot.CpuRequest / snapshot.CpuCapacity) * 100
+	}
+
+	memoryRate := 0.0
+	if snapshot.MemoryCapacity > 0 {
+		memoryRate = (snapshot.MemRequest / snapshot.MemoryCapacity) * 100
+	}
+
+	// Build response DTO
+	result := &ResourcePoolAllocationRateDTO{
+		ClusterName:  clusterName,
+		ResourcePool: resourcePool,
+		CPURate:      cpuRate,
+		MemoryRate:   memoryRate,
+		CPURequest:   snapshot.CpuRequest,
+		CPUCapacity:  snapshot.CpuCapacity,
+		MemRequest:   snapshot.MemRequest,
+		MemCapacity:  snapshot.MemoryCapacity,
+		QueryDate:    today.Format("2006-01-02"),
+	}
+
+	return result, nil
 }

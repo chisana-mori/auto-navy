@@ -64,7 +64,9 @@ func InitDB() (*gorm.DB, error) {
 		&portal.DeviceApp{},
 		&portal.ElasticScalingStrategy{},
 		&portal.StrategyClusterAssociation{},
-		&portal.ElasticScalingOrder{},
+		// &portal.ElasticScalingOrder{},       // 旧表，已废弃，保留用于数据迁移
+		&portal.Order{},                     // 基础订单表
+		&portal.ElasticScalingOrderDetail{}, // 弹性伸缩订单详情表
 		&portal.OrderDevice{},
 		&portal.StrategyExecutionHistory{},
 		&portal.NotificationLog{},
@@ -75,6 +77,12 @@ func InitDB() (*gorm.DB, error) {
 	}
 
 	ClearAndSeedDatabase(db)
+
+	// 执行订单数据迁移
+	if err := MigrateOrderData(db); err != nil {
+		fmt.Printf("Warning: Order data migration failed: %v\n", err)
+		// 不返回错误，因为这可能是首次运行
+	}
 
 	return db, nil
 }

@@ -59,6 +59,17 @@ export interface OrderListItem {
   resourcePoolType?: string;
   cpuAllocation?: number;
   memAllocation?: number;
+  // 实际分配率数据（从API获取）
+  actualCpuAllocation?: number;
+  actualMemAllocation?: number;
+  hasAllocationData?: boolean; // 标识是否有实际数据
+  // 新增字段以支持通用订单模型
+  type?: string;
+  executor?: string;
+  executionTime?: string;
+  completionTime?: string;
+  failureReason?: string;
+  updatedAt?: string;
 }
 
 // 设备类型定义
@@ -80,9 +91,8 @@ export interface Device {
 
 // 订单详情类型定义
 export interface OrderDetail extends OrderListItem {
-  deviceId?: number;
-  deviceInfo?: Device;
-  approver: string;
+  // deviceId字段已移除，使用devices数组和OrderDevice关联表
+  deviceInfo?: Device; // 保留用于向后兼容，对于维护订单表示第一个关联设备
   executor: string;
   executionTime?: string;
   completionTime?: string;
@@ -90,7 +100,7 @@ export interface OrderDetail extends OrderListItem {
   maintenanceStartTime?: string;
   maintenanceEndTime?: string;
   externalTicketId?: string;
-  devices: Device[];
+  devices: Device[]; // 订单关联的所有设备
 }
 
 // 工作台统计数据类型定义
@@ -142,4 +152,4 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   size: number;
-} 
+}
