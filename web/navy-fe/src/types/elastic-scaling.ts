@@ -45,6 +45,8 @@ export interface StrategyDetail extends Strategy {
 export interface OrderListItem {
   id: number;
   orderNumber: string;
+  name: string;        // 订单名称
+  description: string; // 订单描述
   clusterId: number;
   clusterName: string;
   strategyId?: number;

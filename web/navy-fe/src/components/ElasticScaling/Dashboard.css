@@ -203,6 +203,72 @@
   font-weight: 600;
 }
 
+/* 操作按钮样式 - 与设备匹配策略保持一致 */
+.strategy-table .action-buttons {
+  display: flex;
+  justify-content: center;
+}
+
+.strategy-table .ant-btn-text {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.3s;
+  margin: 0 4px;
+  position: relative;
+}
+
+.strategy-table .ant-btn-text:hover {
+  background-color: #f5f5f5;
+}
+
+.strategy-table .ant-btn-text[danger]:hover {
+  background-color: #fff1f0;
+}
+
+.strategy-table .ant-btn-text .anticon {
+  font-size: 16px;
+}
+
+/* 编辑按钮 */
+.strategy-table .edit-button .anticon {
+  color: #1890ff;
+}
+
+.strategy-table .edit-button:hover {
+  background-color: #e6f7ff;
+}
+
+/* 启用按钮 */
+.strategy-table .enable-button .anticon {
+  color: #52c41a;
+}
+
+.strategy-table .enable-button:hover {
+  background-color: #f6ffed;
+}
+
+/* 禁用按钮 */
+.strategy-table .disable-button .anticon {
+  color: #ff4d4f;
+}
+
+.strategy-table .disable-button:hover {
+  background-color: #fff1f0;
+}
+
+/* 删除按钮 */
+.strategy-table .delete-button .anticon {
+  color: #ff4d4f;
+}
+
+.strategy-table .delete-button:hover {
+  background-color: #fff1f0;
+}
+
 /* 策略详情抽屉 */
 .detail-drawer .ant-drawer-body {
   padding: 0;

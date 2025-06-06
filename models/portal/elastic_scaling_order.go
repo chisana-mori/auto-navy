@@ -3,24 +3,26 @@ package portal
 // ElasticScalingOrder 弹性伸缩订单表
 type ElasticScalingOrder struct {
 	BaseModel
-	OrderNumber          string    `gorm:"column:order_number;type:varchar(50);unique" json:"orderNumber"`                                                                                                              // 唯一订单号
-	ClusterID            int64     `gorm:"column:cluster_id;type:bigint" json:"clusterId"`                                                                                                                              // 关联集群ID
-	StrategyID           *int64    `gorm:"column:strategy_id;type:bigint" json:"strategyId"`                                                                                                                            // 关联策略ID(手动订单可为NULL)
-	ActionType           string    `gorm:"column:action_type;type:varchar(50)" json:"actionType"`                                                       // 订单操作类型
-	Status               string    `gorm:"column:status;type:varchar(50)" json:"status"` // 订单状态
-	DeviceCount          int       `gorm:"column:device_count;type:int" json:"deviceCount"`                                                                                                                             // 请求的设备数量
-	DeviceID             *int64    `gorm:"column:device_id;type:bigint" json:"deviceId"`                                                                                                                                // 涉及的特定设备ID(维护订单)
-	Approver             string    `gorm:"column:approver;type:varchar(100)" json:"approver"`                                                                                                                           // 审批人
-	Executor             string    `gorm:"column:executor;type:varchar(100)" json:"executor"`                                                                                                                           // 执行人
-	ExecutionTime        *NavyTime `gorm:"column:execution_time;type:datetime" json:"executionTime"`                                                                                                                    // 执行时间
-	CreatedBy            string    `gorm:"column:created_by;type:varchar(100)" json:"createdBy"`                                                                                                                        //
-	CompletionTime       *NavyTime `gorm:"column:completion_time;type:datetime" json:"completionTime"`                                                                                                                  // 完成时间
-	FailureReason        string    `gorm:"column:failure_reason;type:text" json:"failureReason"`                                                                                                                        // 失败原因
-	MaintenanceStartTime *NavyTime `gorm:"column:maintenance_start_time;type:datetime" json:"maintenanceStartTime"`                                                                                                     // 维护开始时间
-	MaintenanceEndTime   *NavyTime `gorm:"column:maintenance_end_time;type:datetime" json:"maintenanceEndTime"`                                                                                                         // 维护结束时间
-	ExternalTicketID     string    `gorm:"column:external_ticket_id;type:varchar(100)" json:"externalTicketId"`                                                                                                         // 外部工单号
-	StrategyTriggeredValue string  `gorm:"column:strategy_triggered_value;type:varchar(255)" json:"strategyTriggeredValue"`                                                                                             // 策略触发时的具体指标值 (用于延迟记录历史)
-	StrategyThresholdValue string  `gorm:"column:strategy_threshold_value;type:varchar(255)" json:"strategyThresholdValue"`                                                                                             // 策略触发时的阈值设定 (用于延迟记录历史)
+	OrderNumber            string    `gorm:"column:order_number;type:varchar(50);unique" json:"orderNumber"`                  // 唯一订单号
+	Name                   string    `gorm:"column:name;type:varchar(255)" json:"name"`                                       // 订单名称
+	Description            string    `gorm:"column:description;type:text" json:"description"`                                 // 订单描述
+	ClusterID              int64     `gorm:"column:cluster_id;type:bigint" json:"clusterId"`                                  // 关联集群ID
+	StrategyID             *int64    `gorm:"column:strategy_id;type:bigint" json:"strategyId"`                                // 关联策略ID(手动订单可为NULL)
+	ActionType             string    `gorm:"column:action_type;type:varchar(50)" json:"actionType"`                           // 订单操作类型
+	Status                 string    `gorm:"column:status;type:varchar(50)" json:"status"`                                    // 订单状态
+	DeviceCount            int       `gorm:"column:device_count;type:int" json:"deviceCount"`                                 // 请求的设备数量
+	DeviceID               *int64    `gorm:"column:device_id;type:bigint" json:"deviceId"`                                    // 涉及的特定设备ID(维护订单)
+	Approver               string    `gorm:"column:approver;type:varchar(100)" json:"approver"`                               // 审批人
+	Executor               string    `gorm:"column:executor;type:varchar(100)" json:"executor"`                               // 执行人
+	ExecutionTime          *NavyTime `gorm:"column:execution_time;type:datetime" json:"executionTime"`                        // 执行时间
+	CreatedBy              string    `gorm:"column:created_by;type:varchar(100)" json:"createdBy"`                            //
+	CompletionTime         *NavyTime `gorm:"column:completion_time;type:datetime" json:"completionTime"`                      // 完成时间
+	FailureReason          string    `gorm:"column:failure_reason;type:text" json:"failureReason"`                            // 失败原因
+	MaintenanceStartTime   *NavyTime `gorm:"column:maintenance_start_time;type:datetime" json:"maintenanceStartTime"`         // 维护开始时间
+	MaintenanceEndTime     *NavyTime `gorm:"column:maintenance_end_time;type:datetime" json:"maintenanceEndTime"`             // 维护结束时间
+	ExternalTicketID       string    `gorm:"column:external_ticket_id;type:varchar(100)" json:"externalTicketId"`             // 外部工单号
+	StrategyTriggeredValue string    `gorm:"column:strategy_triggered_value;type:varchar(255)" json:"strategyTriggeredValue"` // 策略触发时的具体指标值 (用于延迟记录历史)
+	StrategyThresholdValue string    `gorm:"column:strategy_threshold_value;type:varchar(255)" json:"strategyThresholdValue"` // 策略触发时的阈值设定 (用于延迟记录历史)
 }
 
 // TableName 指定表名
@@ -31,8 +33,8 @@ func (ElasticScalingOrder) TableName() string {
 // OrderDevice 订单设备关联表
 type OrderDevice struct {
 	BaseModel
-	OrderID  int64  `gorm:"column:order_id;type:bigint" json:"orderId"`                                         // 订单ID
-	DeviceID int64  `gorm:"column:device_id;type:bigint" json:"deviceId"`                                       // 设备ID
+	OrderID  int64  `gorm:"column:order_id;type:bigint" json:"orderId"`   // 订单ID
+	DeviceID int64  `gorm:"column:device_id;type:bigint" json:"deviceId"` // 设备ID
 	Status   string `gorm:"column:status;type:varchar(50)" json:"status"` // 处理状态
 }
 
@@ -44,13 +46,13 @@ func (OrderDevice) TableName() string {
 // StrategyExecutionHistory 策略执行历史表
 type StrategyExecutionHistory struct {
 	BaseModel
-	StrategyID     int64    `gorm:"column:strategy_id;type:bigint" json:"strategyId"`                                // 策略ID
-	ExecutionTime  NavyTime `gorm:"column:execution_time;type:datetime" json:"executionTime"`                        // 执行时间
-	TriggeredValue string   `gorm:"column:triggered_value;type:varchar(255)" json:"triggeredValue"`                  // 触发策略时的具体指标值
-	ThresholdValue string   `gorm:"column:threshold_value;type:varchar(255)" json:"thresholdValue"`                  // 触发策略时的阈值设定
-	Result         string   `gorm:"column:result;type:varchar(50)" json:"result"` // 执行结果
-	OrderID        *int64   `gorm:"column:order_id;type:bigint" json:"orderId"`                                      // 关联订单ID
-	Reason         string   `gorm:"column:reason;type:text" json:"reason"`                                           // 执行结果的原因
+	StrategyID     int64    `gorm:"column:strategy_id;type:bigint" json:"strategyId"`               // 策略ID
+	ExecutionTime  NavyTime `gorm:"column:execution_time;type:datetime" json:"executionTime"`       // 执行时间
+	TriggeredValue string   `gorm:"column:triggered_value;type:varchar(255)" json:"triggeredValue"` // 触发策略时的具体指标值
+	ThresholdValue string   `gorm:"column:threshold_value;type:varchar(255)" json:"thresholdValue"` // 触发策略时的阈值设定
+	Result         string   `gorm:"column:result;type:varchar(50)" json:"result"`                   // 执行结果
+	OrderID        *int64   `gorm:"column:order_id;type:bigint" json:"orderId"`                     // 关联订单ID
+	Reason         string   `gorm:"column:reason;type:text" json:"reason"`                          // 执行结果的原因
 }
 
 // TableName 指定表名
@@ -61,14 +63,14 @@ func (StrategyExecutionHistory) TableName() string {
 // NotificationLog 通知日志表
 type NotificationLog struct {
 	BaseModel
-	OrderID          *int64   `gorm:"column:order_id;type:bigint" json:"orderId"`                                              // 关联订单ID(可选)
-	StrategyID       *int64   `gorm:"column:strategy_id;type:bigint" json:"strategyId"`                                        // 关联策略ID(可选)
+	OrderID          *int64   `gorm:"column:order_id;type:bigint" json:"orderId"`                        // 关联订单ID(可选)
+	StrategyID       *int64   `gorm:"column:strategy_id;type:bigint" json:"strategyId"`                  // 关联策略ID(可选)
 	NotificationType string   `gorm:"column:notification_type;type:varchar(50)" json:"notificationType"` // 通知类型
-	Recipient        string   `gorm:"column:recipient;type:varchar(255)" json:"recipient"`                                     // 接收人信息
-	Content          string   `gorm:"column:content;type:text" json:"content"`                                                 // 通知内容
-	Status           string   `gorm:"column:status;type:varchar(50)" json:"status"`                           // 发送状态
-	SendTime         NavyTime `gorm:"column:send_time;type:datetime" json:"sendTime"`                                          // 发送时间
-	ErrorMessage     string   `gorm:"column:error_message;type:text" json:"errorMessage"`                                      // 错误信息
+	Recipient        string   `gorm:"column:recipient;type:varchar(255)" json:"recipient"`               // 接收人信息
+	Content          string   `gorm:"column:content;type:text" json:"content"`                           // 通知内容
+	Status           string   `gorm:"column:status;type:varchar(50)" json:"status"`                      // 发送状态
+	SendTime         NavyTime `gorm:"column:send_time;type:datetime" json:"sendTime"`                    // 发送时间
+	ErrorMessage     string   `gorm:"column:error_message;type:text" json:"errorMessage"`                // 错误信息
 }
 
 // TableName 指定表名
