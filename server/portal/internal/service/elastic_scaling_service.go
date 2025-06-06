@@ -373,6 +373,8 @@ func (s *ElasticScalingService) GetStrategy(id int64) (*StrategyDetailDTO, error
 		dto.RelatedOrders[i] = OrderListItemDTO{
 			ID:           o.ID,
 			OrderNumber:  o.OrderNumber,
+			Name:         o.Name,        // 订单名称
+			Description:  o.Description, // 订单描述
 			ClusterID:    o.ClusterID,
 			ClusterName:  clusterName,
 			StrategyID:   o.StrategyID,
@@ -658,6 +660,8 @@ func (s *ElasticScalingService) CreateOrder(dto OrderDTO) (int64, error) {
 	// 创建订单模型
 	order := portal.ElasticScalingOrder{
 		OrderNumber:            orderNumber,
+		Name:                   dto.Name,        // 订单名称
+		Description:            dto.Description, // 订单描述
 		ClusterID:              dto.ClusterID,
 		StrategyID:             dto.StrategyID,
 		ActionType:             dto.ActionType,
@@ -778,6 +782,8 @@ func (s *ElasticScalingService) GetOrder(id int64) (*OrderDetailDTO, error) {
 		OrderDTO: OrderDTO{
 			ID:                   order.ID,
 			OrderNumber:          order.OrderNumber,
+			Name:                 order.Name,        // 订单名称
+			Description:          order.Description, // 订单描述
 			ClusterID:            order.ClusterID,
 			ClusterName:          clusterName,
 			StrategyID:           order.StrategyID,
@@ -909,6 +915,8 @@ func (s *ElasticScalingService) ListOrders(clusterID int64, strategyID int64, ac
 		result[i] = OrderListItemDTO{
 			ID:           order.ID,
 			OrderNumber:  order.OrderNumber,
+			Name:         order.Name,        // 订单名称
+			Description:  order.Description, // 订单描述
 			ClusterID:    order.ClusterID,
 			ClusterName:  clusterName,
 			StrategyID:   order.StrategyID,

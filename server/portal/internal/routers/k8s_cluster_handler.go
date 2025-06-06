@@ -28,7 +28,7 @@ func NewK8sClusterHandler(db *gorm.DB) *K8sClusterHandler {
 
 // RegisterRoutes 注册路由
 func (h *K8sClusterHandler) RegisterRoutes(router *gin.RouterGroup) {
-	k8sClusterGroup := router.Group("/fe-v1/k8s-clusters")
+	k8sClusterGroup := router.Group("/k8s-clusters") // 路由组已经在main.go中设置为/fe-v1
 	{
 		k8sClusterGroup.GET("", h.GetK8sClusters)
 		k8sClusterGroup.GET(":id", h.GetK8sClusterByID)

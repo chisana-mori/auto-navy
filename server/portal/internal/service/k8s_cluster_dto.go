@@ -6,12 +6,12 @@ import (
 
 // K8sClusterQuery 集群查询参数
 type K8sClusterQuery struct {
-	Page          int    `form:"page" json:"page" binding:"required,min=1"`
-	Size          int    `form:"size" json:"size" binding:"required,min=1,max=100"`
-	ClusterName   string `form:"cluster_name" json:"cluster_name"`
-	ClusterNameCn string `form:"cluster_name_cn" json:"cluster_name_cn"`
+	Page          int    `form:"page" json:"page" binding:"omitempty,min=1"`
+	Size          int    `form:"size" json:"size" binding:"omitempty,min=1,max=100"`
+	ClusterName   string `form:"cluster_name" json:"clusterName"`
+	ClusterNameCn string `form:"cluster_name_cn" json:"clusterNameCn"`
 	Status        string `form:"status" json:"status"`
-	ClusterType   string `form:"cluster_type" json:"cluster_type"`
+	ClusterType   string `form:"cluster_type" json:"clusterType"`
 	Idc           string `form:"idc" json:"idc"`
 	Zone          string `form:"zone" json:"zone"`
 }
@@ -19,40 +19,40 @@ type K8sClusterQuery struct {
 // K8sClusterResponse 集群响应
 type K8sClusterResponse struct {
 	ID                int64              `json:"id"`
-	ClusterID         string             `json:"cluster_id"`
-	ClusterName       string             `json:"cluster_name"`
-	ClusterNameCn     string             `json:"cluster_name_cn"`
+	ClusterID         string             `json:"clusterId"`
+	ClusterName       string             `json:"clusterName"`
+	ClusterNameCn     string             `json:"clusterNameCn"`
 	Alias             string             `json:"alias"`
-	ApiServer         string             `json:"api_server"`
-	ApiServerVip      string             `json:"api_server_vip"`
-	EtcdServer        string             `json:"etcd_server"`
-	EtcdServerVip     string             `json:"etcd_server_vip"`
-	IngressServername string             `json:"ingress_servername"`
-	IngressServerVip  string             `json:"ingress_server_vip"`
-	KubePromVersion   string             `json:"kube_prom_version"`
-	PromServer        string             `json:"prom_server"`
-	ThanosServer      string             `json:"thanos_server"`
+	ApiServer         string             `json:"apiServer"`
+	ApiServerVip      string             `json:"apiServerVip"`
+	EtcdServer        string             `json:"etcdServer"`
+	EtcdServerVip     string             `json:"etcdServerVip"`
+	IngressServername string             `json:"ingressServername"`
+	IngressServerVip  string             `json:"ingressServerVip"`
+	KubePromVersion   string             `json:"kubePromVersion"`
+	PromServer        string             `json:"promServer"`
+	ThanosServer      string             `json:"thanosServer"`
 	Idc               string             `json:"idc"`
 	Zone              string             `json:"zone"`
 	Status            string             `json:"status"`
-	ClusterType       string             `json:"cluster_type"`
-	KubeConfig        string             `json:"kube_config"`
+	ClusterType       string             `json:"clusterType"`
+	KubeConfig        string             `json:"kubeConfig"`
 	Desc              string             `json:"desc"`
 	Creator           string             `json:"creator"`
 	Group             string             `json:"group"`
-	EsServer          string             `json:"es_server"`
-	NetType           string             `json:"net_type"`
+	EsServer          string             `json:"esServer"`
+	NetType           string             `json:"netType"`
 	Architecture      string             `json:"architecture"`
-	FlowType          string             `json:"flow_type"`
-	NovaName          string             `json:"nova_name"`
+	FlowType          string             `json:"flowType"`
+	NovaName          string             `json:"novaName"`
 	Priority          int                `json:"priority"`
-	ClusterGroup      string             `json:"cluster_group"`
-	PodCidr           string             `json:"pod_cidr"`
-	ServiceCidr       string             `json:"service_cidr"`
-	RrCicode          string             `json:"rr_cicode"`
-	RrGroup           string             `json:"rr_group"`
-	CreatedAt         string             `json:"created_at"`
-	UpdatedAt         string             `json:"updated_at"`
+	ClusterGroup      string             `json:"clusterGroup"`
+	PodCidr           string             `json:"podCidr"`
+	ServiceCidr       string             `json:"serviceCidr"`
+	RrCicode          string             `json:"rrCicode"`
+	RrGroup           string             `json:"rrGroup"`
+	CreatedAt         string             `json:"createdAt"`
+	UpdatedAt         string             `json:"updatedAt"`
 	Nodes             []*K8sNodeResponse `json:"nodes,omitempty"`
 }
 
@@ -66,37 +66,37 @@ type K8sClusterListResponse struct {
 
 // CreateK8sClusterRequest 创建集群请求
 type CreateK8sClusterRequest struct {
-	ClusterID         string `json:"cluster_id" binding:"required"`
-	ClusterName       string `json:"cluster_name" binding:"required"`
-	ClusterNameCn     string `json:"cluster_name_cn" binding:"required"`
+	ClusterID         string `json:"clusterId" binding:"required"`
+	ClusterName       string `json:"clusterName" binding:"required"`
+	ClusterNameCn     string `json:"clusterNameCn" binding:"required"`
 	Alias             string `json:"alias"`
-	ApiServer         string `json:"api_server" binding:"required"`
-	ApiServerVip      string `json:"api_server_vip"`
-	EtcdServer        string `json:"etcd_server"`
-	EtcdServerVip     string `json:"etcd_server_vip"`
-	IngressServername string `json:"ingress_servername"`
-	IngressServerVip  string `json:"ingress_server_vip"`
-	KubePromVersion   string `json:"kube_prom_version"`
-	PromServer        string `json:"prom_server"`
-	ThanosServer      string `json:"thanos_server"`
+	ApiServer         string `json:"apiServer" binding:"required"`
+	ApiServerVip      string `json:"apiServerVip"`
+	EtcdServer        string `json:"etcdServer"`
+	EtcdServerVip     string `json:"etcdServerVip"`
+	IngressServername string `json:"ingressServername"`
+	IngressServerVip  string `json:"ingressServerVip"`
+	KubePromVersion   string `json:"kubePromVersion"`
+	PromServer        string `json:"promServer"`
+	ThanosServer      string `json:"thanosServer"`
 	Idc               string `json:"idc" binding:"required"`
 	Zone              string `json:"zone" binding:"required"`
 	Status            string `json:"status" binding:"required"`
-	ClusterType       string `json:"cluster_type" binding:"required"`
-	KubeConfig        string `json:"kube_config"`
+	ClusterType       string `json:"clusterType" binding:"required"`
+	KubeConfig        string `json:"kubeConfig"`
 	Desc              string `json:"desc"`
 	Group             string `json:"group"`
-	EsServer          string `json:"es_server"`
-	NetType           string `json:"net_type"`
+	EsServer          string `json:"esServer"`
+	NetType           string `json:"netType"`
 	Architecture      string `json:"architecture"`
-	FlowType          string `json:"flow_type"`
-	NovaName          string `json:"nova_name"`
+	FlowType          string `json:"flowType"`
+	NovaName          string `json:"novaName"`
 	Priority          int    `json:"priority"`
-	ClusterGroup      string `json:"cluster_group"`
-	PodCidr           string `json:"pod_cidr"`
-	ServiceCidr       string `json:"service_cidr"`
-	RrCicode          string `json:"rr_cicode"`
-	RrGroup           string `json:"rr_group"`
+	ClusterGroup      string `json:"clusterGroup"`
+	PodCidr           string `json:"podCidr"`
+	ServiceCidr       string `json:"serviceCidr"`
+	RrCicode          string `json:"rrCicode"`
+	RrGroup           string `json:"rrGroup"`
 }
 
 // ToModel 转换为数据模型
@@ -139,37 +139,37 @@ func (r *CreateK8sClusterRequest) ToModel(creator string) portal.K8sCluster {
 
 // UpdateK8sClusterRequest 更新集群请求
 type UpdateK8sClusterRequest struct {
-	ClusterID         string `json:"cluster_id"`
-	ClusterName       string `json:"cluster_name"`
-	ClusterNameCn     string `json:"cluster_name_cn"`
+	ClusterID         string `json:"clusterId"`
+	ClusterName       string `json:"clusterName"`
+	ClusterNameCn     string `json:"clusterNameCn"`
 	Alias             string `json:"alias"`
-	ApiServer         string `json:"api_server"`
-	ApiServerVip      string `json:"api_server_vip"`
-	EtcdServer        string `json:"etcd_server"`
-	EtcdServerVip     string `json:"etcd_server_vip"`
-	IngressServername string `json:"ingress_servername"`
-	IngressServerVip  string `json:"ingress_server_vip"`
-	KubePromVersion   string `json:"kube_prom_version"`
-	PromServer        string `json:"prom_server"`
-	ThanosServer      string `json:"thanos_server"`
+	ApiServer         string `json:"apiServer"`
+	ApiServerVip      string `json:"apiServerVip"`
+	EtcdServer        string `json:"etcdServer"`
+	EtcdServerVip     string `json:"etcdServerVip"`
+	IngressServername string `json:"ingressServername"`
+	IngressServerVip  string `json:"ingressServerVip"`
+	KubePromVersion   string `json:"kubePromVersion"`
+	PromServer        string `json:"promServer"`
+	ThanosServer      string `json:"thanosServer"`
 	Idc               string `json:"idc"`
 	Zone              string `json:"zone"`
 	Status            string `json:"status"`
-	ClusterType       string `json:"cluster_type"`
-	KubeConfig        string `json:"kube_config"`
+	ClusterType       string `json:"clusterType"`
+	KubeConfig        string `json:"kubeConfig"`
 	Desc              string `json:"desc"`
 	Group             string `json:"group"`
-	EsServer          string `json:"es_server"`
-	NetType           string `json:"net_type"`
+	EsServer          string `json:"esServer"`
+	NetType           string `json:"netType"`
 	Architecture      string `json:"architecture"`
-	FlowType          string `json:"flow_type"`
-	NovaName          string `json:"nova_name"`
+	FlowType          string `json:"flowType"`
+	NovaName          string `json:"novaName"`
 	Priority          *int   `json:"priority"`
-	ClusterGroup      string `json:"cluster_group"`
-	PodCidr           string `json:"pod_cidr"`
-	ServiceCidr       string `json:"service_cidr"`
-	RrCicode          string `json:"rr_cicode"`
-	RrGroup           string `json:"rr_group"`
+	ClusterGroup      string `json:"clusterGroup"`
+	PodCidr           string `json:"podCidr"`
+	ServiceCidr       string `json:"serviceCidr"`
+	RrCicode          string `json:"rrCicode"`
+	RrGroup           string `json:"rrGroup"`
 }
 
 // ToUpdateMap 转换为更新数据映射
@@ -279,23 +279,23 @@ func (r *UpdateK8sClusterRequest) ToUpdateMap(updater string) map[string]interfa
 // K8sNodeResponse 节点响应
 type K8sNodeResponse struct {
 	ID                      int64  `json:"id"`
-	NodeName                string `json:"node_name"`
-	HostIP                  string `json:"host_ip"`
+	NodeName                string `json:"nodeName"`
+	HostIP                  string `json:"hostIp"`
 	Role                    string `json:"role"`
-	OSImage                 string `json:"os_image"`
-	KernelVersion           string `json:"kernel_version"`
-	KubeletVersion          string `json:"kubelet_version"`
-	ContainerRuntimeVersion string `json:"container_runtime_version"`
-	KubeProxyVersion        string `json:"kube_proxy_version"`
-	CPULogic                string    `json:"cpu_logic"`
-	MemLogic                string    `json:"mem_logic"`
-	CPUCapacity             string `json:"cpu_capacity"`
-	MemCapacity             string `json:"mem_capacity"`
-	CPUAllocatable          string `json:"cpu_allocatable"`
-	MemAllocatable          string `json:"mem_allocatable"`
-	FSTypeRoot              string `json:"fs_type_root"`
-	DiskRoot                string `json:"disk_root"`
-	DiskDocker              string `json:"disk_docker"`
-	CreatedAt               string `json:"created_at"`
-	UpdatedAt               string `json:"updated_at"`
+	OSImage                 string `json:"osImage"`
+	KernelVersion           string `json:"kernelVersion"`
+	KubeletVersion          string `json:"kubeletVersion"`
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion"`
+	KubeProxyVersion        string `json:"kubeProxyVersion"`
+	CPULogic                string    `json:"cpuLogic"`
+	MemLogic                string    `json:"memLogic"`
+	CPUCapacity             string `json:"cpuCapacity"`
+	MemCapacity             string `json:"memCapacity"`
+	CPUAllocatable          string `json:"cpuAllocatable"`
+	MemAllocatable          string `json:"memAllocatable"`
+	FSTypeRoot              string `json:"fsTypeRoot"`
+	DiskRoot                string `json:"diskRoot"`
+	DiskDocker              string `json:"diskDocker"`
+	CreatedAt               string `json:"createdAt"`
+	UpdatedAt               string `json:"updatedAt"`
 }

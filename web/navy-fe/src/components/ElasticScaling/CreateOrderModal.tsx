@@ -125,7 +125,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
     // Add / ensure "同集群" for pool_exit (This logic will apply its label after the above processing)
     if (currentActionType === 'pool_exit') {
-      const poolExitBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: currentCluster.name, operator: LogicalOperator.And, label: '同集群' };
+      const clusterName = currentCluster.name || currentCluster.clusterName || currentCluster.clusterNameCn || currentCluster.alias || `集群-${currentCluster.id}`;
+      const poolExitBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: clusterName, operator: LogicalOperator.And, label: '同集群' };
       if (!newQueryGroups.some(g => g.blocks.some(b => b.field === 'cluster' && b.conditionType === ConditionType.Equal && b.label === '同集群'))) {
          newQueryGroups.push({ id: uuidv4(), blocks: [poolExitBlock], operator: LogicalOperator.And });
       }
@@ -342,7 +343,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
     // Add / ensure "同集群" for pool_exit
     if (currentActionType === 'pool_exit') { // use watched actionType
-      const poolExitBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: currentCluster.name, operator: LogicalOperator.And, label: '同集群' };
+      const clusterName = currentCluster.name || currentCluster.clusterName || currentCluster.clusterNameCn || currentCluster.alias || `集群-${currentCluster.id}`;
+      const poolExitBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: clusterName, operator: LogicalOperator.And, label: '同集群' };
       if (!finalQueryGroups.some(g => g.blocks.some(b => b.field === 'cluster' && b.conditionType === ConditionType.Equal && b.label === '同集群'))) {
          finalQueryGroups.push({ id: uuidv4(), blocks: [poolExitBlock], operator: LogicalOperator.And });
       }
@@ -406,7 +408,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       }
       open={visible}
       onCancel={onCancel}
-      width={900}
+      width={800}
       okText="确定" // 修改按钮文本
       cancelText="取消" // 修改按钮文本
       style={{ 
@@ -483,16 +485,21 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             label="集群"
             rules={[{ required: true, message: '请选择集群' }]}
           >
-            <Select 
+            <Select
               placeholder="请选择集群"
               showSearch
               optionFilterProp="children"
-              filterOption={(input, option) => 
+              filterOption={(input, option) =>
                 (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
               }
+              showArrow
+              style={{ width: '100%' }}
             >
               {clusters.map(cluster => (
-                <Option key={cluster.id} value={cluster.id}>{cluster.name}</Option>
+                <Option key={cluster.id} value={cluster.id}>
+                  <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
+                  {cluster.name || cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`}
+                </Option>
               ))}
             </Select>
           </Form.Item>
@@ -502,16 +509,21 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             label="资源池类型"
             rules={[{ required: true, message: '请选择资源池类型' }]}
           >
-            <Select 
+            <Select
               placeholder="请选择资源池类型"
               showSearch
               optionFilterProp="children"
-              filterOption={(input, option) => 
+              filterOption={(input, option) =>
                 (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
               }
+              showArrow
+              style={{ width: '100%' }}
             >
               {resourcePools.map(pool => (
-                <Option key={pool.type} value={pool.type}>{pool.type}</Option>
+                <Option key={pool.type} value={pool.type}>
+                  <DatabaseOutlined style={{ marginRight: 4, color: '#1890ff' }} />
+                  {pool.type}
+                </Option>
               ))}
             </Select>
           </Form.Item>

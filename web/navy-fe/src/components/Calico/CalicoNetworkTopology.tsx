@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Table, Card, Input, Button, Space, Modal, Tabs, Tag, message } from 'antd';
-import { SearchOutlined, CloudServerOutlined, NodeIndexOutlined, PartitionOutlined } from '@ant-design/icons';
+import { SearchOutlined, NodeIndexOutlined, PartitionOutlined } from '@ant-design/icons';
+import request from '../../utils/request';
 import type { TabsProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 // 暂时注释掉 G6，使用纯 HTML 实现
@@ -50,48 +51,10 @@ const CalicoNetworkTopology: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 实际项目中应该通过API获取数据
-        // const response = await request.get('/api/calico/nodes');
-        // setData(response.data);
-        
-        // --- 生成更复杂的模拟数据 ---
-        const mockNodes: CalicoNode[] = [];
-        const rrName = 'feature.node/rr';
-        const anchorLeafPeerPrefix = '61201-feature.node/rr';
-        const anchorLeafPeerIP = '29.23.254.165';
-        const totalNodes = 20;
-        const poolsPerNode = 10;
-        const rrNodesCount = 10;
-
-        for (let i = 1; i <= totalNodes; i++) {
-          const isRRNode = i <= rrNodesCount;
-          const clusterName = `cluster-${String(i).padStart(2, '0')}`;
-          const nodeAS = '65001';
-          
-          const pools: string[] = [];
-          for (let p = 1; p <= poolsPerNode; p++) {
-            pools.push(`pool-${clusterName}-${p}`);
-          }
-
-          mockNodes.push({
-            id: String(i),
-            cluster: clusterName,
-            as: nodeAS,
-            // 前 10 个节点连接到 AnchorLeaf, 后 10 个连接到 RR
-            peer: isRRNode ? `${anchorLeafPeerPrefix} : ${anchorLeafPeerIP}` : `some-other-peer-${i} : 10.0.0.${i}`, 
-            nodeType: isRRNode ? 'K8S主机模式' : '测试K8S集群主机模式',
-            podType: isRRNode ? 'K8SBASE' : 'K8S非业务APP',
-            poolV4: pools,
-            poolV6: [], // 简化，只用 IPv4 pools
-            rr: isRRNode ? '' : rrName, // 前 10 个 rr 为空, 后 10 个指定 rr
-          });
-        }
-        
-        // 这里使用模拟数据
-        setTimeout(() => {
-          setData(mockNodes);
-          setLoading(false);
-        }, 500);
+        // 通过API获取数据
+        const response = await request.get('/api/calico/nodes');
+        setData(response.data);
+        setLoading(false);
       } catch (error) {
         console.error('获取数据失败:', error);
         message.error('获取数据失败');
@@ -611,7 +574,7 @@ const CalicoNetworkTopology: React.FC = () => {
       }
     };
 
-  }, [topoType, topoData]); // Dependencies for createStaticTopology
+  }, []); // Dependencies for createStaticTopology
 
   // 将G6图初始化逻辑抽取为单独的函数 (useCallback)
   const initGraph = useCallback(() => {
@@ -681,7 +644,7 @@ const CalicoNetworkTopology: React.FC = () => {
       return cleanupStaticTopology;
     }
     return undefined; // Return undefined if containerRef.current is null
-  }, [currentNode, topoVisible, topoType, topoData, createStaticTopology]); // Dependencies for initGraph
+  }, [currentNode, topoVisible, createStaticTopology]); // Dependencies for initGraph
 
   // 初始化拓扑图 - 当模态框打开时
   useEffect(() => {
@@ -718,9 +681,10 @@ const CalicoNetworkTopology: React.FC = () => {
           cleanupGraph(); // Call cleanup returned by initGraph
       }
        // Also cleanup static topology if necessary on unmount
-       if (containerRef.current) {
+       const container = containerRef.current;
+       if (container) {
            // Check if cleanup is needed or just clear innerHTML
-           // containerRef.current.innerHTML = '';
+           // container.innerHTML = '';
        }
     };
   // Dependencies: topoVisible, currentNode, viewMode, initGraph (stable due to useCallback)

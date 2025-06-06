@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import './Dashboard.css';
 import './DeviceMatchingPolicy.less';
 import {
@@ -17,9 +17,10 @@ import {
   ClockCircleOutlined, PauseCircleOutlined, WarningOutlined,
   LinkOutlined, DisconnectOutlined, AreaChartOutlined,
   DesktopOutlined, ExclamationCircleOutlined, CloseCircleOutlined, EyeOutlined,
-  StopOutlined
+  StopOutlined, DatabaseOutlined
 } from '@ant-design/icons';
 import { statsApi, strategyApi, orderApi } from '../../services/elasticScalingService';
+import clusterService from '../../services/clusterService';
 import {
   ResourceAllocationTrend,
   ResourceTypeData,
@@ -50,6 +51,10 @@ const Dashboard: React.FC = () => {
   const [strategies, setStrategies] = useState<StrategiesState>(null);
   const [orders, setOrders] = useState<OrdersState>(null);
   const [pendingOrders, setPendingOrders] = useState<OrderListItem[]>([]);
+  const pendingOrdersRef = useRef(pendingOrders);
+  useEffect(() => {
+    pendingOrdersRef.current = pendingOrders;
+  }, [pendingOrders]);
   const [processingOrders, setProcessingOrders] = useState<OrderListItem[]>([]);
   const [completedOrders, setCompletedOrders] = useState<OrderListItem[]>([]);
   const [allOrders, setAllOrders] = useState<OrdersState>(null);
@@ -103,36 +108,118 @@ const Dashboard: React.FC = () => {
       ellipsis: true,
     },
     {
-      title: 'CPU阈值',
-      key: 'cpuThreshold',
-      render: (text: string, record: Strategy) => (
-        record.cpuThresholdValue ? (
-          <Progress
-            percent={record.cpuThresholdValue}
-            size="small"
-            strokeColor="#1890ff"
-            style={{ width: 100 }}
-          />
-        ) : (
-          <span style={{ color: 'rgba(0, 0, 0, 0.45)' }}>--</span>
-        )
-      ),
-    },
-    {
-      title: '内存阈值',
-      key: 'memoryThreshold',
-      render: (text: string, record: Strategy) => (
-        record.memoryThresholdValue ? (
-          <Progress
-            percent={record.memoryThresholdValue}
-            size="small"
-            strokeColor="#52c41a"
-            style={{ width: 100 }}
-          />
-        ) : (
-          <span style={{ color: 'rgba(0, 0, 0, 0.45)' }}>--</span>
-        )
-      ),
+      title: '阈值配置',
+      key: 'thresholdConfig',
+      width: 200,
+      render: (text: string, record: Strategy) => {
+        const hasCpuConfig = record.cpuThresholdValue && record.cpuTargetValue;
+        const hasMemoryConfig = record.memoryThresholdValue && record.memoryTargetValue;
+
+        if (!hasCpuConfig && !hasMemoryConfig) {
+          return <span style={{ color: 'rgba(0, 0, 0, 0.45)' }}>--</span>;
+        }
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* CPU 阈值配置 */}
+            {hasCpuConfig && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', minWidth: '40px' }}>
+                  <span style={{ fontSize: '12px', color: '#1890ff', fontWeight: 500 }}>CPU</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                  {/* 触发阈值 */}
+                  <div
+                    style={{
+                      background: getPercentageColor(record.cpuThresholdValue),
+                      color: 'white',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      minWidth: '35px',
+                      textAlign: 'center'
+                    }}
+                    title={`CPU阈值: ${record.cpuThresholdValue}%, 颜色: ${getPercentageColor(record.cpuThresholdValue)}`}
+                  >
+                    {record.cpuThresholdValue ? `${record.cpuThresholdValue}%` : '--'}
+                  </div>
+
+                  {/* 波动箭头 */}
+                  <div style={{ display: 'flex', alignItems: 'center', margin: '0 2px' }}>
+                    {record.thresholdTriggerAction === 'pool_entry' ? (
+                      <ArrowDownOutlined style={{ color: '#52c41a', fontSize: '12px' }} />
+                    ) : (
+                      <ArrowUpOutlined style={{ color: '#ff7a45', fontSize: '12px' }} />
+                    )}
+                  </div>
+
+                  {/* 目标值 */}
+                  <div style={{
+                    background: getPercentageColor(record.cpuTargetValue),
+                    color: 'white',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    minWidth: '35px',
+                    textAlign: 'center'
+                  }}>
+                    {record.cpuTargetValue ? `${record.cpuTargetValue}%` : '--'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 内存阈值配置 */}
+            {hasMemoryConfig && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', minWidth: '40px' }}>
+                  <span style={{ fontSize: '12px', color: '#722ed1', fontWeight: 500 }}>MEM</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                  {/* 触发阈值 */}
+                  <div style={{
+                    background: getPercentageColor(record.memoryThresholdValue),
+                    color: 'white',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    minWidth: '35px',
+                    textAlign: 'center'
+                  }}>
+                    {record.memoryThresholdValue ? `${record.memoryThresholdValue}%` : '--'}
+                  </div>
+
+                  {/* 波动箭头 */}
+                  <div style={{ display: 'flex', alignItems: 'center', margin: '0 2px' }}>
+                    {record.thresholdTriggerAction === 'pool_entry' ? (
+                      <ArrowDownOutlined style={{ color: '#52c41a', fontSize: '12px' }} />
+                    ) : (
+                      <ArrowUpOutlined style={{ color: '#ff7a45', fontSize: '12px' }} />
+                    )}
+                  </div>
+
+                  {/* 目标值 */}
+                  <div style={{
+                    background: getPercentageColor(record.memoryTargetValue),
+                    color: 'white',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    minWidth: '35px',
+                    textAlign: 'center'
+                  }}>
+                    {record.memoryTargetValue ? `${record.memoryTargetValue}%` : '--'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '条件',
@@ -164,20 +251,17 @@ const Dashboard: React.FC = () => {
       ),
     },
     {
-      title: '配置',
-      key: 'config',
+      title: '时间配置',
+      key: 'timeConfig',
+      width: 120,
       render: (text: string, record: Strategy) => (
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <div style={{ fontSize: 13, display: 'flex', alignItems: 'center' }}>
-            <BarChartOutlined style={{ marginRight: 8, color: '#1890ff' }} />
-            <span style={{ whiteSpace: 'nowrap' }}>目标: CPU {record.cpuTargetValue ? `${record.cpuTargetValue}%` : '--'}, 内存 {record.memoryTargetValue ? `${record.memoryTargetValue}%` : '--'}</span>
-          </div>
-          <div style={{ fontSize: 13, display: 'flex', alignItems: 'center' }}>
-            <ClockCircleOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+          <div style={{ fontSize: 12, display: 'flex', alignItems: 'center' }}>
+            <ClockCircleOutlined style={{ marginRight: 6, color: '#52c41a', fontSize: '12px' }} />
             <span>持续: {record.durationMinutes ? Math.floor(record.durationMinutes / (24 * 60)) : '--'} 天</span>
           </div>
-          <div style={{ fontSize: 13, display: 'flex', alignItems: 'center' }}>
-            <PauseCircleOutlined style={{ marginRight: 8, color: '#faad14' }} />
+          <div style={{ fontSize: 12, display: 'flex', alignItems: 'center' }}>
+            <PauseCircleOutlined style={{ marginRight: 6, color: '#faad14', fontSize: '12px' }} />
             <span>冷却: {record.cooldownMinutes ? Math.floor(record.cooldownMinutes / (24 * 60)) : '--'} 天</span>
           </div>
         </Space>
@@ -197,25 +281,34 @@ const Dashboard: React.FC = () => {
     {
       title: '操作',
       key: 'action',
+      width: 150,
+      align: 'center' as const,
       render: (text: string, record: Strategy) => (
-        <Space size="small">
-          <Tooltip title="编辑">
-            <Button type="text" icon={<EditOutlined />} onClick={() => editStrategy(record.id)} />
+        <Space size="middle" className="action-buttons">
+          <Tooltip title="编辑" placement="top">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => editStrategy(record.id)}
+              className="edit-button"
+            />
           </Tooltip>
-          <Tooltip title={record.status === 'enabled' ? '禁用' : '启用'}>
+          <Tooltip title={record.status === 'enabled' ? '禁用' : '启用'} placement="top">
             <Button
               type="text"
               icon={record.status === 'enabled' ? <CloseCircleOutlined /> : <CheckCircleOutlined />}
               danger={record.status === 'enabled'}
               onClick={() => toggleStrategyStatus(record.id, record.status)}
+              className={record.status === 'enabled' ? "disable-button" : "enable-button"}
             />
           </Tooltip>
-          <Tooltip title="删除">
+          <Tooltip title="删除" placement="top">
             <Button
               type="text"
               danger
               icon={<DeleteOutlined />}
               onClick={() => deleteStrategy(record.id)}
+              className="delete-button"
             />
           </Tooltip>
         </Space>
@@ -227,39 +320,44 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        // 先获取资源类型和集群列表
-        await fetchResourceTypes();
-        const clustersData = await fetchClusters();
+        console.log('开始初始化数据加载');
+        
+        // 并行获取资源类型和集群列表
+        const [resourceTypesData, clustersData] = await Promise.all([
+          fetchResourceTypes(),
+          fetchClusters()
+        ]);
 
-        // 获取工作台数据（包括待处理订单）
-        await fetchData();
+        // 获取工作台数据（包括待处理订单），确保 pendingOrders 状态已更新
+        await fetchData(); 
 
+        let clusterSelected = false;
         // 优先从待处理订单中选择集群
-        if (pendingOrders && pendingOrders.length > 0) {
-          // 从待处理订单中随机选择一个
-          const randomIndex = Math.floor(Math.random() * pendingOrders.length);
-          const randomOrder = pendingOrders[randomIndex];
+        // 确保 pendingOrders 是最新的状态，而不是 fetchInitialData 闭包中的旧值
+        if (pendingOrdersRef.current && pendingOrdersRef.current.length > 0) {
+          const randomIndex = Math.floor(Math.random() * pendingOrdersRef.current.length);
+          const randomOrder = pendingOrdersRef.current[randomIndex];
 
           if (randomOrder && randomOrder.clusterId) {
             console.log('从待处理订单中选择集群:', randomOrder.clusterId, '订单ID:', randomOrder.id);
             setSelectedClusterId(randomOrder.clusterId);
-            // 设置默认资源类型为"所有资源"
             const defaultResourceTypes = ['total'];
             setSelectedResourceTypes(defaultResourceTypes);
             await fetchResourceTrend(randomOrder.clusterId, selectedTimeRange, defaultResourceTypes);
-            return; // 已选择集群，不需要继续执行
+            clusterSelected = true;
           }
         }
 
-        // 如果没有待处理订单或订单中没有有效的集群ID，则选择第一个集群
-        if (clustersData && clustersData.length > 0) {
+        // 如果没有从待处理订单中选择集群，并且集群列表不为空，则选择第一个集群
+        if (!clusterSelected && clustersData && clustersData.length > 0) {
           console.log('自动选择第一个集群:', clustersData[0]);
           setSelectedClusterId(clustersData[0].id);
-          // 设置默认资源类型为"所有资源"
           const defaultResourceTypes = ['total'];
           setSelectedResourceTypes(defaultResourceTypes);
           await fetchResourceTrend(clustersData[0].id, selectedTimeRange, defaultResourceTypes);
         }
+        
+        console.log('初始化数据加载完成');
       } catch (error) {
         console.error('初始化数据加载失败:', error);
       }
@@ -269,153 +367,230 @@ const Dashboard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 获取资源池类型
-  const fetchResourceTypes = async () => {
+  // 数据缓存
+  const [dataCache, setDataCache] = useState({
+    resourceTypes: null as any,
+    clusters: null as any,
+    lastFetchTime: {
+      resourceTypes: 0,
+      clusters: 0,
+      dashboard: 0
+    }
+  });
+
+  // 缓存有效期（5分钟）
+  const CACHE_DURATION = 5 * 60 * 1000;
+
+  // 检查缓存是否有效
+  const isCacheValid = (cacheKey: string) => {
+    const lastFetch = dataCache.lastFetchTime[cacheKey as keyof typeof dataCache.lastFetchTime];
+    return Date.now() - lastFetch < CACHE_DURATION;
+  };
+
+  // 获取资源池类型（带缓存）
+  const fetchResourceTypes = async (forceRefresh = false) => {
+    // 如果缓存有效且不强制刷新，直接使用缓存
+    if (!forceRefresh && dataCache.resourceTypes && isCacheValid('resourceTypes')) {
+      console.log('使用缓存的资源池类型数据');
+      return dataCache.resourceTypes;
+    }
+
     try {
-      // 实际应用中应调用API获取资源类型列表
-      // const response = await api.getResourceTypes();
-      // setResourceTypeOptions(response.data.data);
-
-      // 模拟数据
-      setResourceTypeOptions([
-        'total',
-        'compute',
-        'memory',
-        'storage',
-        'gpu',
-        'network'
-      ]);
-
+      console.log('从API获取资源池类型数据');
       // 从后端API获取资源池类型
-      try {
-        // 使用statsApi服务获取资源池类型
-        const resourceTypes = await statsApi.getResourcePoolTypes();
+      const resourceTypes = await statsApi.getResourcePoolTypes();
 
-        // 将API返回的资源池类型转换为前端需要的格式
-        const poolTypes = resourceTypes.map((type: string) => {
-          // 直接使用原始值作为名称，不进行中文翻译
-          return { type, name: type };
-        });
+      // 设置资源类型选项（用于图表筛选）
+      setResourceTypeOptions(resourceTypes);
 
-        console.log('获取到资源池类型:', poolTypes);
-        setResourcePools(poolTypes);
-      } catch (error) {
-        console.error('获取资源池类型失败:', error);
-        // 出错时使用默认值
-        setResourcePools([
-          { type: 'total', name: 'total' },
-          { type: 'total_intel', name: 'total_intel' },
-          { type: 'total_arm', name: 'total_arm' },
-          { type: 'total_hg', name: 'total_hg' },
-          { type: 'total_gpu', name: 'total_gpu' },
-          { type: 'total_taint', name: 'total_taint' },
-          { type: 'total_common', name: 'total_common' }
-        ]);
-      }
+      // 将API返回的资源池类型转换为前端需要的格式
+      const poolTypes = resourceTypes.map((type: string) => {
+        // 直接使用原始值作为名称，不进行中文翻译
+        return { type, name: type };
+      });
+
+      console.log('获取到资源池类型:', poolTypes);
+      setResourcePools(poolTypes);
+
+      // 更新缓存
+      setDataCache(prev => ({
+        ...prev,
+        resourceTypes: { resourceTypes, poolTypes },
+        lastFetchTime: {
+          ...prev.lastFetchTime,
+          resourceTypes: Date.now()
+        }
+      }));
+
+      return { resourceTypes, poolTypes };
     } catch (error) {
-      console.error('Error fetching resource types:', error);
+      console.error('获取资源池类型失败:', error);
+      // 出错时使用默认值
+      const defaultResourceTypes = ['total', 'compute', 'memory', 'storage', 'gpu', 'network'];
+      const defaultPoolTypes = [
+        { type: 'total', name: 'total' },
+        { type: 'total_intel', name: 'total_intel' },
+        { type: 'total_arm', name: 'total_arm' },
+        { type: 'total_hg', name: 'total_hg' },
+        { type: 'total_gpu', name: 'total_gpu' },
+        { type: 'total_taint', name: 'total_taint' },
+        { type: 'total_common', name: 'total_common' }
+      ];
+      
+      setResourceTypeOptions(defaultResourceTypes);
+      setResourcePools(defaultPoolTypes);
+      
+      return { resourceTypes: defaultResourceTypes, poolTypes: defaultPoolTypes };
     }
   };
 
-  // 获取集群列表
-  const fetchClusters = async () => {
-    try {
-      // 实际应该通过API获取集群列表
-      // const response = await axios.get('/fe-v1/clusters');
-      // const clustersData = response.data.data;
-      // setClusters(clustersData);
-      // return clustersData;
+  // 获取集群列表（带缓存）
+  const fetchClusters = async (forceRefresh = false) => {
+    // 如果缓存有效且不强制刷新，直接使用缓存
+    if (!forceRefresh && dataCache.clusters && isCacheValid('clusters')) {
+      console.log('使用缓存的集群列表数据');
+      return dataCache.clusters;
+    }
 
-      // 模拟数据
-      const clustersData = [
-        { id: 1, name: '集群-01', idc: 'IDC-A', zone: 'Zone-1' },
-        { id: 2, name: '集群-02', idc: 'IDC-A', zone: 'Zone-2' },
-        { id: 3, name: '集群-03', idc: 'IDC-B', zone: 'Zone-1' },
-        { id: 4, name: '集群-04', idc: 'IDC-B', zone: 'Zone-2' },
-        { id: 5, name: '生产集群-A', idc: 'IDC-C', zone: 'Zone-3' },
-        { id: 6, name: '生产集群-B', idc: 'IDC-C', zone: 'Zone-4' },
-      ];
+    try {
+      console.log('从API获取集群列表数据');
+      // 通过API获取集群列表
+      const response = await clusterService.getClusters();
+      const clustersData = response.list.map(cluster => ({
+        id: cluster.id,
+        name: cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`,
+        idc: cluster.idc,
+        zone: cluster.zone,
+        room: cluster.room,
+        status: cluster.status
+      }));
       setClusters(clustersData);
+
+      // 更新缓存
+      setDataCache(prev => ({
+        ...prev,
+        clusters: clustersData,
+        lastFetchTime: {
+          ...prev.lastFetchTime,
+          clusters: Date.now()
+        }
+      }));
+
       return clustersData;
     } catch (error) {
-      console.error('Error fetching clusters:', error);
+      console.error('获取集群列表失败:', error);
+      // 出错时使用空数组，避免页面崩溃
+      setClusters([]);
       return [];
     }
   };
 
-  // 数据加载函数
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      // 获取工作台统计数据
+  // 防抖状态
+  const [isDataFetching, setIsDataFetching] = useState(false);
+  const fetchDataTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 数据加载函数（带防抖和缓存）
+  const fetchData = async (forceRefresh = false) => {
+    // 防抖：如果正在获取数据，则忽略新的请求
+    if (isDataFetching && !forceRefresh) {
+      console.log('数据正在加载中，忽略重复请求');
+      return;
+    }
+
+    // 检查缓存（仅在非强制刷新时）
+    if (!forceRefresh && isCacheValid('dashboard')) {
+      console.log('使用缓存的仪表板数据');
+      return;
+    }
+
+    // 清除之前的定时器
+    if (fetchDataTimeoutRef.current) {
+      clearTimeout(fetchDataTimeoutRef.current);
+    }
+
+    // 设置防抖定时器
+    fetchDataTimeoutRef.current = setTimeout(async () => {
+      setIsDataFetching(true);
+      setIsLoading(true);
+      
       try {
-        const statsData = await statsApi.getDashboardStats();
-        setStats(statsData);
-      } catch (error) {
-        console.error('获取工作台统计数据失败:', error);
-        // 保持使用默认的统计数据，不影响UI显示
-        // 如果是开发环境，可以打印额外信息
-        if (process.env.NODE_ENV === 'development') {
-          console.info('使用默认统计数据作为后备');
-        }
-      }
+        console.log('开始获取仪表板数据');
+        
+        // 并行获取所有数据以提高性能
+        const [statsResult, strategiesResult, ordersResult] = await Promise.allSettled([
+          // 获取工作台统计数据
+          statsApi.getDashboardStats(),
+          // 获取策略列表
+          strategyApi.getStrategies({ page: 1, pageSize: 5 }),
+          // 获取所有订单状态的数据
+          Promise.all([
+            orderApi.getOrders({ status: 'pending', page: 1, pageSize: 10 }),
+            orderApi.getOrders({ status: 'processing', page: 1, pageSize: 10 }),
+            orderApi.getOrders({ status: 'completed', page: 1, pageSize: 10 }),
+            orderApi.getOrders({ page: 1, pageSize: 10 })
+          ])
+        ]);
 
-      // 获取策略列表
-      try {
-        const strategiesData = await strategyApi.getStrategies({ page: 1, pageSize: 5 });
-        setStrategies(strategiesData);
-      } catch (error) {
-        console.error('获取策略列表失败:', error);
-      }
-
-      // 获取不同状态的订单
-      try {
-        // 获取待处理订单
-        const pendingOrdersData = await orderApi.getOrders({ status: 'pending', page: 1, pageSize: 10 });
-        const pendingOrdersList = pendingOrdersData.list;
-        setPendingOrders(pendingOrdersList);
-
-        // 如果有待处理订单，并且当前没有选择集群，则从待处理订单中随机选择一个集群
-        if (pendingOrdersList && pendingOrdersList.length > 0 && !selectedClusterId) {
-          const randomIndex = Math.floor(Math.random() * pendingOrdersList.length);
-          const randomOrder = pendingOrdersList[randomIndex];
-
-          if (randomOrder && randomOrder.clusterId) {
-            console.log('从待处理订单中选择集群:', randomOrder.clusterId, '订单ID:', randomOrder.id);
-            setSelectedClusterId(randomOrder.clusterId);
-            // 设置默认资源类型为"所有资源"
-            const defaultResourceTypes = ['total'];
-            setSelectedResourceTypes(defaultResourceTypes);
-            await fetchResourceTrend(randomOrder.clusterId, selectedTimeRange, defaultResourceTypes);
+        // 处理统计数据
+        if (statsResult.status === 'fulfilled') {
+          setStats(statsResult.value);
+        } else {
+          console.error('获取工作台统计数据失败:', statsResult.reason);
+          if (process.env.NODE_ENV === 'development') {
+            console.info('使用默认统计数据作为后备');
           }
         }
 
-        // 获取其他状态的订单
-        const processingOrdersData = await orderApi.getOrders({ status: 'processing', page: 1, pageSize: 10 });
-        setProcessingOrders(processingOrdersData.list);
+        // 处理策略数据
+        if (strategiesResult.status === 'fulfilled') {
+          setStrategies(strategiesResult.value);
+        } else {
+          console.error('获取策略列表失败:', strategiesResult.reason);
+        }
 
-        const completedOrdersData = await orderApi.getOrders({ status: 'completed', page: 1, pageSize: 10 });
-        setCompletedOrders(completedOrdersData.list);
+        // 处理订单数据
+        if (ordersResult.status === 'fulfilled') {
+          const [pendingOrdersData, processingOrdersData, completedOrdersData, allOrdersData] = ordersResult.value;
+          
+          const pendingOrdersList = pendingOrdersData.list;
+          setPendingOrders(pendingOrdersList);
+          setProcessingOrders(processingOrdersData.list);
+          setCompletedOrders(completedOrdersData.list);
+          setAllOrders(allOrdersData);
 
-        // 获取所有订单
-        const allOrdersData = await orderApi.getOrders({ page: 1, pageSize: 10 });
-        setAllOrders(allOrdersData);
+          // 注意：集群选择逻辑已移至初始化函数中，避免重复调用
+          // fetchData函数只负责获取数据，不负责集群选择
+        } else {
+          console.error('获取订单数据失败:', ordersResult.reason);
+        }
+
+        // 更新缓存时间
+        setDataCache(prev => ({
+          ...prev,
+          lastFetchTime: {
+            ...prev.lastFetchTime,
+            dashboard: Date.now()
+          }
+        }));
+
+        console.log('仪表板数据获取完成');
       } catch (error) {
-        console.error('获取订单数据失败:', error);
+        console.error('加载工作台数据失败:', error);
+      } finally {
+        setIsLoading(false);
+        setIsDataFetching(false);
       }
-
-      // 注意：资源类型和集群列表已在外层函数中加载，这里不需要重复加载
-
-      // 如果有集群统计数据，记录下来（实际环境中可能需要使用）
-      if (stats && stats.clusterCount > 0) {
-        console.log(`集群统计: 共有 ${stats.clusterCount} 个集群，其中 ${stats.abnormalClusterCount} 个异常`);
-      }
-    } catch (error) {
-      console.error('加载工作台数据失败:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    }, 300); // 300ms 防抖延迟
   };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (fetchDataTimeoutRef.current) {
+        clearTimeout(fetchDataTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // 获取资源趋势数据
   const fetchResourceTrend = async (clusterId: number, range: string, resourceTypes: string[] = []) => {
@@ -831,7 +1006,7 @@ const Dashboard: React.FC = () => {
             ) : (
               <CloudDownloadOutlined style={{ color: '#faad14' }} />
             )}
-            {order.strategyName ? `${order.strategyName}` : '手动创建'} - {order.actionType === 'pool_entry' ? '入池' : '退池'}
+            {order.strategyName ? `${order.strategyName}` : (order.name || order.orderNumber)} - {order.actionType === 'pool_entry' ? '入池' : '退池'}
           </div>
           <Tag color={
             order.status === 'pending' ? 'error' :
@@ -1141,7 +1316,7 @@ const Dashboard: React.FC = () => {
       });
 
       // 刷新订单列表
-      fetchData();
+      fetchData(true);
     } catch (error) {
       console.error('Error executing order:', error);
     }
@@ -1157,7 +1332,7 @@ const Dashboard: React.FC = () => {
       message.success('订单已忽略');
 
       // 刷新订单列表
-      fetchData();
+      fetchData(true);
     } catch (error) {
       console.error('Error ignoring order:', error);
       message.error('忽略订单失败');
@@ -1209,7 +1384,7 @@ const Dashboard: React.FC = () => {
       setCreateOrderModalVisible(false);
 
       // 刷新订单列表
-      fetchData();
+      fetchData(true);
     } catch (error) {
       console.error('创建订单失败:', error);
       message.error('创建订单失败');
@@ -1320,6 +1495,19 @@ const Dashboard: React.FC = () => {
     return '#1890ff'; // 蓝色
   };
 
+  // 获取百分比颜色（与订单分配率颜色策略一致）
+  const getPercentageColor = (value: number | string | undefined): string => {
+    if (!value) return '#d9d9d9'; // 灰色 - 未设置
+    // 确保值是数字类型（后端返回整数如90，直接表示90%）
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(numValue)) return '#d9d9d9'; // 无效值返回灰色
+    // 后端返回的是整数百分比值，直接使用
+    if (numValue >= 80) return '#f5222d'; // 红色 - 高风险 (>=80%)
+    if (numValue >= 70) return '#faad14'; // 黄色 - 中风险 (>=70%)
+    if (numValue >= 55) return '#52c41a'; // 绿色 - 正常 (>=55%)
+    return '#1890ff'; // 蓝色 - 低使用率 (<55%)
+  };
+
   return (
     <div className="dashboard">
       {/* 页面标题 */}
@@ -1346,7 +1534,7 @@ const Dashboard: React.FC = () => {
               size="small"
               icon={<PlusOutlined />}
               onClick={handleOpenCreateOrderModal}
-              style={{ borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ borderRadius: '6px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             />
             <Select
               placeholder="订单类型"
@@ -1357,7 +1545,7 @@ const Dashboard: React.FC = () => {
               <Option value="pool_entry">入池</Option>
               <Option value="pool_exit">退池</Option>
             </Select>
-            <Button icon={<SearchOutlined />} onClick={() => fetchData()}>搜索</Button>
+            <Button icon={<SearchOutlined />} onClick={() => fetchData(true)}>搜索</Button>
           </Space>
         }
       >
@@ -1442,7 +1630,9 @@ const Dashboard: React.FC = () => {
               placeholder="选择集群"
             >
               {clusters.map(cluster => (
-                <Option key={cluster.id} value={cluster.id}>{cluster.name}</Option>
+                <Option key={cluster.id} value={cluster.id}>
+                  {cluster.name || cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`}
+                </Option>
               ))}
             </Select>
             {renderResourceTypeSelector()}
@@ -1732,7 +1922,7 @@ const Dashboard: React.FC = () => {
                       status="error"
                       title="加载已取消订单失败"
                       subTitle={cancelledOrdersError}
-                      extra={<Button type="primary" onClick={() => fetchData()}>重试</Button>}
+                      extra={<Button type="primary" onClick={() => fetchData(true)}>重试</Button>}
                     />
                   ) : cancelledOrders && cancelledOrders.length > 0 ? (
                     cancelledOrders.map(order => renderOrderCard(order, false, false))
@@ -1821,7 +2011,7 @@ const Dashboard: React.FC = () => {
 
       {/* 订单详情抽屉 */}
       <Drawer
-        title={selectedOrder ? `${selectedOrder.strategyName ? selectedOrder.strategyName : '手动创建'} - ${selectedOrder.actionType === 'pool_entry' ? '入池' : '退池'}` : (selectedStrategy ? `策略详情: ${selectedStrategy.name}` : '')}
+        title={selectedOrder ? `${selectedOrder.strategyName ? selectedOrder.strategyName : (selectedOrder.name || '手动创建')} - ${selectedOrder.actionType === 'pool_entry' ? '入池' : '退池'}` : (selectedStrategy ? `策略详情: ${selectedStrategy.name}` : '')}
         placement="right"
         width={600}
         onClose={handleCloseDrawer}
@@ -1832,6 +2022,11 @@ const Dashboard: React.FC = () => {
           <div className="detail-drawer-content">
             <div className="detail-section">
               <Descriptions bordered size="small" column={2} labelStyle={{ width: '120px' }}>
+                {selectedOrder.name && (
+                  <Descriptions.Item label="订单名称" span={2}>
+                    <span style={{ fontWeight: 500, fontSize: '14px' }}>{selectedOrder.name}</span>
+                  </Descriptions.Item>
+                )}
                 <Descriptions.Item label="订单类型" span={2}>
                   <Tag color={selectedOrder.actionType === 'pool_entry' ? 'blue' : 'orange'} style={{ padding: '4px 8px', fontSize: '14px' }}>
                     {selectedOrder.actionType === 'pool_entry' ? <CloudUploadOutlined style={{ marginRight: '4px' }} /> : <CloudDownloadOutlined style={{ marginRight: '4px' }} />}
@@ -1856,8 +2051,8 @@ const Dashboard: React.FC = () => {
                   <span style={{ fontWeight: 500 }}>{new Date(selectedOrder.createdAt).toLocaleString()}</span>
                 </Descriptions.Item>
                 <Descriptions.Item label="关联策略">
-                  {selectedOrder.strategyName ? 
-                    <Tag color="purple" style={{ padding: '2px 6px' }}>{selectedOrder.strategyName}</Tag> : 
+                  {selectedOrder.strategyName ?
+                    <Tag color="purple" style={{ padding: '2px 6px' }}>{selectedOrder.strategyName}</Tag> :
                     <Tag color="default" style={{ padding: '2px 6px' }}>手动创建</Tag>
                   }
                 </Descriptions.Item>
@@ -1868,6 +2063,14 @@ const Dashboard: React.FC = () => {
                   <Tag color="cyan" style={{ padding: '2px 6px' }}>{selectedOrder.createdBy || '系统'}</Tag>
                 </Descriptions.Item>
               </Descriptions>
+
+              {/* 订单描述单独显示 */}
+              {selectedOrder.description && (
+                <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fafafa', borderRadius: '6px', border: '1px solid #f0f0f0' }}>
+                  <div style={{ marginBottom: '8px', fontWeight: 500, color: '#262626', fontSize: '14px' }}>订单描述</div>
+                  <div style={{ color: '#666', lineHeight: '1.6', fontSize: '13px' }}>{selectedOrder.description}</div>
+                </div>
+              )}
             </div>
 
             <div className="detail-section">
@@ -1933,13 +2136,13 @@ const Dashboard: React.FC = () => {
                 memoryTargetValue: values.memoryTargetValue,
 
                 // 设备数量和条件逻辑
-                deviceCount: 1, // 默认值，实际应根据需求设置
+                deviceCount: values.deviceCount || 1,
                 conditionLogic: values.conditionLogic as 'AND' | 'OR' || 'AND',
                 status: values.status as 'enabled' | 'disabled' || 'disabled',
 
                 // 其他必要字段
-                nodeSelector: '',
-                createdBy: 'admin', // 默认创建者
+                nodeSelector: values.nodeSelector || '',
+                createdBy: values.createdBy || 'system',
                 clusters: []  // 这个字段会由后端填充
               };
 
@@ -1950,7 +2153,7 @@ const Dashboard: React.FC = () => {
               console.log('策略创建成功:', result);
 
               // 刷新列表
-              fetchData();
+              fetchData(true);
 
               // 关闭弹窗并重置表单
               setCreateStrategyModalVisible(false);
@@ -2022,32 +2225,65 @@ const Dashboard: React.FC = () => {
                   label={<span style={{ fontWeight: 500 }}>触发动作</span>}
                   rules={[{ required: true, message: '请选择触发动作!' }]}
                 >
-                  <Select placeholder="请选择动作">
-                    <Option value="pool_entry">入池</Option>
-                    <Option value="pool_exit">退池</Option>
+                  <Select placeholder="请选择动作" showArrow style={{ width: '100%' }}>
+                    <Option value="pool_entry">
+                      <CloudUploadOutlined style={{ color: '#1890ff', marginRight: 4 }} /> 入池
+                    </Option>
+                    <Option value="pool_exit">
+                      <CloudDownloadOutlined style={{ color: '#ff7a45', marginRight: 4 }} /> 退池
+                    </Option>
                   </Select>
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item
                   name="resourceTypes"
-                  label={<span style={{ fontWeight: 500 }}>资源类型</span>}
-                  rules={[{ required: true, message: '请选择资源类型!' }]}
+                  label={<span style={{ fontWeight: 500 }}>资源池类型</span>}
+                  rules={[{ required: true, message: '请选择资源池类型!' }]}
                 >
                   <Select
                     mode="multiple"
-                    placeholder="请选择资源类型"
-                    maxTagCount={3}
+                    placeholder="请选择资源池类型"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                    }
+                    showArrow
+                    maxTagCount="responsive"
+                    tagRender={(props) => {
+                      const { label, value, closable, onClose } = props;
+                      const onPreventMouseDown = (event: React.MouseEvent<HTMLSpanElement>) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      };
+                      return (
+                        <Tag
+                          color="blue"
+                          onMouseDown={onPreventMouseDown}
+                          closable={closable}
+                          onClose={onClose}
+                          style={{
+                            marginRight: 3,
+                            marginBottom: 3,
+                            borderRadius: 6,
+                            fontSize: '12px',
+                            padding: '2px 8px',
+                            lineHeight: '20px',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <DatabaseOutlined style={{ marginRight: 4, fontSize: '12px' }} />
+                          {label}
+                        </Tag>
+                      );
+                    }}
                   >
-                    {resourceTypeOptions.map(type => (
-                      <Option key={type} value={type}>
-                        {type === 'compute' ? '计算型资源池' :
-                         type === 'memory' ? '内存优化型资源池' :
-                         type === 'storage' ? '存储优化型资源池' :
-                         type === 'gpu' ? 'GPU加速型资源池' :
-                         type === 'network' ? '网络优化型资源池' :
-                         type === 'total' ? '全局资源' :
-                         `${type}资源池`}
+                    {resourcePools.map(pool => (
+                      <Option key={pool.type} value={pool.type}>
+                        <DatabaseOutlined style={{ marginRight: 4, color: '#1890ff' }} />
+                        {pool.type}
                       </Option>
                     ))}
                   </Select>
@@ -2063,12 +2299,48 @@ const Dashboard: React.FC = () => {
               <Select
                 mode="multiple"
                 placeholder="请选择一个或多个集群"
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                }
                 showArrow
-                maxTagCount={3}
+                maxTagCount="responsive"
                 style={{ width: '100%' }}
+                tagRender={(props) => {
+                  const { label, value, closable, onClose } = props;
+                  const onPreventMouseDown = (event: React.MouseEvent<HTMLSpanElement>) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  };
+                  return (
+                    <Tag
+                      color="green"
+                      onMouseDown={onPreventMouseDown}
+                      closable={closable}
+                      onClose={onClose}
+                      style={{
+                        marginRight: 3,
+                        marginBottom: 3,
+                        borderRadius: 6,
+                        fontSize: '12px',
+                        padding: '2px 8px',
+                        lineHeight: '20px',
+                        display: 'inline-flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <ClusterOutlined style={{ marginRight: 4, fontSize: '12px' }} />
+                      {label}
+                    </Tag>
+                  );
+                }}
               >
                 {clusters.map(cluster => (
-                  <Option key={cluster.id} value={cluster.id}>{cluster.name}</Option>
+                  <Option key={cluster.id} value={cluster.id}>
+                    <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
+                    {cluster.name || cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
@@ -2263,13 +2535,13 @@ const Dashboard: React.FC = () => {
                 memoryTargetValue: values.memoryTargetValue,
 
                 // 设备数量和条件逻辑
-                deviceCount: 1, // 默认值，实际应根据需求设置
+                deviceCount: values.deviceCount || 1,
                 conditionLogic: values.conditionLogic as 'AND' | 'OR',
                 status: values.status as 'enabled' | 'disabled',
 
                 // 其他必要字段
-                nodeSelector: '',
-                createdBy: 'admin', // 默认创建者
+                nodeSelector: values.nodeSelector || '',
+                createdBy: values.createdBy || 'system',
                 clusters: []  // 这个字段会由后端填充
               };
 
@@ -2279,7 +2551,7 @@ const Dashboard: React.FC = () => {
               await strategyApi.updateStrategy(currentEditStrategyId, strategyData);
 
               // 刷新列表
-              fetchData();
+              fetchData(true);
 
               // 关闭弹窗并重置状态
               setEditStrategyModalVisible(false);
@@ -2362,32 +2634,65 @@ const Dashboard: React.FC = () => {
                   label={<span style={{ fontWeight: 500 }}>触发动作</span>}
                   rules={[{ required: true, message: '请选择触发动作!' }]}
                 >
-                  <Select placeholder="请选择动作">
-                    <Option value="pool_entry">入池</Option>
-                    <Option value="pool_exit">退池</Option>
+                  <Select placeholder="请选择动作" showArrow style={{ width: '100%' }}>
+                    <Option value="pool_entry">
+                      <CloudUploadOutlined style={{ color: '#1890ff', marginRight: 4 }} /> 入池
+                    </Option>
+                    <Option value="pool_exit">
+                      <CloudDownloadOutlined style={{ color: '#ff7a45', marginRight: 4 }} /> 退池
+                    </Option>
                   </Select>
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item
                   name="resourceTypes"
-                  label={<span style={{ fontWeight: 500 }}>资源类型</span>}
-                  rules={[{ required: true, message: '请选择资源类型!' }]}
+                  label={<span style={{ fontWeight: 500 }}>资源池类型</span>}
+                  rules={[{ required: true, message: '请选择资源池类型!' }]}
                 >
                   <Select
                     mode="multiple"
-                    placeholder="请选择资源类型"
-                    maxTagCount={3}
+                    placeholder="请选择资源池类型"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                    }
+                    showArrow
+                    maxTagCount="responsive"
+                    tagRender={(props) => {
+                      const { label, value, closable, onClose } = props;
+                      const onPreventMouseDown = (event: React.MouseEvent<HTMLSpanElement>) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      };
+                      return (
+                        <Tag
+                          color="blue"
+                          onMouseDown={onPreventMouseDown}
+                          closable={closable}
+                          onClose={onClose}
+                          style={{
+                            marginRight: 3,
+                            marginBottom: 3,
+                            borderRadius: 6,
+                            fontSize: '12px',
+                            padding: '2px 8px',
+                            lineHeight: '20px',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <DatabaseOutlined style={{ marginRight: 4, fontSize: '12px' }} />
+                          {label}
+                        </Tag>
+                      );
+                    }}
                   >
-                    {resourceTypeOptions.map(type => (
-                      <Option key={type} value={type}>
-                        {type === 'compute' ? '计算型资源池' :
-                         type === 'memory' ? '内存优化型资源池' :
-                         type === 'storage' ? '存储优化型资源池' :
-                         type === 'gpu' ? 'GPU加速型资源池' :
-                         type === 'network' ? '网络优化型资源池' :
-                         type === 'total' ? '全局资源' :
-                         `${type}资源池`}
+                    {resourcePools.map(pool => (
+                      <Option key={pool.type} value={pool.type}>
+                        <DatabaseOutlined style={{ marginRight: 4, color: '#1890ff' }} />
+                        {pool.type}
                       </Option>
                     ))}
                   </Select>
@@ -2403,12 +2708,48 @@ const Dashboard: React.FC = () => {
               <Select
                 mode="multiple"
                 placeholder="请选择一个或多个集群"
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+                }
                 showArrow
-                maxTagCount={3}
+                maxTagCount="responsive"
                 style={{ width: '100%' }}
+                tagRender={(props) => {
+                  const { label, value, closable, onClose } = props;
+                  const onPreventMouseDown = (event: React.MouseEvent<HTMLSpanElement>) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  };
+                  return (
+                    <Tag
+                      color="green"
+                      onMouseDown={onPreventMouseDown}
+                      closable={closable}
+                      onClose={onClose}
+                      style={{
+                        marginRight: 3,
+                        marginBottom: 3,
+                        borderRadius: 6,
+                        fontSize: '12px',
+                        padding: '2px 8px',
+                        lineHeight: '20px',
+                        display: 'inline-flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <ClusterOutlined style={{ marginRight: 4, fontSize: '12px' }} />
+                      {label}
+                    </Tag>
+                  );
+                }}
               >
                 {clusters.map(cluster => (
-                  <Option key={cluster.id} value={cluster.id}>{cluster.name}</Option>
+                  <Option key={cluster.id} value={cluster.id}>
+                    <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
+                    {cluster.name || cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>

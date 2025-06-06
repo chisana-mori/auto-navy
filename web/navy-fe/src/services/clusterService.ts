@@ -24,7 +24,7 @@ export interface ClusterListResponse {
   size: number;
 }
 
-const BASE_URL = 'clusters';
+const BASE_URL = 'k8s-clusters';
 
 // 获取集群列表
 export async function getClusters(params?: {
@@ -41,30 +41,9 @@ export async function getClusters(params?: {
 
 // 获取集群详情
 export async function getClusterDetail(id: number): Promise<Cluster> {
-  try {
-    return await request(`${BASE_URL}/${id}`, {
-      method: 'GET',
-    });
-  } catch (error) {
-    console.error('获取集群详情失败，使用模拟数据:', error);
-    // 返回模拟数据
-    return {
-      id: id,
-      clusterID: `cluster-${id}`,
-      clusterName: `集群-${id}`,
-      clusterNameCn: `测试集群-${id}`,
-      alias: `测试集群-${id}`,
-      idc: 'gl',
-      zone: 'egt',
-      room: 'A1',
-      status: 'running',
-      clusterType: 'tool',
-      netType: 'physical',
-      architecture: 'x86_64',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-  }
+  return await request(`${BASE_URL}/${id}`, {
+    method: 'GET',
+  });
 }
 
 // 获取集群的IDC、Room和Zone信息

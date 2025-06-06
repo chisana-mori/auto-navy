@@ -74,37 +74,41 @@ type StrategyExecutionHistoryDTO struct {
 
 // OrderDTO 弹性伸缩订单DTO
 type OrderDTO struct {
-	ID                   int64                  `json:"id,omitempty"`
-	OrderNumber          string                 `json:"orderNumber"`
-	ClusterID            int64                  `json:"clusterId"`
-	ClusterName          string                 `json:"clusterName,omitempty"`
-	StrategyID           *int64                 `json:"strategyId"`
-	StrategyName         string                 `json:"strategyName,omitempty"`
-	ActionType           string                 `json:"actionType"` // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
-	Status               string                 `json:"status"`
-	DeviceCount          int                    `json:"deviceCount"`
-	DeviceID             *int64                 `json:"deviceId,omitempty"`
-	DeviceInfo           *DeviceDTO             `json:"deviceInfo,omitempty"`
-	Approver             string                 `json:"approver"`
-	Executor             string                 `json:"executor"`
-	ExecutionTime        *time.Time             `json:"executionTime"`
-	CreatedBy            string                 `json:"createdBy"`
-	CreatedAt            time.Time              `json:"createdAt"`
-	CompletionTime       *time.Time             `json:"completionTime"`
-	FailureReason        string                 `json:"failureReason"`
-	MaintenanceStartTime *time.Time             `json:"maintenanceStartTime,omitempty"`
-	MaintenanceEndTime   *time.Time             `json:"maintenanceEndTime,omitempty"`
-	ExternalTicketID     string                 `json:"externalTicketId,omitempty"`
-	Devices              []int64                `json:"devices,omitempty"`   // 设备ID列表
-	ExtraInfo            map[string]interface{} `json:"extraInfo,omitempty"` // 额外信息，用于存储维护原因等
-	StrategyTriggeredValue string               `json:"strategyTriggeredValue,omitempty"`
-	StrategyThresholdValue string               `json:"strategyThresholdValue,omitempty"`
+	ID                     int64                  `json:"id,omitempty"`
+	OrderNumber            string                 `json:"orderNumber"`
+	Name                   string                 `json:"name"`        // 订单名称
+	Description            string                 `json:"description"` // 订单描述
+	ClusterID              int64                  `json:"clusterId"`
+	ClusterName            string                 `json:"clusterName,omitempty"`
+	StrategyID             *int64                 `json:"strategyId"`
+	StrategyName           string                 `json:"strategyName,omitempty"`
+	ActionType             string                 `json:"actionType"` // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
+	Status                 string                 `json:"status"`
+	DeviceCount            int                    `json:"deviceCount"`
+	DeviceID               *int64                 `json:"deviceId,omitempty"`
+	DeviceInfo             *DeviceDTO             `json:"deviceInfo,omitempty"`
+	Approver               string                 `json:"approver"`
+	Executor               string                 `json:"executor"`
+	ExecutionTime          *time.Time             `json:"executionTime"`
+	CreatedBy              string                 `json:"createdBy"`
+	CreatedAt              time.Time              `json:"createdAt"`
+	CompletionTime         *time.Time             `json:"completionTime"`
+	FailureReason          string                 `json:"failureReason"`
+	MaintenanceStartTime   *time.Time             `json:"maintenanceStartTime,omitempty"`
+	MaintenanceEndTime     *time.Time             `json:"maintenanceEndTime,omitempty"`
+	ExternalTicketID       string                 `json:"externalTicketId,omitempty"`
+	Devices                []int64                `json:"devices,omitempty"`   // 设备ID列表
+	ExtraInfo              map[string]interface{} `json:"extraInfo,omitempty"` // 额外信息，用于存储维护原因等
+	StrategyTriggeredValue string                 `json:"strategyTriggeredValue,omitempty"`
+	StrategyThresholdValue string                 `json:"strategyThresholdValue,omitempty"`
 }
 
 // OrderListItemDTO 订单列表项
 type OrderListItemDTO struct {
 	ID           int64     `json:"id"`
 	OrderNumber  string    `json:"orderNumber"`
+	Name         string    `json:"name"`        // 订单名称
+	Description  string    `json:"description"` // 订单描述
 	ClusterID    int64     `json:"clusterId"`
 	ClusterName  string    `json:"clusterName"`
 	StrategyID   *int64    `json:"strategyId"`
