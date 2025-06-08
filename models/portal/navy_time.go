@@ -56,4 +56,17 @@ func (t *NavyTime) Scan(value interface{}) error {
 // String 实现 Stringer 接口.
 func (t NavyTime) String() string {
 	return time.Time(t).Format(timeFormat)
-} 
+}
+
+// UnmarshalParam 实现gin参数绑定接口.
+func (t *NavyTime) UnmarshalParam(param string) error {
+	if param == "" {
+		return nil
+	}
+	parsed, err := time.Parse(timeFormat, param)
+	if err != nil {
+		return err
+	}
+	*t = NavyTime(parsed)
+	return nil
+}

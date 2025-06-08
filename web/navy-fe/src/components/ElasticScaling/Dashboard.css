@@ -166,35 +166,142 @@
 .order-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 24px;
   margin-bottom: 16px;
   width: 100%;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
 .order-meta-item {
   flex: 1;
-  min-width: 120px;
+  min-width: 140px;
+  max-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 16px;
+  background: rgba(24, 144, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(24, 144, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.order-meta-item:hover {
+  background: rgba(24, 144, 255, 0.08);
+  border-color: rgba(24, 144, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
 }
 
 .order-meta-label {
-  color: rgba(0, 0, 0, 0.45);
-  font-size: 13px;
-  margin-bottom: 4px;
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 12px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.order-meta-label::before {
+  content: '';
+  width: 3px;
+  height: 3px;
+  background: #1890ff;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 .order-meta-value {
   color: rgba(0, 0, 0, 0.88);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.order-meta-value .anticon {
+  color: #1890ff;
   font-size: 14px;
 }
 
 .order-card-footer {
   padding: 12px 24px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   background-color: #fafafa;
   border-top: 1px solid #f0f0f0;
+}
+
+/* 订单卡片按钮组样式 */
+.order-card-footer .ant-space {
+  flex: 1;
+}
+
+.order-card-footer .ant-btn {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-size: 12px;
+  height: 28px;
+  padding: 0 12px;
+}
+
+.order-card-footer .ant-btn-link {
+  color: #1890ff;
+  border: 1px solid transparent;
+  background: rgba(24, 144, 255, 0.06);
+  box-shadow: none;
+}
+
+.order-card-footer .ant-btn-link:hover {
+  background: rgba(24, 144, 255, 0.12);
+  border-color: rgba(24, 144, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.order-card-footer .ant-btn-primary {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  border-color: #1890ff;
+  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.2);
+}
+
+.order-card-footer .ant-btn-primary:hover {
+  background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
+  border-color: #40a9ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(24, 144, 255, 0.3);
+}
+
+.order-card-footer .ant-btn-dangerous {
+  background: rgba(255, 77, 79, 0.06);
+  border-color: rgba(255, 77, 79, 0.2);
+  color: #ff4d4f;
+}
+
+.order-card-footer .ant-btn-dangerous:hover {
+  background: rgba(255, 77, 79, 0.12);
+  border-color: rgba(255, 77, 79, 0.4);
+  transform: translateY(-1px);
+}
+
+/* 操作按钮组右对齐 */
+.order-card-footer .order-action-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
 }
 
 /* 策略表格样式 */
@@ -258,6 +365,15 @@
 
 .strategy-table .disable-button:hover {
   background-color: #fff1f0;
+}
+
+/* 执行历史按钮 */
+.strategy-table .history-button .anticon {
+  color: #722ed1;
+}
+
+.strategy-table .history-button:hover {
+  background-color: #f9f0ff;
 }
 
 /* 删除按钮 */
@@ -529,7 +645,6 @@
 
 .order-status-summary {
   display: flex;
-  justify-content: space-around;
   padding: 16px;
   background: white;
   border-radius: 8px;
@@ -539,6 +654,8 @@
 
 .order-status-item {
   text-align: center;
+  flex: 1;
+  max-width: 20%;
 }
 
 .order-status-value {
@@ -1027,11 +1144,30 @@
     border-radius: 6px;
     margin-bottom: 20px;
     border: 1px solid;
+    font-size: 12px;
+    padding: 8px 12px;
 
     &.ant-alert-info {
       background-color: #f0f9ff;
       border-color: #bae7ff;
     }
+  }
+
+  /* 订单卡片中的Alert样式调整 */
+  .order-card .ant-alert {
+    font-size: 11px;
+    padding: 6px 10px;
+    margin-top: 8px;
+    margin-bottom: 0;
+  }
+
+  .order-card .ant-alert .ant-alert-message {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .order-card .ant-alert .anticon {
+    font-size: 12px;
   }
 
   .ant-form-item {
@@ -1130,18 +1266,32 @@
   }
 
   .ant-checkbox-wrapper {
-    font-size: 14px;
-
     .ant-checkbox {
       .ant-checkbox-inner {
         border-radius: 4px;
-        transition: all 0.3s ease;
       }
-
       &.ant-checkbox-checked .ant-checkbox-inner {
-        background-color: #1890ff;
-        border-color: #1890ff;
+        background-color: #1677ff;
+        border-color: #1677ff;
       }
     }
   }
+}
+
+/* Custom styles for Ant Design Steps to improve vertical alignment */
+.ant-steps-item-container {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 80px;
+}
+
+/* 统一调整订单状态流程步骤的样式 */
+.order-status-flow .ant-steps-item-container {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 80px;
+}
+
+.order-status-flow .ant-steps-item:first-child .ant-steps-item-container {
+  padding-left: 8px;
 }

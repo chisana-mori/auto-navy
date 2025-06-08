@@ -15,7 +15,11 @@ const (
 	StatusRunning   = "running"
 	StatusCompleted = "completed"
 	StatusFailed    = "failed"
+)
 
+// GORM 查询相关常量
+const (
+	OrderByCreatedAtDesc = "created_at DESC"
 )
 
 // 资源类型
@@ -23,4 +27,4 @@ const (
 	ResourceOpsJob = "Operation job"
 	ResourceF5     = "F5 info"
 	ResourceDevice = "Device"
-) 
+)

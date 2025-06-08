@@ -6,6 +6,9 @@ import (
 	"navy-ng/models/portal"
 	"strings"
 	"time"
+
+	"github.com/jinzhu/now"
+	_ "gorm.io/gorm" // GORM is used via s.db
 )
 
 // GetDashboardStats 获取工作台统计数据
@@ -26,12 +29,10 @@ func (s *ElasticScalingService) GetDashboardStats() (*DashboardStatsDTO, error) 
 	}
 	stats.EnabledStrategyCount = int(enabledStrategyCount)
 
-	// 获取今日已触发策略数（今日执行历史中有order_created结果的不同策略数）
-	today := time.Now().Format("2006-01-02")
 	var triggeredStrategyIDs []int64
 	if err := s.db.Model(&portal.StrategyExecutionHistory{}).
 		Select("DISTINCT strategy_id").
-		Where("DATE(execution_time) = ? AND result = ?", today, "order_created").
+		Where("execution_time between ? and ? AND result = ?", now.BeginningOfDay(), now.EndOfDay(), "order_created").
 		Pluck("strategy_id", &triggeredStrategyIDs).Error; err != nil {
 		return nil, err
 	}
@@ -44,13 +45,13 @@ func (s *ElasticScalingService) GetDashboardStats() (*DashboardStatsDTO, error) 
 	}
 	stats.ClusterCount = int(clusterCount)
 
-	// 获取异常集群数（根据资源快照中的异常状态判断）
-	// 这里假设MaxCpuUsageRatio > 80 或 MaxMemoryUsageRatio > 80 视为异常
-	yesterday := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
+	// 获取生成待处理状态的扩缩容订单的集群个数，按集群名去重
 	var abnormalClusterCount int64
-	if err := s.db.Model(&portal.ResourceSnapshot{}).
-		Where("DATE(created_at) >= ? AND (max_cpu > 80 OR max_memory > 80)", yesterday).
-		Distinct("cluster_id").
+	if err := s.db.Table("orders o").
+		Joins("JOIN elastic_scaling_order_details esd ON o.id = esd.order_id").
+		Joins("JOIN k8s_cluster c ON esd.cluster_id = c.id").
+		Where("o.type = ? AND o.status = ?", portal.OrderTypeElasticScaling, portal.OrderStatusPending).
+		Distinct("c.clustername").
 		Count(&abnormalClusterCount).Error; err != nil {
 		return nil, err
 	}
@@ -86,6 +87,56 @@ func (s *ElasticScalingService) GetDashboardStats() (*DashboardStatsDTO, error) 
 	}
 	stats.InPoolDeviceCount = int(inPoolDeviceCount)
 
+	// 计算目标巡检资源池数和已巡检资源池数
+	var enabledStrategies []portal.ElasticScalingStrategy
+	if err := s.db.Where("status = ?", portal.StrategyStatusEnabled).Find(&enabledStrategies).Error; err != nil {
+		return nil, err
+	}
+
+	targetResourcePools := make(map[string]struct{})
+	inspectedResourcePools := make(map[string]struct{})
+
+	for _, strategy := range enabledStrategies {
+		// 获取策略关联的集群
+		var strategyClusters []portal.StrategyClusterAssociation
+		if err := s.db.Where("strategy_id = ?", strategy.ID).Find(&strategyClusters).Error; err != nil {
+			return nil, err
+		}
+
+		strategyResourceTypes := strings.Split(strategy.ResourceTypes, ",")
+
+		for _, sc := range strategyClusters {
+			for _, rt := range strategyResourceTypes {
+				// 检查资源池是否在当天的快照中存在于该集群
+				var count int64
+				if err := s.db.Model(&portal.ResourceSnapshot{}).
+					Where("cluster_id = ? AND resource_type = ? AND created_at BETWEEN ? AND ?", sc.ClusterID, rt, now.BeginningOfDay(), now.EndOfDay()).
+					Count(&count).Error; err != nil {
+					return nil, err
+				}
+				if count > 0 {
+					poolKey := fmt.Sprintf("%d-%s", sc.ClusterID, rt)
+					targetResourcePools[poolKey] = struct{}{}
+
+					// 检查该策略、集群、资源池今天是否已巡检 (有执行历史记录)
+					var historyCount int64
+					if err := s.db.Model(&portal.StrategyExecutionHistory{}).
+						Where("strategy_id = ? AND cluster_id = ? AND resource_type = ? AND execution_time BETWEEN ? AND ?",
+							strategy.ID, sc.ClusterID, rt, now.BeginningOfDay(), now.EndOfDay()).
+						Count(&historyCount).Error; err != nil {
+						return nil, err
+					}
+					if historyCount > 0 {
+						inspectedResourcePools[poolKey] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	stats.TargetResourcePoolCount = len(targetResourcePools)
+	stats.InspectedResourcePoolCount = len(inspectedResourcePools)
+
 	return stats, nil
 }
 
@@ -93,12 +144,9 @@ func (s *ElasticScalingService) GetDashboardStats() (*DashboardStatsDTO, error) 
 func (s *ElasticScalingService) GetResourcePoolTypes() ([]string, error) {
 	var resourceTypes []string
 
-	// 获取当天的日期
-	today := time.Now().Format("2006-01-02")
-
 	// 查询当天的所有快照数据，获取不同的资源池类型
 	err := s.db.Model(&portal.ResourceSnapshot{}).
-		Where("DATE(created_at) = ?", today).
+		Where("created_at between ? and ?", now.BeginningOfDay(), now.EndOfDay()).
 		Distinct("resource_type").
 		Pluck("resource_type", &resourceTypes).Error
 
@@ -143,17 +191,17 @@ func (s *ElasticScalingService) GetResourceAllocationTrend(clusterID int64, time
 
 	// 确定查询时间范围
 	var startTime time.Time
-	now := time.Now()
+	currentTime := time.Now()
 
 	switch timeRange {
 	case "24h":
-		startTime = now.Add(-24 * time.Hour)
+		startTime = now.New(currentTime).Add(-24 * time.Hour)
 	case "7d":
-		startTime = now.Add(-7 * 24 * time.Hour)
+		startTime = now.New(currentTime).Add(-7 * 24 * time.Hour)
 	case "30d":
-		startTime = now.Add(-30 * 24 * time.Hour)
+		startTime = now.New(currentTime).Add(-30 * 24 * time.Hour)
 	default:
-		startTime = now.Add(-24 * time.Hour) // 默认24小时
+		startTime = now.New(currentTime).Add(-24 * time.Hour) // 默认24小时
 	}
 
 	// 解析资源类型
@@ -265,17 +313,17 @@ func (s *ElasticScalingService) GetResourceAllocationTrend(clusterID int64, time
 func (s *ElasticScalingService) GetOrderStats(timeRange string) (*OrderStatsDTO, error) {
 	// 确定查询时间范围
 	var startTime time.Time
-	now := time.Now()
+	currentTime := time.Now()
 
 	switch timeRange {
 	case "7d":
-		startTime = now.Add(-7 * 24 * time.Hour)
+		startTime = now.New(currentTime).Add(-7 * 24 * time.Hour)
 	case "30d":
-		startTime = now.Add(-30 * 24 * time.Hour)
+		startTime = now.New(currentTime).Add(-30 * 24 * time.Hour)
 	case "90d":
-		startTime = now.Add(-90 * 24 * time.Hour)
+		startTime = now.New(currentTime).Add(-90 * 24 * time.Hour)
 	default:
-		startTime = now.Add(-30 * 24 * time.Hour) // 默认30天
+		startTime = now.New(currentTime).Add(-30 * 24 * time.Hour) // 默认30天
 	}
 
 	stats := &OrderStatsDTO{}

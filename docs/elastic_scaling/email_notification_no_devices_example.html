@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【弹性伸缩】入池变更通知 - 订单号：ESO20241201789012</title>
+</head>
+<body style="margin: 0; padding: 20px; font-family: 'Microsoft YaHei', Arial, sans-serif; background-color: #f5f7fa;">
+    <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <!-- 邮件头部 -->
+        <div style="background: linear-gradient(135deg, #ff7a45 0%, #ff7a45 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">
+                ⚠️ 入池变更通知（设备不足）
+            </h1>
+            <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">
+                订单号：ESO20241201789012 | 创建时间：2024-12-01 16:30:25
+            </p>
+        </div>
+        <!-- 邮件正文 -->
+        <div style="padding: 32px;">
+            <!-- 问候语 -->
+            <div style="margin-bottom: 24px;">
+                <h2 style="color: #333; font-size: 18px; margin: 0 0 12px 0;">👋 值班同事，您好！</h2>
+                <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0;">
+                    系统检测到集群资源需要进行<strong style="color: #ff7a45;">入池</strong>变更操作，但<strong style="color: #ff4d4f;">无法找到可用设备</strong>，请协调处理相关工作。
+                </p>
+            </div>
+
+            <!-- 变更详情 -->
+            <div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin-bottom: 24px;">
+                <h3 style="color: #333; font-size: 16px; margin: 0 0 16px 0;">📋 变更详情</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <span style="color: #666; font-size: 13px;">目标集群：</span>
+                        <strong style="color: #333; font-size: 14px;">no-devices-cluster</strong>
+                    </div>
+                    <div>
+                        <span style="color: #666; font-size: 13px;">变更类型：</span>
+                        <strong style="color: #ff7a45; font-size: 14px;">入池</strong>
+                    </div>
+                    <div>
+                        <span style="color: #666; font-size: 13px;">需要设备：</span>
+                        <strong style="color: #333; font-size: 14px;">2 台</strong>
+                    </div>
+                    <div>
+                        <span style="color: #666; font-size: 13px;">可用设备：</span>
+                        <strong style="color: #ff4d4f; font-size: 14px;">0 台</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 设备不足提醒 -->
+            <div style="border-left: 4px solid #ff4d4f; background-color: #fff2f0; padding: 20px; margin-bottom: 24px;">
+                <h3 style="color: #cf1322; margin: 0 0 12px 0; font-size: 16px;">🚫 设备不足情况</h3>
+                <div style="background-color: white; border-radius: 6px; padding: 16px; margin-bottom: 16px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background-color: #f1f3f4;">
+                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">设备状态</th>
+                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">数量</th>
+                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">可用设备</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center; color: #ff4d4f; font-weight: bold;">0 台</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">无可用设备进行入池操作</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">在池设备</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">1 台</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">已在资源池中</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">维护设备</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">1 台</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">正在维护中</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">其他状态</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">2 台</td>
+                                <td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">离线或预留状态</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p style="color: #a8071a; font-size: 13px; line-height: 1.6; margin: 0;">
+                    <strong>找不到要处理的设备，请自行协调处理。</strong>建议联系设备管理团队申请新设备或调整现有设备状态。
+                </p>
+            </div>
+
+            <!-- 处理指引 -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; padding: 20px; margin-bottom: 24px; color: white;">
+                <h3 style="margin: 0 0 12px 0; font-size: 16px;">⚡ 处理指引</h3>
+                <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+                    <li>联系设备管理团队申请新的可用设备</li>
+                    <li>检查现有设备状态，评估是否可以调整为可用状态</li>
+                    <li>考虑从其他集群调配设备资源</li>
+                    <li>如无法及时获得设备，可选择忽略此次扩容需求</li>
+                    <li>完成设备协调后，请手动创建入池订单或重新触发策略评估</li>
+                </ul>
+            </div>
+
+            <!-- 重要提醒 -->
+            <div style="border-left: 4px solid #ff4d4f; background-color: #fff2f0; padding: 16px; margin-bottom: 24px;">
+                <h4 style="color: #cf1322; margin: 0 0 8px 0; font-size: 14px;">⚠️ 重要提醒</h4>
+                <p style="color: #a8071a; font-size: 13px; line-height: 1.6; margin: 0;">
+                    集群资源使用率已连续超过阈值，建议<strong>尽快协调设备资源</strong>以避免性能问题。
+                    如短期内无法获得设备，请考虑其他优化措施或临时扩容方案。
+                </p>
+            </div>
+
+            <!-- 联系信息 -->
+            <div style="text-align: center; padding: 20px; background-color: #f8f9fa; border-radius: 6px;">
+                <p style="color: #666; font-size: 13px; margin: 0 0 8px 0;">
+                    如有疑问，请联系设备管理团队或系统管理员
+                </p>
+                <p style="color: #999; font-size: 12px; margin: 0;">
+                    此邮件由弹性伸缩系统自动发送，请勿直接回复
+                </p>
+            </div>
+        </div>
+
+        <!-- 邮件底部 -->
+        <div style="background-color: #f1f3f4; padding: 16px 32px; border-radius: 0 0 8px 8px; text-align: center;">
+            <p style="color: #666; font-size: 12px; margin: 0;">
+                © 2024 弹性伸缩管理系统 | 发送时间：2024-12-01 16:30:25
+            </p>
+        </div>
+    </div>
+</body>
+</html>

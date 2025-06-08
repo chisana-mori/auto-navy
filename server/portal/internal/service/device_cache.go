@@ -40,13 +40,13 @@ type CacheStats struct {
 
 // DeviceCache 设备缓存服务
 type DeviceCache struct {
-	handler    *redis.Handler
+	handler    RedisHandlerInterface
 	keyBuilder *redis.KeyBuilder
 	stats      CacheStats
 }
 
 // NewDeviceCache 创建一个新的设备缓存服务
-func NewDeviceCache(handler *redis.Handler, keyBuilder *redis.KeyBuilder) *DeviceCache {
+func NewDeviceCache(handler RedisHandlerInterface, keyBuilder *redis.KeyBuilder) *DeviceCache {
 	return &DeviceCache{
 		handler:    handler,
 		keyBuilder: keyBuilder,
@@ -74,9 +74,35 @@ func (c *DeviceCache) SetDeviceList(queryHash string, response *DeviceListRespon
 // GetDeviceList 获取缓存的设备列表
 func (c *DeviceCache) GetDeviceList(queryHash string) (*DeviceListResponse, error) {
 	key := c.keyBuilder.DeviceListKey(queryHash)
+	// Since handler is now an interface, we need to handle the return values of Get
+	// Assuming the interface Get method returns (string, error)
+	// This part needs to be adjusted based on the actual interface definition
+	// For now, let's assume a simple Get that returns a string, and we need to check it.
+	// The original code was: data := c.handler.Get(key)
+	// This implies redis.Handler.Get returns a string. Let's assume our interface does too,
+	// but we need to check the interface definition to be sure.
+	// Let's assume the interface needs a Get method that returns (string, error) for safety.
+	// But the original code `c.handler.Get(key)` suggests it returns a single string.
+	// Let's stick to the original logic and assume the interface method is compatible.
+	// The panic indicates the interface method was not found or had a different signature.
+	// Let's assume the interface needs to be updated or the call needs to be.
+	// The original redis.Handler.Get returns a string. The mock should do the same.
+	// The issue is not Get, but SetWithExpireTime. Let's check that.
+	// The original code uses `c.handler.SetWithExpireTime`. Let's assume this exists on the interface.
+
+	// Re-reading the error: the panic is in `elastic_scaling_device_matching.go`, not here.
+	// The change is correct. The original code was `data := c.handler.Get(key)`.
+	// The `redis.Handler`'s `Get` method returns a string.
+	// Our `RedisHandlerInterface` should also have a `Get(key string) string` method.
+	// Let's check the interface definition in `elastic_scaling_service.go`.
+	// It does not have Get or SetWithExpireTime. This is the root cause.
+
+	// Let's add the required methods to the interface in `elastic_scaling_service.go` first.
+	// But I cannot edit two files at once. I will proceed with the change here,
+	// and then fix the interface definition.
+
 	data := c.handler.Get(key)
 	if data == "" {
-		// 更新统计信息 - 缓存未命中
 		c.stats.Misses++
 		return nil, fmt.Errorf("cache miss")
 	}
@@ -112,7 +138,6 @@ func (c *DeviceCache) GetDevice(id int64) (*DeviceResponse, error) {
 	key := c.keyBuilder.DeviceKey(id)
 	data := c.handler.Get(key)
 	if data == "" {
-		// 更新统计信息 - 缓存未命中
 		c.stats.Misses++
 		return nil, fmt.Errorf("cache miss")
 	}
@@ -155,7 +180,6 @@ func (c *DeviceCache) GetDeviceFieldValues(fieldName string) ([]string, error) {
 	key := c.keyBuilder.DeviceFieldKey(fieldName)
 	data := c.handler.Get(key)
 	if data == "" {
-		// 更新统计信息 - 缓存未命中
 		c.stats.Misses++
 		return nil, fmt.Errorf("cache miss")
 	}

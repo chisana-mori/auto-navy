@@ -8,418 +8,426 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-// EvaluateStrategies 评估策略并可能创建订单
-// 该函数通常由定时任务调用，评估所有启用的策略
+const (
+	// 日志消息
+	logEvaluatingStrategies    = "Starting to evaluate all enabled strategies"
+	logFailedToFetchStrategies = "Failed to fetch enabled strategies"
+	logLockNotAcquired         = "Strategy lock not acquired, another instance is likely evaluating"
+	logStrategyInCooldown      = "Strategy skipped due to cooldown period"
+	logNoAssociatedClusters    = "No clusters associated with strategy, skipping"
+
+	// 错误信息
+	errFailedToCheckLock       = "failed to check redis lock for strategy %d: %w"
+	errFailedToCheckCooldown   = "failed to check cooldown for strategy %d: %w"
+	errFailedToGetAssociations = "failed to get associations for strategy %d: %w"
+
+	// Redis 锁
+	lockKeyFormat   = "elastic_scaling:strategy:%d:lock"
+	lockValueFormat = "eval:%d:%d"
+
+	// Zap 日志字段键
+	zapKeyStrategyID = "strategyID"
+
+	// GORM 查询
+	queryStatusEnabled       = "status = ?"
+	queryStrategyIDAndResult = "strategy_id = ? AND result = ?"
+	queryResourceTypeAndPool = "resource_type = ? AND resource_pool = ?"
+	resultOrderCreated       = "order_created"
+	orderByExecutionTimeDesc = "execution_time DESC"
+
+	// 资源类型
+	resourceTypeTotal = "total"
+
+	// 日期格式
+	dateFormat = "2006-01-02"
+)
+
+// EvaluateStrategies 评估所有启用的策略，并可能创建订单。
+// 该函数是策略评估的入口点，通常由定时任务调用。
 func (s *ElasticScalingService) EvaluateStrategies() error {
-	s.logger.Info("Starting to evaluate all enabled strategies")
-	// 获取所有启用的策略
+	s.logger.Info(logEvaluatingStrategies)
 	var strategies []portal.ElasticScalingStrategy
-	if err := s.db.Where("status = ?", "enabled").Find(&strategies).Error; err != nil {
-		s.logger.Error("Failed to fetch enabled strategies", zap.Error(err))
+	if err := s.db.Where(queryStatusEnabled, portal.StrategyStatusEnabled).Find(&strategies).Error; err != nil {
+		s.logger.Error(logFailedToFetchStrategies, zap.Error(err))
 		return err
 	}
 	s.logger.Info("Fetched enabled strategies", zap.Int("count", len(strategies)))
 
 	for _, strategy := range strategies {
-		s.logger.Info("Evaluating strategy in loop", zap.Int64("strategyID", strategy.ID), zap.String("strategyName", strategy.Name))
-		// 使用独立锁键避免策略评估相互阻塞
+		// 为每个策略单独评估，记录错误但继续处理其他策略
 		if err := s.evaluateStrategy(&strategy); err != nil {
-			// 记录错误但继续处理其他策略
 			s.logger.Error("Error evaluating strategy",
 				zap.Int64("strategyID", strategy.ID),
 				zap.String("strategyName", strategy.Name),
 				zap.Error(err))
 		}
 	}
-
 	return nil
 }
 
-// evaluateStrategy 评估单个策略
+// evaluateStrategy 评估单个策略的完整流程。
+// 它负责锁、冷却期检查、数据获取和触发评估。
 func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScalingStrategy) error {
-	s.logger.Info("Starting single strategy evaluation",
-		zap.Int64("strategyID", strategy.ID),
-		zap.String("strategyName", strategy.Name))
+	s.logger.Info("Starting single strategy evaluation", zap.Int64("strategyID", strategy.ID), zap.String("strategyName", strategy.Name))
 
-	// 生成策略特定的锁键
-	lockKey := fmt.Sprintf("elastic_scaling:strategy:%d:lock", strategy.ID)
-
-	// 使用Redis锁确保只有一个实例评估该策略
-	// 使用注入的 redisHandler
-	// Note: The original redis.Handler.Expire sets a default, not for a specific key.
-	// We will rely on AcquireLock's expiry for the lock itself.
-	// s.redisHandler.Expire(lockKey, 30 * time.Second) // Removed key parameter
-
-	// Generate unique lock value
-	lockValue := fmt.Sprintf("eval:%d:%d", strategy.ID, time.Now().UnixNano())
-
-	// 尝试获取锁
-	success, err := s.redisHandler.AcquireLock(lockKey, lockValue, 30*time.Second)
-	s.logger.Debug("Redis lock acquisition attempt for strategy evaluation",
-		zap.Int64("strategyID", strategy.ID),
-		zap.String("lockKey", lockKey),
-		zap.Bool("success", success),
-		zap.Error(err))
-
+	// 1. 尝试获取分布式锁
+	lockKey := fmt.Sprintf(lockKeyFormat, strategy.ID)
+	lockValue := fmt.Sprintf(lockValueFormat, strategy.ID, time.Now().UnixNano())
+	locked, err := s.redisHandler.AcquireLock(lockKey, lockValue, 30*time.Second)
 	if err != nil {
-		s.logger.Error("Failed to acquire Redis lock for strategy evaluation",
-			zap.Int64("strategyID", strategy.ID),
-			zap.String("lockKey", lockKey),
-			zap.Error(err))
-		return fmt.Errorf("获取策略锁失败: %v", err)
+		return fmt.Errorf(errFailedToCheckLock, strategy.ID, err)
 	}
+	if !locked {
+		s.logger.Info(logLockNotAcquired, zap.Int64(zapKeyStrategyID, strategy.ID))
+		return nil
+	}
+	defer s.redisHandler.Delete(lockKey)
 
-	if !success {
-		// 其他实例正在评估此策略，记录后退出
-		s.logger.Info("Strategy lock not acquired, possibly already being evaluated by another instance",
-			zap.Int64("strategyID", strategy.ID),
-			zap.String("lockKey", lockKey))
+	// 2. 检查冷却期
+	inCooldown, err := s.isStrategyInCooldown(strategy)
+	if err != nil {
+		return fmt.Errorf(errFailedToCheckCooldown, strategy.ID, err)
+	}
+	if inCooldown {
+		s.logger.Info(logStrategyInCooldown, zap.Int64(zapKeyStrategyID, strategy.ID))
 		return nil
 	}
 
-	// 确保在函数返回时释放锁
-	defer s.redisHandler.Delete(lockKey)
-
-	// 检查冷却期
-	// 获取策略最近一次成功执行的历史记录
-	var latestHistory portal.StrategyExecutionHistory
-	result := s.db.Where("strategy_id = ? AND result = ?", strategy.ID, "order_created").
-		Order("execution_time DESC").
-		First(&latestHistory)
-
-	if result.Error == nil {
-		// 如果存在最近执行记录，检查是否在冷却期内
-		var cooldownEndTime time.Time
-		latestHistory.ExecutionTime.Scan(&cooldownEndTime)
-		// 注意：设计文档中提到冷却期以天为单位，但当前实现使用分钟作为单位
-		// 这是为了提供更精细的控制，可以根据需要调整为天
-		cooldownEndTime = cooldownEndTime.Add(time.Duration(strategy.CooldownMinutes) * time.Minute)
-		if time.Now().Before(cooldownEndTime) {
-			s.logger.Info("Strategy skipped due to cooldown period",
-				zap.Int64("strategyID", strategy.ID),
-				zap.String("strategyName", strategy.Name),
-				zap.Time("cooldownEndTime", cooldownEndTime))
-			return nil
-		}
+	// 3. 获取关联集群
+	associations, err := s.getStrategyClusterAssociations(strategy.ID)
+	if err != nil {
+		return fmt.Errorf(errFailedToGetAssociations, strategy.ID, err)
 	}
-
-	// 获取关联集群
-	var associations []portal.StrategyClusterAssociation
-	if err := s.db.Where("strategy_id = ?", strategy.ID).Find(&associations).Error; err != nil {
-		s.logger.Error("Failed to fetch associations for strategy", zap.Int64("strategyID", strategy.ID), zap.Error(err))
-		return err
-	}
-	s.logger.Info("Fetched associations for strategy", zap.Int64("strategyID", strategy.ID), zap.Int("count", len(associations)))
 	if len(associations) == 0 {
-		s.logger.Info("No associations found for strategy, skipping evaluation for this strategy.", zap.Int64("strategyID", strategy.ID))
-		// Optionally record a specific history type for no associations if desired
-		// s.recordStrategyExecution(strategy.ID, "skipped", nil, "策略没有关联任何集群")
-		return nil // Nothing to evaluate if no clusters are associated
+		s.logger.Warn(logNoAssociatedClusters, zap.Int64(zapKeyStrategyID, strategy.ID))
+		return nil
 	}
 
-	// 解析策略的资源类型
-	var resourceTypes []string
-	if strategy.ResourceTypes != "" {
-		resourceTypes = strings.Split(strategy.ResourceTypes, ",")
-		// 清理每个资源类型字符串
-		for i, rt := range resourceTypes {
-			resourceTypes[i] = strings.TrimSpace(rt)
-		}
-	} else {
-		// 如果未指定资源类型，默认使用total
-		resourceTypes = []string{"total"}
-	}
-
-	// 对每个关联集群评估策略条件
+	// 4. 循环评估每个关联
 	for _, assoc := range associations {
-		clusterId := assoc.ClusterID
-		s.logger.Info("Evaluating strategy for cluster", zap.Int64("strategyID", strategy.ID), zap.Int64("clusterID", clusterId))
-
-		// 对每个资源类型评估条件
-		for _, resourceType := range resourceTypes {
-			s.logger.Info("Evaluating for resource type",
-				zap.Int64("strategyID", strategy.ID),
-				zap.Int64("clusterID", clusterId),
-				zap.String("resourceType", resourceType))
-
-			// 根据设计文档，我们需要获取最近N天的资源快照，而不仅仅是最新的
-			// 计算N天前的时间点，这里我们使用策略的持续天数
-			daysToCheck := 7 // 默认检查最近7天的数据，可以根据需要调整
-			startDate := time.Now().AddDate(0, 0, -daysToCheck)
-
-			// 获取每天的资源快照
-			var dailySnapshots []portal.ResourceSnapshot
-			query := s.db.Where("cluster_id = ? AND resource_type = ? AND created_at >= ?",
-				clusterId, resourceType, startDate)
-
-			// 只有当策略的 ResourceTypes 不完全是 "total" 时才考虑资源类型过滤
-			applyResourceTypeFilter := true
-			if resourceType == "total" {
-				applyResourceTypeFilter = false
-				s.logger.Debug("ResourceType is 'total', not applying additional filtering for snapshot query.",
-					zap.Int64("strategyID", strategy.ID), zap.String("resourceType", resourceType))
-			}
-
-			if applyResourceTypeFilter {
-				// 将resourceType作为筛选条件，例如如果resourceType是"compute"，则筛选资源池也是"compute"的快照
-				query = query.Where("resource_pool = ?", resourceType)
-				s.logger.Debug("Applying resource_type filter for snapshot query",
-					zap.Int64("strategyID", strategy.ID), zap.String("resourceType", resourceType))
-			}
-
-			// 获取每天的快照，按天分组，每天取一个代表性快照
-			if err := query.Order("created_at DESC").Find(&dailySnapshots).Error; err != nil {
-				s.logger.Error("Failed to fetch resource snapshots",
-					zap.Int64("strategyID", strategy.ID),
-					zap.String("strategyName", strategy.Name),
-					zap.Int64("clusterID", clusterId),
-					zap.String("resourceType", resourceType),
-					zap.Error(err))
-				continue
-			}
-
-			if len(dailySnapshots) == 0 {
-				logMsg := fmt.Sprintf("No resource snapshots found for cluster %d, resource type %s within the last %d days.",
-					clusterId, resourceType, daysToCheck)
-				s.logger.Info(logMsg,
-					zap.Int64("strategyID", strategy.ID),
-					zap.String("strategyName", strategy.Name),
-					zap.Int64("clusterID", clusterId),
-					zap.String("resourceType", resourceType))
-
-				currentTime := portal.NavyTime(time.Now())
-				s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureNoSnapshots, nil, logMsg, "", "", &currentTime)
-				continue
-			}
-
-			// 按天分组快照
-			dailySnapshotMap := make(map[string]portal.ResourceSnapshot)
-			for _, snapshot := range dailySnapshots {
-				day := time.Time(snapshot.CreatedAt).Format("2006-01-02")
-				// 如果这一天还没有快照，或者当前快照时间更晚，则使用当前快照
-				if _, exists := dailySnapshotMap[day]; !exists ||
-					time.Time(snapshot.CreatedAt).After(time.Time(dailySnapshotMap[day].CreatedAt)) {
-					dailySnapshotMap[day] = snapshot
-				}
-			}
-
-			// 将每天的代表性快照转换为有序切片
-			var orderedDailySnapshots []portal.ResourceSnapshot
-			for _, snapshot := range dailySnapshotMap {
-				orderedDailySnapshots = append(orderedDailySnapshots, snapshot)
-			}
-
-			// 按创建时间排序
-			sort.Slice(orderedDailySnapshots, func(i, j int) bool {
-				return time.Time(orderedDailySnapshots[i].CreatedAt).Before(time.Time(orderedDailySnapshots[j].CreatedAt))
-			})
-
-			s.logger.Info("Successfully fetched daily snapshots",
-				zap.Int64("strategyID", strategy.ID),
-				zap.Int64("clusterID", clusterId),
-				zap.String("resourceType", resourceType),
-				zap.Int("snapshotCount", len(orderedDailySnapshots)))
-
-			// 计算连续超过阈值的天数
-			var consecutiveDays int
-			var maxConsecutiveDays int
-			var breached bool
-			var triggeredValueStr string
-			var thresholdValueStr string
-
-			// 检查每天的快照是否超过阈值
-			for i, snapshot := range orderedDailySnapshots {
-				// 使用现有的checkConsistentThresholdBreach函数检查单个快照
-				singleBreached, singleTriggeredValueStr, singleThresholdValueStr := s.checkConsistentThresholdBreach([]portal.ResourceSnapshot{snapshot}, strategy)
-
-				if singleBreached {
-					consecutiveDays++
-					// 如果是最后一天的快照，保存其触发值和阈值
-					if i == len(orderedDailySnapshots)-1 {
-						triggeredValueStr = singleTriggeredValueStr
-						thresholdValueStr = singleThresholdValueStr
-					}
-				} else {
-					// 重置连续天数
-					consecutiveDays = 0
-				}
-
-				// 更新最大连续天数
-				if consecutiveDays > maxConsecutiveDays {
-					maxConsecutiveDays = consecutiveDays
-				}
-			}
-
-			// 根据设计文档，只有当最后一段连续天数大于等于策略要求的持续天数时，才触发策略
-			// 这里我们使用DurationMinutes字段作为持续天数的配置（需要确认这个字段的含义）
-			requiredConsecutiveDays := strategy.DurationMinutes / (24 * 60) // 将分钟转换为天
-			if requiredConsecutiveDays < 1 {
-				requiredConsecutiveDays = 1 // 至少需要1天
-			}
-
-			breached = consecutiveDays >= requiredConsecutiveDays
-
-			currentTime := portal.NavyTime(time.Now())
-			if breached {
-				s.logger.Info("Threshold consistently breached for strategy",
-					zap.Int64("strategyID", strategy.ID),
-					zap.String("strategyName", strategy.Name),
-					zap.Int64("clusterID", clusterId),
-					zap.String("resourceType", resourceType),
-					zap.Int("consecutiveDays", consecutiveDays),
-					zap.Int("requiredDays", requiredConsecutiveDays),
-					zap.String("triggeredValue", triggeredValueStr),
-					zap.String("thresholdValue", thresholdValueStr))
-
-				// 调用设备匹配函数
-				errMatch := s.matchDevicesForStrategy(strategy, clusterId, resourceType, triggeredValueStr, thresholdValueStr)
-				if errMatch != nil {
-					s.logger.Error("Error during device matching for strategy",
-						zap.Int64("strategyID", strategy.ID),
-						zap.Int64("clusterID", clusterId),
-						zap.String("resourceType", resourceType),
-						zap.Error(errMatch))
-					// matchDevicesForStrategy函数内部会处理错误记录
-				}
-			} else {
-				s.logger.Info("Threshold not consistently breached for strategy",
-					zap.Int64("strategyID", strategy.ID),
-					zap.String("strategyName", strategy.Name),
-					zap.Int64("clusterID", clusterId),
-					zap.String("resourceType", resourceType),
-					zap.Int("consecutiveDays", consecutiveDays),
-					zap.Int("requiredDays", requiredConsecutiveDays),
-					zap.String("evaluatedTriggerValue", triggeredValueStr),
-					zap.String("targetThresholdValue", thresholdValueStr))
-
-				reason := fmt.Sprintf("Threshold not consistently met for cluster %d and resource type %s for %d consecutive days (required: %d days).",
-					clusterId, resourceType, consecutiveDays, requiredConsecutiveDays)
-				s.recordStrategyExecution(strategy.ID, StrategyExecutionResultFailureThresholdNotMet, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
-			}
-		}
+		s.evaluateAssociation(strategy, assoc.ClusterID)
 	}
 
 	return nil
 }
 
-// checkConsistentThresholdBreach checks if the strategy's threshold was breached for the given snapshots.
-// 注意：在更新后的设计中，此函数用于评估单个日期的快照是否超过阈值，而不是评估连续时间段内的所有快照。
-// 连续天数的计算已移至evaluateStrategy函数中。
-func (s *ElasticScalingService) checkConsistentThresholdBreach(snapshots []portal.ResourceSnapshot, strategy *portal.ElasticScalingStrategy) (
-	breached bool, triggeredValueStr string, thresholdValueStr string) {
+// evaluateAssociation 评估策略与单个集群的关联。
+func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScalingStrategy, clusterID int64) {
+	resourceTypes := parseResourceTypes(strategy.ResourceTypes)
 
-	// If there are no snapshots, it cannot be a breach.
-	if len(snapshots) == 0 {
-		s.logger.Warn("checkConsistentThresholdBreach called with zero snapshots", zap.Int64("strategyID", strategy.ID))
-		return false, "No snapshots available", s.buildThresholdString(strategy)
-	}
-
-	// 在当前实现中，我们只关注是否有任何快照满足条件
-	// 对于按天评估的场景，通常只传入单个快照
-
-	var actualCPUValues []float64
-	var actualMemValues []float64
-
-	allSnapshotsMetCriteria := true
-	for _, snapshot := range snapshots {
-		cpuMet := false
-		memMet := false
-		snapshotCpuVal := -1.0 // Use -1 to indicate not applicable or not calculated
-		snapshotMemVal := -1.0
-
-		// CPU Check
-		if strategy.CPUThresholdValue > 0 {
-			var currentCPUValue float64
-			if strategy.CPUThresholdType == ThresholdTypeUsage {
-				currentCPUValue = snapshot.MaxCpuUsageRatio
-			} else if strategy.CPUThresholdType == ThresholdTypeAllocated {
-				currentCPUValue = safePercentage(snapshot.CpuRequest, snapshot.CpuCapacity)
-			}
-			snapshotCpuVal = currentCPUValue
-			actualCPUValues = append(actualCPUValues, currentCPUValue)
-
-			if strategy.ThresholdTriggerAction == TriggerActionPoolEntry { // Scale Out (Pool Entry) - value > threshold
-				cpuMet = currentCPUValue > float64(strategy.CPUThresholdValue)
-			} else { // Scale In (Pool Exit) - value < threshold
-				cpuMet = currentCPUValue < float64(strategy.CPUThresholdValue)
-			}
-		} else {
-			cpuMet = true // No CPU threshold defined, so condition is met by default for CPU part
-		}
-
-		// Memory Check
-		if strategy.MemoryThresholdValue > 0 {
-			var currentMemValue float64
-			if strategy.MemoryThresholdType == ThresholdTypeUsage {
-				currentMemValue = snapshot.MaxMemoryUsageRatio
-			} else if strategy.MemoryThresholdType == ThresholdTypeAllocated {
-				currentMemValue = safePercentage(snapshot.MemRequest, snapshot.MemoryCapacity)
-			}
-			snapshotMemVal = currentMemValue
-			actualMemValues = append(actualMemValues, currentMemValue)
-
-			if strategy.ThresholdTriggerAction == TriggerActionPoolEntry { // Scale Out - value > threshold
-				memMet = currentMemValue > float64(strategy.MemoryThresholdValue)
-			} else { // Scale In - value < threshold
-				memMet = currentMemValue < float64(strategy.MemoryThresholdValue)
-			}
-		} else {
-			memMet = true // No Memory threshold defined, so condition is met by default for Memory part
-		}
-
-		// Condition Logic
-		snapshotMeetsCondition := false
-		if strategy.CPUThresholdValue > 0 && strategy.MemoryThresholdValue > 0 { // Both thresholds defined
-			if strategy.ConditionLogic == ConditionLogicAnd {
-				snapshotMeetsCondition = cpuMet && memMet
-			} else { // OR logic
-				snapshotMeetsCondition = cpuMet || memMet
-			}
-		} else if strategy.CPUThresholdValue > 0 { // Only CPU defined
-			snapshotMeetsCondition = cpuMet
-		} else if strategy.MemoryThresholdValue > 0 { // Only Memory defined
-			snapshotMeetsCondition = memMet
-		} else {
-			snapshotMeetsCondition = false // Should not happen due to validation, but good to handle
-			s.logger.Warn("Strategy has neither CPU nor Memory threshold defined during breach check", zap.Int64("strategyID", strategy.ID))
-		}
-
-		s.logger.Debug("Snapshot evaluation for threshold breach",
+	for _, resourceType := range resourceTypes {
+		s.logger.Info("Evaluating for resource type",
 			zap.Int64("strategyID", strategy.ID),
-			zap.Time("snapshotTime", time.Time(snapshot.CreatedAt)),
-			zap.Float64("cpuValue", snapshotCpuVal),
-			zap.Bool("cpuMet", cpuMet),
-			zap.Float64("memValue", snapshotMemVal),
-			zap.Bool("memMet", memMet),
-			zap.String("conditionLogic", strategy.ConditionLogic),
-			zap.Bool("snapshotMeetsCondition", snapshotMeetsCondition))
+			zap.Int64("clusterID", clusterID),
+			zap.String("resourceType", resourceType))
 
-		if !snapshotMeetsCondition {
-			allSnapshotsMetCriteria = false
-			break
+		// 获取每日快照
+		daysToCheck := 7 // 默认检查7天
+		snapshots, err := s.getOrderedDailySnapshots(clusterID, resourceType, daysToCheck)
+		if err != nil {
+			s.logger.Error("Failed to get daily snapshots", zap.Error(err), zap.Int64("clusterID", clusterID))
+			continue
+		}
+
+		if len(snapshots) == 0 {
+			logMsg := fmt.Sprintf("No resource snapshots found for cluster %d, resource type %s within the last %d days.", clusterID, resourceType, daysToCheck)
+			s.logger.Info(logMsg, zap.Int64("strategyID", strategy.ID))
+			currentTime := portal.NavyTime(time.Now())
+			s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultFailureNoSnapshots, nil, logMsg, "", "", &currentTime)
+			continue
+		}
+
+		// 核心评估逻辑
+		breached, consecutiveDays, triggeredValue, thresholdValue := s.EvaluateSnapshots(snapshots, strategy)
+
+		// 根据评估结果执行操作
+		requiredDays := getRequiredConsecutiveDays(strategy)
+		currentTime := portal.NavyTime(time.Now())
+		if breached {
+			s.logger.Info("Threshold consistently breached for strategy",
+				zap.Int64("strategyID", strategy.ID),
+				zap.Int64("clusterID", clusterID),
+				zap.Int("consecutiveDays", consecutiveDays),
+				zap.Int("requiredDays", requiredDays))
+
+			// 计算资源增量
+			cpuDelta, memDelta := s.calculateResourceDelta(snapshots[len(snapshots)-1], strategy)
+
+			s.logger.Info("Calculated resource delta",
+				zap.Int64("strategyID", strategy.ID),
+				zap.Int64("clusterID", clusterID),
+				zap.Float64("cpuDelta", cpuDelta),
+				zap.Float64("memDelta", memDelta))
+
+			// 触发设备匹配和订单创建
+			if err := s.matchDevicesForStrategyFunc(strategy, clusterID, resourceType, triggeredValue, thresholdValue, cpuDelta, memDelta); err != nil {
+				s.logger.Error("Error during device matching for strategy", zap.Error(err), zap.Int64("strategyID", strategy.ID))
+			}
+		} else {
+			s.logger.Info("Threshold not consistently breached for strategy",
+				zap.Int64("strategyID", strategy.ID),
+				zap.Int64("clusterID", clusterID),
+				zap.Int("consecutiveDays", consecutiveDays),
+				zap.Int("requiredDays", requiredDays))
+
+			reason := fmt.Sprintf("Threshold not consistently met for cluster %d and resource type %s for %d consecutive days (required: %d days).",
+				clusterID, resourceType, consecutiveDays, requiredDays)
+			s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultFailureThresholdNotMet, nil, reason, triggeredValue, thresholdValue, &currentTime)
 		}
 	}
-
-	// Construct triggeredValueStr and thresholdValueStr
-	triggeredValueStr = s.buildTriggeredValueString(actualCPUValues, actualMemValues, strategy)
-	thresholdValueStr = s.buildThresholdString(strategy)
-
-	if allSnapshotsMetCriteria {
-		s.logger.Debug("Snapshot met criteria for threshold breach",
-			zap.Int64("strategyID", strategy.ID),
-			zap.Time("snapshotTime", time.Time(snapshots[0].CreatedAt)))
-		return true, triggeredValueStr, thresholdValueStr
-	}
-
-	s.logger.Debug("Snapshot did not meet criteria for threshold breach",
-		zap.Int64("strategyID", strategy.ID),
-		zap.Time("snapshotTime", time.Time(snapshots[0].CreatedAt)))
-	return false, triggeredValueStr, thresholdValueStr
 }
 
-// buildThresholdString constructs a string representation of the strategy's thresholds.
+// isStrategyInCooldown 检查策略是否处于冷却期。
+func (s *ElasticScalingService) isStrategyInCooldown(strategy *portal.ElasticScalingStrategy) (bool, error) {
+	var latestHistory portal.StrategyExecutionHistory
+	err := s.db.Where(queryStrategyIDAndResult, strategy.ID, resultOrderCreated).
+		Order(orderByExecutionTimeDesc).
+		First(&latestHistory).Error
+
+	if err != nil {
+		// 如果没有找到记录，则不在冷却期
+		if isGormRecordNotFoundError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	var cooldownEndTime time.Time
+	latestHistory.ExecutionTime.Scan(&cooldownEndTime)
+	cooldownEndTime = cooldownEndTime.Add(time.Duration(strategy.CooldownMinutes) * time.Minute)
+
+	return time.Now().Before(cooldownEndTime), nil
+}
+
+// getStrategyClusterAssociations 获取策略关联的集群。
+func (s *ElasticScalingService) getStrategyClusterAssociations(strategyID int64) ([]portal.StrategyClusterAssociation, error) {
+	var associations []portal.StrategyClusterAssociation
+	if err := s.db.Where("strategy_id = ?", strategyID).Find(&associations).Error; err != nil {
+		return nil, err
+	}
+	return associations, nil
+}
+
+// getOrderedDailySnapshots 获取并处理每日资源快照。
+func (s *ElasticScalingService) getOrderedDailySnapshots(clusterID int64, resourceType string, days int) ([]portal.ResourceSnapshot, error) {
+	startDate := time.Now().AddDate(0, 0, -days)
+	query := s.db.Where("cluster_id = ? AND created_at >= ?", clusterID, startDate)
+
+	if resourceType != resourceTypeTotal {
+		query = query.Where(queryResourceTypeAndPool, resourceType, resourceType)
+	}
+
+	var snapshots []portal.ResourceSnapshot
+	if err := query.Order(OrderByCreatedAtDesc).Find(&snapshots).Error; err != nil {
+		return nil, err
+	}
+
+	// 按天分组，每天只取最新的一个快照
+	dailySnapshotMap := make(map[string]portal.ResourceSnapshot)
+	for _, snapshot := range snapshots {
+		day := time.Time(snapshot.CreatedAt).Format(dateFormat)
+		if _, exists := dailySnapshotMap[day]; !exists {
+			dailySnapshotMap[day] = snapshot
+		}
+	}
+
+	var orderedDailySnapshots []portal.ResourceSnapshot
+	for _, snapshot := range dailySnapshotMap {
+		orderedDailySnapshots = append(orderedDailySnapshots, snapshot)
+	}
+
+	// 按创建时间升序排序
+	sort.Slice(orderedDailySnapshots, func(i, j int) bool {
+		return time.Time(orderedDailySnapshots[i].CreatedAt).Before(time.Time(orderedDailySnapshots[j].CreatedAt))
+	})
+
+	return orderedDailySnapshots, nil
+}
+
+// EvaluateSnapshots 是核心评估逻辑，无副作用，易于测试。
+// 它接收快照和策略，返回是否触发、连续天数以及相关的监控值。
+func (s *ElasticScalingService) EvaluateSnapshots(
+	snapshots []portal.ResourceSnapshot,
+	strategy *portal.ElasticScalingStrategy,
+) (breached bool, consecutiveDays int, triggeredValueStr string, thresholdValueStr string) {
+	var maxConsecutiveDays int
+	var lastBreachedTriggeredValue string
+	var lastBreachedThresholdValue string
+
+	for _, snapshot := range snapshots {
+		singleBreached, singleTriggeredValue, singleThresholdValue := s.checkSingleSnapshotBreach(snapshot, strategy)
+
+		if singleBreached {
+			consecutiveDays++
+			lastBreachedTriggeredValue = singleTriggeredValue
+			lastBreachedThresholdValue = singleThresholdValue
+		} else {
+			// 更新最大连续天数并重置计数器
+			if consecutiveDays > maxConsecutiveDays {
+				maxConsecutiveDays = consecutiveDays
+			}
+			consecutiveDays = 0
+		}
+	}
+	// 循环结束后再次更新最大连续天数
+	if consecutiveDays > maxConsecutiveDays {
+		maxConsecutiveDays = consecutiveDays
+	}
+
+	requiredDays := getRequiredConsecutiveDays(strategy)
+	// 只有当评估周期末尾的连续天数满足条件时才算触发
+	if consecutiveDays >= requiredDays {
+		return true, consecutiveDays, lastBreachedTriggeredValue, lastBreachedThresholdValue
+	}
+
+	// 如果未触发，返回观察到的最大连续天数和最后一次触发时的值
+	return false, maxConsecutiveDays, lastBreachedTriggeredValue, lastBreachedThresholdValue
+}
+
+// checkSingleSnapshotBreach 检查单个快照是否满足策略阈值。
+func (s *ElasticScalingService) checkSingleSnapshotBreach(snapshot portal.ResourceSnapshot, strategy *portal.ElasticScalingStrategy) (
+	breached bool, triggeredValueStr string, thresholdValueStr string) {
+
+	var cpuMet, memMet bool
+	var cpuVal, memVal float64 = -1.0, -1.0
+
+	// CPU检查
+	if strategy.CPUThresholdValue > 0 {
+		if strategy.CPUThresholdType == ThresholdTypeUsage {
+			cpuVal = snapshot.MaxCpuUsageRatio
+		} else {
+			cpuVal = safePercentage(snapshot.CpuRequest, snapshot.CpuCapacity)
+		}
+		cpuMet = compare(cpuVal, float64(strategy.CPUThresholdValue), strategy.ThresholdTriggerAction)
+	} else {
+		cpuMet = true // 没有定义CPU阈值，则默认满足
+	}
+
+	// 内存检查
+	if strategy.MemoryThresholdValue > 0 {
+		if strategy.MemoryThresholdType == ThresholdTypeUsage {
+			memVal = snapshot.MaxMemoryUsageRatio
+		} else {
+			memVal = safePercentage(snapshot.MemRequest, snapshot.MemoryCapacity)
+		}
+		memMet = compare(memVal, float64(strategy.MemoryThresholdValue), strategy.ThresholdTriggerAction)
+	} else {
+		memMet = true // 没有定义内存阈值，则默认满足
+	}
+
+	// 逻辑组合
+	if strategy.CPUThresholdValue > 0 && strategy.MemoryThresholdValue > 0 {
+		if strategy.ConditionLogic == ConditionLogicAnd {
+			breached = cpuMet && memMet
+		} else {
+			breached = cpuMet || memMet
+		}
+	} else if strategy.CPUThresholdValue > 0 {
+		breached = cpuMet
+	} else if strategy.MemoryThresholdValue > 0 {
+		breached = memMet
+	} else {
+		breached = false // 策略无效
+	}
+
+	triggeredValueStr = s.buildTriggeredValueString(cpuVal, memVal, strategy)
+	thresholdValueStr = s.buildThresholdString(strategy)
+
+	return breached, triggeredValueStr, thresholdValueStr
+}
+
+// calculateResourceDelta 计算需要调整的资源量
+func (s *ElasticScalingService) calculateResourceDelta(latestSnapshot portal.ResourceSnapshot, strategy *portal.ElasticScalingStrategy) (cpuDelta float64, memDelta float64) {
+	// 目标是降低到阈值水平，所以我们需要计算超出的部分
+	// 入池：需要增加的资源 = (当前值 - 阈值) * 总容量 / 阈值
+	// 出池：需要减少的资源 = (阈值 - 当前值) * 总容量 / 阈值
+	// 注意：这里的计算是简化的，实际场景可能更复杂
+
+	if strategy.ThresholdTriggerAction == TriggerActionPoolEntry {
+		if strategy.CPUThresholdValue > 0 {
+			currentCPUUsage := safePercentage(latestSnapshot.CpuRequest, latestSnapshot.CpuCapacity)
+			if currentCPUUsage > strategy.CPUThresholdValue {
+				// 我们希望将利用率降至目标值，例如阈值本身
+				targetCPUUsage := strategy.CPUThresholdValue
+				// (currentUsage/total - targetUsage/total) * total = (currentUsage - targetUsage)
+				// (currentRequest/currentCapacity - targetRequest/newCapacity)
+				// 假设 targetRequest = currentRequest, 求解 newCapacity
+				// currentRequest / targetCPUUsage = newCapacity
+				newCapacity := latestSnapshot.CpuRequest / (targetCPUUsage / 100)
+				cpuDelta = newCapacity - latestSnapshot.CpuCapacity
+			}
+		}
+		if strategy.MemoryThresholdValue > 0 {
+			currentMemUsage := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
+			if currentMemUsage > strategy.MemoryThresholdValue {
+				targetMemUsage := strategy.MemoryThresholdValue
+				newCapacity := latestSnapshot.MemRequest / (targetMemUsage / 100)
+				memDelta = newCapacity - latestSnapshot.MemoryCapacity
+			}
+		}
+	} else if strategy.ThresholdTriggerAction == TriggerActionPoolExit {
+		if strategy.CPUThresholdValue > 0 {
+			currentCPUUsage := safePercentage(latestSnapshot.CpuRequest, latestSnapshot.CpuCapacity)
+			if currentCPUUsage < strategy.CPUThresholdValue {
+				// 我们希望将利用率提升至目标值
+				targetCPUUsage := strategy.CPUThresholdValue
+				// 假设 targetRequest = currentRequest, 求解 newCapacity
+				// currentRequest / targetCPUUsage = newCapacity
+				newCapacity := latestSnapshot.CpuRequest / (targetCPUUsage / 100)
+				cpuDelta = newCapacity - latestSnapshot.CpuCapacity // Delta will be negative
+			}
+		}
+		if strategy.MemoryThresholdValue > 0 {
+			currentMemUsage := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
+			if currentMemUsage < strategy.MemoryThresholdValue {
+				targetMemUsage := strategy.MemoryThresholdValue
+				newCapacity := latestSnapshot.MemRequest / (targetMemUsage / 100)
+				memDelta = newCapacity - latestSnapshot.MemoryCapacity // Delta will be negative
+			}
+		}
+	}
+
+	return cpuDelta, memDelta
+}
+
+// compare 辅助函数，根据扩容或缩容操作比较值。
+func compare(current, threshold float64, action string) bool {
+	if action == TriggerActionPoolEntry { // 扩容：当前值 > 阈值
+		return current > threshold
+	}
+	return current < threshold // 缩容：当前值 < 阈值
+}
+
+// parseResourceTypes 解析资源类型字符串。
+func parseResourceTypes(resourceTypesStr string) []string {
+	if resourceTypesStr == "" {
+		return []string{"total"}
+	}
+	types := strings.Split(resourceTypesStr, ",")
+	for i, rt := range types {
+		types[i] = strings.TrimSpace(rt)
+	}
+	return types
+}
+
+// getRequiredConsecutiveDays 从策略中计算需要的天数。
+func getRequiredConsecutiveDays(strategy *portal.ElasticScalingStrategy) int {
+	// DurationMinutes 字段可能被误用为天数，这里做兼容处理
+	// 假设如果值小于100，它代表天数；否则代表分钟
+	if strategy.DurationMinutes > 0 && strategy.DurationMinutes < 100 {
+		return strategy.DurationMinutes
+	}
+	days := strategy.DurationMinutes / (24 * 60)
+	if days < 1 {
+		return 1 // 至少1天
+	}
+	return days
+}
+
+// buildThresholdString 构建策略阈值的字符串表示。
 func (s *ElasticScalingService) buildThresholdString(strategy *portal.ElasticScalingStrategy) string {
 	var parts []string
 	actionStr := ">"
@@ -428,10 +436,10 @@ func (s *ElasticScalingService) buildThresholdString(strategy *portal.ElasticSca
 	}
 
 	if strategy.CPUThresholdValue > 0 {
-		parts = append(parts, fmt.Sprintf("CPU %s %s %f%%", strategy.CPUThresholdType, actionStr, strategy.CPUThresholdValue))
+		parts = append(parts, fmt.Sprintf("CPU %s %s %.2f%%", strategy.CPUThresholdType, actionStr, strategy.CPUThresholdValue))
 	}
 	if strategy.MemoryThresholdValue > 0 {
-		parts = append(parts, fmt.Sprintf("Memory %s %s %f%%", strategy.MemoryThresholdType, actionStr, strategy.MemoryThresholdValue))
+		parts = append(parts, fmt.Sprintf("Memory %s %s %.2f%%", strategy.MemoryThresholdType, actionStr, strategy.MemoryThresholdValue))
 	}
 
 	logic := " "
@@ -439,38 +447,26 @@ func (s *ElasticScalingService) buildThresholdString(strategy *portal.ElasticSca
 		logic = fmt.Sprintf(" %s ", strategy.ConditionLogic)
 	}
 
-	// 将分钟转换为天，以反映我们现在按天评估策略
-	days := strategy.DurationMinutes / (24 * 60)
-	if days < 1 {
-		days = 1 // 至少需要1天
-	}
-	return fmt.Sprintf("%s for %d days", strings.Join(parts, logic), days)
+	return fmt.Sprintf("%s for %d days", strings.Join(parts, logic), getRequiredConsecutiveDays(strategy))
 }
 
-// buildTriggeredValueString constructs a string representation of the actual values observed.
-// It calculates averages if multiple snapshots were involved.
-func (s *ElasticScalingService) buildTriggeredValueString(cpuValues []float64, memValues []float64, strategy *portal.ElasticScalingStrategy) string {
+// buildTriggeredValueString 构建实际触发值的字符串表示。
+func (s *ElasticScalingService) buildTriggeredValueString(cpuValue, memValue float64, strategy *portal.ElasticScalingStrategy) string {
 	var parts []string
-	if strategy.CPUThresholdValue > 0 && len(cpuValues) > 0 {
-		avgCPU := 0.0
-		for _, v := range cpuValues {
-			avgCPU += v
+	if strategy.CPUThresholdValue > 0 {
+		if cpuValue >= 0 {
+			parts = append(parts, fmt.Sprintf("CPU %s: %.2f%%", strategy.CPUThresholdType, cpuValue))
+		} else {
+			parts = append(parts, fmt.Sprintf("CPU %s: N/A", strategy.CPUThresholdType))
 		}
-		avgCPU /= float64(len(cpuValues))
-		parts = append(parts, fmt.Sprintf("CPU %s: %.2f%% (avg)", strategy.CPUThresholdType, avgCPU))
-	} else if strategy.CPUThresholdValue > 0 {
-		parts = append(parts, fmt.Sprintf("CPU %s: N/A (no values)", strategy.CPUThresholdType))
 	}
 
-	if strategy.MemoryThresholdValue > 0 && len(memValues) > 0 {
-		avgMem := 0.0
-		for _, v := range memValues {
-			avgMem += v
+	if strategy.MemoryThresholdValue > 0 {
+		if memValue >= 0 {
+			parts = append(parts, fmt.Sprintf("Memory %s: %.2f%%", strategy.MemoryThresholdType, memValue))
+		} else {
+			parts = append(parts, fmt.Sprintf("Memory %s: N/A", strategy.MemoryThresholdType))
 		}
-		avgMem /= float64(len(memValues))
-		parts = append(parts, fmt.Sprintf("Memory %s: %.2f%% (avg)", strategy.MemoryThresholdType, avgMem))
-	} else if strategy.MemoryThresholdValue > 0 {
-		parts = append(parts, fmt.Sprintf("Memory %s: N/A (no values)", strategy.MemoryThresholdType))
 	}
 
 	if len(parts) == 0 {
@@ -479,50 +475,43 @@ func (s *ElasticScalingService) buildTriggeredValueString(cpuValues []float64, m
 	return strings.Join(parts, ", ")
 }
 
-// recordStrategyExecution 记录策略执行历史
-// 添加了 triggeredValue, thresholdValue 和 specificExecutionTime 参数
+// recordStrategyExecution 记录策略执行历史。
 func (s *ElasticScalingService) recordStrategyExecution(
 	strategyID int64,
+	clusterID int64,
+	resourceType string,
 	result string,
 	orderID *int64,
 	reason string,
-	triggeredValue string, // 新增：从订单传递过来的触发值 或 评估过程中的实际值
-	thresholdValue string, // 新增：从订单传递过来的阈值 或 策略定义的阈值
-	specificExecutionTime *portal.NavyTime, // 新增：特定的执行时间，如订单的执行/完成时间或评估发生时间
+	triggeredValue string,
+	thresholdValue string,
+	specificExecutionTime *portal.NavyTime,
 ) error {
-	s.logger.Info("Recording strategy execution history",
-		zap.Int64("strategyID", strategyID),
-		zap.String("result", result),
-		zap.Any("orderID", orderID), // Use Any for potentially nil pointer
-		zap.String("reason", reason),
-		zap.String("triggeredValue", triggeredValue),
-		zap.String("thresholdValue", thresholdValue),
-	)
-
-	execTime := portal.NavyTime(time.Now()) // 默认使用当前时间
+	execTime := portal.NavyTime(time.Now())
 	if specificExecutionTime != nil {
-		execTime = *specificExecutionTime // 如果提供了特定时间，则使用它
-		s.logger.Debug("Using specific execution time for history record", zap.Time("execTime", time.Time(execTime)))
-	} else {
-		s.logger.Debug("Using current time for history record", zap.Time("execTime", time.Time(execTime)))
+		execTime = *specificExecutionTime
 	}
 
 	history := portal.StrategyExecutionHistory{
 		StrategyID:     strategyID,
+		ClusterID:      clusterID,
+		ResourceType:   resourceType,
 		ExecutionTime:  execTime,
-		TriggeredValue: triggeredValue, // 使用传递过来的值
-		ThresholdValue: thresholdValue, // 使用传递过来的值
+		TriggeredValue: triggeredValue,
+		ThresholdValue: thresholdValue,
 		Result:         result,
 		OrderID:        orderID,
 		Reason:         reason,
 	}
 
-	err := s.db.Create(&history).Error
-	if err != nil {
-		s.logger.Error("Failed to create strategy execution history entry in DB",
-			zap.Int64("strategyID", strategyID),
-			zap.String("result", result),
-			zap.Error(err))
+	if err := s.db.Create(&history).Error; err != nil {
+		s.logger.Error("Failed to create strategy execution history entry in DB", zap.Error(err), zap.Int64("strategyID", strategyID))
+		return err
 	}
-	return err
+	return nil
+}
+
+// isGormRecordNotFoundError 检查错误是否为gorm.ErrRecordNotFound
+func isGormRecordNotFoundError(err error) bool {
+	return err != nil && err == gorm.ErrRecordNotFound
 }

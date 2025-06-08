@@ -273,6 +273,8 @@ func (s *ElasticScalingService) GetStrategy(id int64) (*StrategyDetailDTO, error
 	for i, h := range histories {
 		dto.ExecutionHistory[i] = StrategyExecutionHistoryDTO{
 			ID:             h.ID,
+			ClusterID:      h.ClusterID,
+			ResourceType:   h.ResourceType,
 			ExecutionTime:  time.Time(h.ExecutionTime),
 			TriggeredValue: h.TriggeredValue,
 			ThresholdValue: h.ThresholdValue,

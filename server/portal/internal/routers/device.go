@@ -13,20 +13,7 @@ import (
 	"gorm.io/gorm" // Added import for gorm
 )
 
-// Constants for DeviceHandler
-const (
-	msgInvalidDeviceIDFormat     = "invalid device id format"
-	msgInvalidDeviceQueryParams  = "invalid query parameters: %s"
-	msgFailedToListDevices       = "failed to list devices: %s"
-	msgFailedToGetDevice         = "failed to get device: %s"
-	msgFailedToExportDevices     = "failed to export devices: %s"
-	msgInvalidRoleUpdateRequest  = "invalid role update request: %s"
-	msgFailedToUpdateDeviceRole  = "failed to update device role: %s"
-	msgDeviceRoleUpdated         = "device role updated successfully"
-	msgInvalidGroupUpdateRequest = "invalid group update request: %s"
-	msgFailedToUpdateDeviceGroup = "failed to update device group: %s"
-	msgDeviceGroupUpdated        = "device group updated successfully"
-)
+// Constants for DeviceHandler - moved to constants.go
 
 // DeviceHandler handles HTTP requests related to Device.
 type DeviceHandler struct {
@@ -36,7 +23,7 @@ type DeviceHandler struct {
 // NewDeviceHandler creates a new DeviceHandler, instantiating the service internally.
 func NewDeviceHandler(db *gorm.DB) *DeviceHandler {
 	// 创建 Redis 客户端和键构建器
-	redisHandler := redis.NewRedisHandler("default")
+	redisHandler := redis.NewRedisHandler(RedisDefault)
 	keyBuilder := redis.NewKeyBuilder("", service.CacheVersion)
 
 	// 创建设备缓存
@@ -56,87 +43,87 @@ func NewDeviceHandler(db *gorm.DB) *DeviceHandler {
 
 // RegisterRoutes registers Device routes with the given router group.
 func (h *DeviceHandler) RegisterRoutes(r *gin.RouterGroup) {
-	const idPath = "/:id" // Define path segment constant
-	deviceGroup := r.Group("/device")
+	deviceGroup := r.Group(RouteGroupDevices)
 	{
-		deviceGroup.GET(idPath, h.getDevice)
+		deviceGroup.GET(RouteParamID, h.getDevice)
 		deviceGroup.GET("", h.listDevices)
-		deviceGroup.GET("/export", h.exportDevices)
-		deviceGroup.PATCH(idPath+"/group", h.updateDeviceGroup) // 新增更新用途的路由
+		deviceGroup.GET(SubRouteExport, h.exportDevices)
+		deviceGroup.PATCH(RouteParamIDGroup, h.updateDeviceGroup) // 新增更新用途的路由
 	}
 }
 
+// getDevice 获取设备详情
 // @Summary 获取设备详情
-// @Description 根据设备ID获取设备详情
+// @Description 根据设备ID获取设备的详细信息
 // @Tags 设备管理
 // @Accept json
 // @Produce json
-// @Param id path int true "设备ID" example:"1"
-// @Success 200 {object} service.DeviceResponse "成功获取设备详情"
-// @Failure 400 {object} service.ErrorResponse "参数错误"
-// @Failure 404 {object} service.ErrorResponse "设备不存在"
-// @Failure 500 {object} service.ErrorResponse "获取设备详情失败"
-// @Router /device/{id} [get]
-// getDevice handles GET /device/:id requests.
+// @Param id path string true "设备ID"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 404 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/devices/{id} [get]
 func (h *DeviceHandler) getDevice(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	idStr := c.Param(ParamID)
+	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, msgInvalidDeviceIDFormat)
+		render.BadRequest(c, MsgInvalidDeviceIDFormat)
 		return
 	}
 
 	device, err := h.service.GetDevice(c.Request.Context(), id)
 	if err != nil {
-		render.NotFound(c, fmt.Sprintf(msgFailedToGetDevice, err.Error()))
+		render.NotFound(c, fmt.Sprintf(MsgFailedToGetDevice, err.Error()))
 		return
 	}
 
 	render.Success(c, device)
 }
 
+// listDevices 获取设备列表
 // @Summary 获取设备列表
-// @Description 获取设备列表，支持分页和关键字搜索
+// @Description 获取设备列表，支持分页
 // @Tags 设备管理
 // @Accept json
 // @Produce json
-// @Param page query int false "页码" example:"1"
-// @Param size query int false "每页数量" example:"10"
-// @Param keyword query string false "搜索关键字" example:"192.168"
-// @Success 200 {object} service.DeviceListResponse "成功获取设备列表"
-// @Failure 400 {object} service.ErrorResponse "参数错误"
-// @Failure 500 {object} service.ErrorResponse "获取设备列表失败"
-// @Router /device [get]
-// listDevices handles GET /device requests.
+// @Param page query int false "页码，默认1"
+// @Param size query int false "每页大小，默认10"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/devices [get]
 func (h *DeviceHandler) listDevices(c *gin.Context) {
 	var query service.DeviceQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		render.BadRequest(c, fmt.Sprintf(msgInvalidDeviceQueryParams, err.Error()))
+		render.BadRequest(c, MsgInvalidQueryParams+err.Error())
 		return
 	}
 
 	response, err := h.service.ListDevices(c.Request.Context(), &query)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToListDevices, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToListDevices, err.Error()))
 		return
 	}
 
 	render.Success(c, response)
 }
 
-// @Summary 导出设备信息
-// @Description 导出所有设备信息为CSV文件，包含设备的全部字段
+// exportDevices 导出设备数据
+// @Summary 导出设备数据
+// @Description 导出设备数据为Excel文件
 // @Tags 设备管理
 // @Accept json
-// @Produce text/csv
-// @Success 200 {file} file "device_info.csv"
-// @Failure 500 {object} service.ErrorResponse "导出设备信息失败"
-// @Router /device/export [get]
-// exportDevices handles GET /device/export requests.
+// @Produce application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Param request body service.DeviceExportRequest true "导出请求参数"
+// @Success 200 {file} file "Excel文件"
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/devices/export [post]
 func (h *DeviceHandler) exportDevices(c *gin.Context) {
 	data, err := h.service.ExportDevices(c.Request.Context())
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToExportDevices, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToExportDevices, err.Error()))
 		return
 	}
 
@@ -154,32 +141,30 @@ func (h *DeviceHandler) exportDevices(c *gin.Context) {
 	c.Data(http.StatusOK, "text/csv", data)
 }
 
-// @Summary 更新设备用途
-// @Description 根据设备ID更新设备的用途
+// updateDeviceGroup 更新设备分组
+// @Summary 更新设备分组
+// @Description 批量更新设备的分组信息
 // @Tags 设备管理
 // @Accept json
 // @Produce json
-// @Param id path int true "设备ID" example:"1"
-// @Param data body service.DeviceGroupUpdateRequest true "用途更新信息"
-// @Success 200 {object} map[string]string "用途更新成功"
-// @Failure 400 {object} service.ErrorResponse "参数错误"
-// @Failure 404 {object} service.ErrorResponse "设备不存在"
-// @Failure 500 {object} service.ErrorResponse "更新用途失败"
-// @Router /device/{id}/group [patch]
-// updateDeviceGroup handles PATCH /device/:id/group requests.
+// @Param request body service.UpdateDeviceGroupRequest true "更新分组请求"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/devices/group [put]
 func (h *DeviceHandler) updateDeviceGroup(c *gin.Context) {
 	// 解析设备ID
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	idStr := c.Param(ParamID)
+	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, msgInvalidDeviceIDFormat)
+		render.BadRequest(c, MsgInvalidDeviceIDFormat)
 		return
 	}
 
 	// 解析请求体
 	var request service.DeviceGroupUpdateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		render.BadRequest(c, fmt.Sprintf(msgInvalidGroupUpdateRequest, err.Error()))
+		render.BadRequest(c, fmt.Sprintf(MsgInvalidGroupUpdateRequest, err.Error()))
 		return
 	}
 
@@ -189,11 +174,11 @@ func (h *DeviceHandler) updateDeviceGroup(c *gin.Context) {
 		if strings.Contains(err.Error(), fmt.Sprintf(service.ErrDeviceNotFoundMsg, id)) {
 			render.NotFound(c, err.Error())
 		} else {
-			render.InternalServerError(c, fmt.Sprintf(msgFailedToUpdateDeviceGroup, err.Error()))
+			render.InternalServerError(c, fmt.Sprintf(MsgFailedToUpdateDeviceGroup, err.Error()))
 		}
 		return
 	}
 
 	// 返回成功响应
-	render.Success(c, gin.H{"message": msgDeviceGroupUpdated})
+	render.Success(c, gin.H{"message": MsgDeviceGroupUpdated})
 }

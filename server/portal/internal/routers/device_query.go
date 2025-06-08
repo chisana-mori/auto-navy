@@ -12,19 +12,7 @@ import (
 	"navy-ng/server/portal/internal/service"
 )
 
-// Constants for DeviceQueryHandler
-const (
-	msgFailedToGetFilterOptions     = "failed to get filter options: %s"
-	msgFailedToGetLabelValues       = "failed to get label values: %s"
-	msgFailedToGetTaintValues       = "failed to get taint values: %s"
-	msgFailedToGetDeviceFieldValues = "failed to get device field values: %s"
-	msgFailedToQueryDevices         = "failed to query devices: %s"
-	msgInvalidQueryRequest          = "invalid query request: %s"
-	msgFailedToSaveTemplate         = "failed to save template: %s"
-	msgFailedToGetTemplates         = "failed to get templates: %s"
-	msgFailedToGetTemplate          = "failed to get template: %s"
-	msgFailedToDeleteTemplate       = "failed to delete template: %s"
-)
+// Constants for DeviceQueryHandler - moved to constants.go
 
 // DeviceQueryHandler handles HTTP requests related to DeviceQuery.
 type DeviceQueryHandler struct {
@@ -34,8 +22,8 @@ type DeviceQueryHandler struct {
 // NewDeviceQueryHandler creates a new DeviceQueryHandler, instantiating the service internally.
 func NewDeviceQueryHandler(db *gorm.DB) *DeviceQueryHandler {
 	// 创建 Redis 客户端和键构建器
-	redisHandler := redis.NewRedisHandler("default")
-	keyBuilder := redis.NewKeyBuilder("navy", service.CacheVersion)
+	redisHandler := redis.NewRedisHandler(RedisDefault)
+	keyBuilder := redis.NewKeyBuilder(RedisNamespace, service.CacheVersion)
 
 	// 创建设备缓存
 	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)
@@ -48,18 +36,18 @@ func NewDeviceQueryHandler(db *gorm.DB) *DeviceQueryHandler {
 
 // RegisterRoutes registers DeviceQuery routes with the given router group.
 func (h *DeviceQueryHandler) RegisterRoutes(r *gin.RouterGroup) {
-	deviceQueryGroup := r.Group("/device-query")
+	deviceQueryGroup := r.Group(RouteGroupDeviceQuery)
 	{
-		deviceQueryGroup.GET("/filter-options", h.getFilterOptions)
-		deviceQueryGroup.GET("/label-values", h.getLabelValues)
-		deviceQueryGroup.GET("/taint-values", h.getTaintValues)
-		deviceQueryGroup.GET("/device-field-values", h.getDeviceFieldValues)
-		deviceQueryGroup.GET("/device-feature-details", h.getDeviceFeatureDetails)
-		deviceQueryGroup.POST("/query", h.queryDevices)
-		deviceQueryGroup.POST("/templates", h.saveTemplate)
-		deviceQueryGroup.GET("/templates", h.getTemplates)
-		deviceQueryGroup.GET("/templates/:id", h.getTemplate)
-		deviceQueryGroup.DELETE("/templates/:id", h.deleteTemplate)
+		deviceQueryGroup.GET(SubRouteFilterOptions, h.getFilterOptions)
+		deviceQueryGroup.GET(SubRouteLabelValues, h.getLabelValues)
+		deviceQueryGroup.GET(SubRouteTaintValues, h.getTaintValues)
+		deviceQueryGroup.GET(SubRouteDeviceFieldValues, h.getDeviceFieldValues)
+		deviceQueryGroup.GET(SubRouteDeviceFeatureDetails, h.getDeviceFeatureDetails)
+		deviceQueryGroup.POST(SubRouteQuery, h.queryDevices)
+		deviceQueryGroup.POST(SubRouteTemplates, h.saveTemplate)
+		deviceQueryGroup.GET(SubRouteTemplates, h.getTemplates)
+		deviceQueryGroup.GET(SubRouteTemplates+RouteParamID, h.getTemplate)
+		deviceQueryGroup.DELETE(SubRouteTemplates+RouteParamID, h.deleteTemplate)
 	}
 }
 
@@ -75,7 +63,7 @@ func (h *DeviceQueryHandler) RegisterRoutes(r *gin.RouterGroup) {
 func (h *DeviceQueryHandler) getFilterOptions(c *gin.Context) {
 	options, err := h.service.GetFilterOptions(c.Request.Context())
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetFilterOptions, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToGetFilterOptions, err.Error()))
 		return
 	}
 
@@ -93,16 +81,20 @@ func (h *DeviceQueryHandler) getFilterOptions(c *gin.Context) {
 // @Failure 500 {object} service.ErrorResponse "获取标签值失败"
 // @Router /device-query/label-values [get]
 // getLabelValues handles GET /device-query/label-values requests.
+type KeyQuery struct {
+	Key string `form:"key" binding:"required"`
+}
+
 func (h *DeviceQueryHandler) getLabelValues(c *gin.Context) {
-	key := c.Query("key")
-	if key == "" {
-		render.BadRequest(c, "key is required")
+	var query KeyQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		render.BadRequest(c, MsgInvalidParams+err.Error())
 		return
 	}
 
-	values, err := h.service.GetLabelValues(c.Request.Context(), key)
+	values, err := h.service.GetLabelValues(c.Request.Context(), query.Key)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetLabelValues, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToGetLabelValues, err.Error()))
 		return
 	}
 
@@ -121,15 +113,15 @@ func (h *DeviceQueryHandler) getLabelValues(c *gin.Context) {
 // @Router /device-query/taint-values [get]
 // getTaintValues handles GET /device-query/taint-values requests.
 func (h *DeviceQueryHandler) getTaintValues(c *gin.Context) {
-	key := c.Query("key")
-	if key == "" {
-		render.BadRequest(c, "key is required")
+	var query KeyQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		render.BadRequest(c, MsgInvalidParams+err.Error())
 		return
 	}
 
-	values, err := h.service.GetTaintValues(c.Request.Context(), key)
+	values, err := h.service.GetTaintValues(c.Request.Context(), query.Key)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetTaintValues, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToGetTaintValues, err.Error()))
 		return
 	}
 
@@ -147,16 +139,20 @@ func (h *DeviceQueryHandler) getTaintValues(c *gin.Context) {
 // @Failure 500 {object} service.ErrorResponse "获取字段值失败"
 // @Router /device-query/device-field-values [get]
 // getDeviceFieldValues handles GET /device-query/device-field-values requests.
+type FieldQuery struct {
+	Field string `form:"field" binding:"required"`
+}
+
 func (h *DeviceQueryHandler) getDeviceFieldValues(c *gin.Context) {
-	field := c.Query("field")
-	if field == "" {
-		render.BadRequest(c, "field is required")
+	var query FieldQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		render.BadRequest(c, MsgInvalidParams+err.Error())
 		return
 	}
 
-	values, err := h.service.GetDeviceFieldValues(c.Request.Context(), field)
+	values, err := h.service.GetDeviceFieldValues(c.Request.Context(), query.Field)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetDeviceFieldValues, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToGetDeviceFieldValues, err.Error()))
 		return
 	}
 
@@ -174,14 +170,18 @@ func (h *DeviceQueryHandler) getDeviceFieldValues(c *gin.Context) {
 // @Failure 500 {object} service.ErrorResponse "获取设备特性详情失败"
 // @Router /device-query/device-feature-details [get]
 // getDeviceFeatureDetails handles GET /device-query/device-feature-details requests.
+type CiCodeQuery struct {
+	CiCode string `form:"ci_code" binding:"required"`
+}
+
 func (h *DeviceQueryHandler) getDeviceFeatureDetails(c *gin.Context) {
-	ciCode := c.Query("ci_code")
-	if ciCode == "" {
-		render.BadRequest(c, "ci_code is required")
+	var query CiCodeQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		render.BadRequest(c, MsgInvalidParams+err.Error())
 		return
 	}
 
-	details, err := h.service.GetDeviceFeatureDetails(c.Request.Context(), ciCode)
+	details, err := h.service.GetDeviceFeatureDetails(c.Request.Context(), query.CiCode)
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf("Failed to get device feature details: %s", err.Error()))
 		return
@@ -204,13 +204,13 @@ func (h *DeviceQueryHandler) getDeviceFeatureDetails(c *gin.Context) {
 func (h *DeviceQueryHandler) queryDevices(c *gin.Context) {
 	var req service.DeviceQueryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		render.BadRequest(c, fmt.Sprintf(msgInvalidQueryRequest, err.Error()))
+		render.BadRequest(c, fmt.Sprintf(MsgInvalidQueryRequest, err.Error()))
 		return
 	}
 
 	resp, err := h.service.QueryDevices(c.Request.Context(), &req)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToQueryDevices, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToQueryDevices, err.Error()))
 		return
 	}
 
@@ -231,13 +231,13 @@ func (h *DeviceQueryHandler) queryDevices(c *gin.Context) {
 func (h *DeviceQueryHandler) saveTemplate(c *gin.Context) {
 	var template service.QueryTemplate
 	if err := c.ShouldBindJSON(&template); err != nil {
-		render.BadRequest(c, fmt.Sprintf(msgInvalidQueryRequest, err.Error()))
+		render.BadRequest(c, fmt.Sprintf(MsgInvalidQueryRequest, err.Error()))
 		return
 	}
 
 	err := h.service.SaveQueryTemplate(c.Request.Context(), &template)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToSaveTemplate, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToSaveTemplate, err.Error()))
 		return
 	}
 
@@ -257,8 +257,8 @@ func (h *DeviceQueryHandler) saveTemplate(c *gin.Context) {
 // getTemplates handles GET /device-query/templates requests.
 func (h *DeviceQueryHandler) getTemplates(c *gin.Context) {
 	// 获取分页参数
-	pageStr := c.DefaultQuery("page", "1")
-	sizeStr := c.DefaultQuery("size", "10")
+	pageStr := c.DefaultQuery(ParamPage, DefaultPageValue)
+	sizeStr := c.DefaultQuery(ParamSize, DefaultSizeValue)
 
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
@@ -273,7 +273,7 @@ func (h *DeviceQueryHandler) getTemplates(c *gin.Context) {
 	// 使用带分页的方法查询模板
 	templates, err := h.service.GetQueryTemplatesWithPagination(c.Request.Context(), page, size)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetTemplates, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToGetTemplates, err.Error()))
 		return
 	}
 
@@ -292,21 +292,21 @@ func (h *DeviceQueryHandler) getTemplates(c *gin.Context) {
 // @Router /device-query/templates/{id} [get]
 // getTemplate handles GET /device-query/templates/:id requests.
 func (h *DeviceQueryHandler) getTemplate(c *gin.Context) {
-	idStr := c.Param("id")
+	idStr := c.Param(ParamID)
 	if idStr == "" {
 		render.BadRequest(c, "id is required")
 		return
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, "invalid id format")
+		render.BadRequest(c, MsgInvalidIDFormat)
 		return
 	}
 
 	template, err := h.service.GetQueryTemplate(c.Request.Context(), id)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToGetTemplate, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToGetTemplate, err.Error()))
 		return
 	}
 
@@ -325,21 +325,21 @@ func (h *DeviceQueryHandler) getTemplate(c *gin.Context) {
 // @Router /device-query/templates/{id} [delete]
 // deleteTemplate handles DELETE /device-query/templates/:id requests.
 func (h *DeviceQueryHandler) deleteTemplate(c *gin.Context) {
-	idStr := c.Param("id")
+	idStr := c.Param(ParamID)
 	if idStr == "" {
 		render.BadRequest(c, "id is required")
 		return
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, "invalid id format")
+		render.BadRequest(c, MsgInvalidIDFormat)
 		return
 	}
 
 	err = h.service.DeleteQueryTemplate(c.Request.Context(), id)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToDeleteTemplate, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToDeleteTemplate, err.Error()))
 		return
 	}
 

@@ -78,11 +78,5 @@ func InitDB() (*gorm.DB, error) {
 
 	ClearAndSeedDatabase(db)
 
-	// 执行订单数据迁移
-	if err := MigrateOrderData(db); err != nil {
-		fmt.Printf("Warning: Order data migration failed: %v\n", err)
-		// 不返回错误，因为这可能是首次运行
-	}
-
 	return db, nil
 }

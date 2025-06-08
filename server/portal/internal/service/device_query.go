@@ -657,11 +657,11 @@ func (s *DeviceQueryService) GetDbColumnForField(camelKey string) (string, bool)
 // DeviceQueryService 设备查询服务
 type DeviceQueryService struct {
 	db    *gorm.DB
-	cache *DeviceCache
+	cache DeviceCacheInterface
 }
 
 // NewDeviceQueryService 创建设备查询服务
-func NewDeviceQueryService(db *gorm.DB, cache *DeviceCache) *DeviceQueryService {
+func NewDeviceQueryService(db *gorm.DB, cache DeviceCacheInterface) *DeviceQueryService {
 	return &DeviceQueryService{db: db, cache: cache}
 }
 

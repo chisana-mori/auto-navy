@@ -16,7 +16,6 @@ import (
 	"navy-ng/server/portal/internal/database"
 	"navy-ng/server/portal/internal/routers"
 	"navy-ng/server/portal/internal/service"
-	// "navy-ng/server/portal/internal/service" // Service is no longer directly used here.
 )
 
 // @title           Navy-NG API
@@ -53,10 +52,18 @@ func main() {
 	deviceHandler := routers.NewDeviceHandler(db)
 	deviceQueryHandler := routers.NewDeviceQueryHandler(db)
 	elasticScalingHandler := routers.NewElasticScalingHandler(db)
+	elasticScalingOrderHandler := routers.NewElasticScalingOrderHandler(db)
 	maintenanceHandler := routers.NewMaintenanceHandler(db)
 	resourcePoolDeviceMatchingPolicyHandler := routers.NewResourcePoolDeviceMatchingPolicyHandler(db)
 	clusterResourceHandler := routers.NewClusterResourceHandler(db)
 	k8sClusterHandler := routers.NewK8sClusterHandler(db)
+	unifiedOrderHandler := routers.NewUnifiedOrderHandler(db)
+
+	// 创建 logger for services
+	logger, _ := zap.NewProduction()
+	
+	// 初始化并注册所有订单服务
+	unifiedOrderHandler.InitServices(logger)
 
 	// 创建 Gin 引擎
 	r := gin.Default()
@@ -71,10 +78,12 @@ func main() {
 	deviceHandler.RegisterRoutes(api)
 	deviceQueryHandler.RegisterRoutes(api)
 	elasticScalingHandler.RegisterRoutes(api)
+	elasticScalingOrderHandler.RegisterRoutes(api)
 	maintenanceHandler.RegisterRoutes(api)
 	resourcePoolDeviceMatchingPolicyHandler.RegisterRoutes(api)
 	clusterResourceHandler.RegisterRoutes(api)
 	k8sClusterHandler.RegisterRoutes(api)
+	unifiedOrderHandler.RegisterRoutes(api)
 
 	// 注册 Swagger 路由
 	routers.RegisterSwaggerRoutes(r)
@@ -82,8 +91,7 @@ func main() {
 	// 启动弹性伸缩监控服务（仅在启用时）
 	if os.Getenv("ENABLE_ELASTIC_SCALING_MONITOR") == "true" {
 		monitorConfig := service.DefaultMonitorConfig()
-		// 创建 logger for monitor
-		logger, _ := zap.NewProduction()
+		// 使用已创建的 logger for monitor
 		monitor := service.NewElasticScalingMonitor(db, monitorConfig, logger)
 		monitor.Start()
 
@@ -98,6 +106,8 @@ func main() {
 		log.Fatalf("Failed to run server: %v", err)
 	}
 }
+
+
 
 // initRedisIfNeeded 确保Redis已初始化
 func initRedisIfNeeded() {

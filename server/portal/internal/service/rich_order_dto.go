@@ -134,13 +134,9 @@ func ToRichOrderDTO(order *portal.Order) *RichOrderDTO {
 		dto.ElasticScalingDetail = toElasticScalingDetailDTO(order.ElasticScalingDetail)
 		dto.DeviceCount = order.ElasticScalingDetail.DeviceCount
 
-		// 转换关联的设备
-		if len(order.ElasticScalingDetail.Devices) > 0 {
-			dto.Devices = make([]RichDeviceDTO, len(order.ElasticScalingDetail.Devices))
-			for i, device := range order.ElasticScalingDetail.Devices {
-				dto.Devices[i] = toRichDeviceDTO(&device)
-			}
-		}
+		// Device conversion is removed from here as it requires a DB query.
+		// This DTO is now primarily for non-device-specific details.
+		// The full device list should be fetched by a dedicated service method if needed.
 	}
 
 	return dto
@@ -159,23 +155,15 @@ func toElasticScalingDetailDTO(detail *portal.ElasticScalingOrderDetail) *Elasti
 		StrategyID:             detail.StrategyID,
 		ActionType:             detail.ActionType,
 		DeviceCount:            detail.DeviceCount,
-		ExternalTicketID:       detail.ExternalTicketID,
+		ExternalTicketID:       "", // 维护相关字段已移至MaintenanceOrderDetail
 		StrategyTriggeredValue: detail.StrategyTriggeredValue,
 		StrategyThresholdValue: detail.StrategyThresholdValue,
 		CreatedAt:              time.Time(detail.CreatedAt),
 		UpdatedAt:              time.Time(detail.UpdatedAt),
 	}
 
-	// 转换时间字段
-	if detail.MaintenanceStartTime != nil {
-		startTime := time.Time(*detail.MaintenanceStartTime)
-		dto.MaintenanceStartTime = &startTime
-	}
-
-	if detail.MaintenanceEndTime != nil {
-		endTime := time.Time(*detail.MaintenanceEndTime)
-		dto.MaintenanceEndTime = &endTime
-	}
+	// 维护时间字段现在由MaintenanceOrderDetail处理
+	// MaintenanceStartTime和MaintenanceEndTime已移至MaintenanceOrderDetail
 
 	return dto
 }

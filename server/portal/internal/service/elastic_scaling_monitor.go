@@ -2,10 +2,10 @@ package service
 
 import (
 	"fmt"
-	// "log" // This might become unused - Removed
 	"navy-ng/pkg/redis"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap" // Added zap import
 	"gorm.io/gorm"
 )
@@ -19,11 +19,12 @@ type ElasticScalingMonitor struct {
 	logger         *zap.Logger // Added logger
 	stopChan       chan struct{}
 	isRunning      bool
+	cron           *cron.Cron
 }
 
 // MonitorConfig 监控配置
 type MonitorConfig struct {
-	MonitorInterval    time.Duration // 监控间隔
+	MonitorCron        string        // 监控任务的 Cron 表达式
 	EvaluationInterval time.Duration // 策略评估间隔
 	LockTimeout        time.Duration // Redis锁超时时间
 	LockRetryInterval  time.Duration // Redis锁重试间隔
@@ -33,7 +34,7 @@ type MonitorConfig struct {
 // DefaultMonitorConfig 默认监控配置
 func DefaultMonitorConfig() MonitorConfig {
 	return MonitorConfig{
-		MonitorInterval:    6 * time.Hour,  // 每5分钟监控一次
+		MonitorCron:        "0 10 * * *",       // 每天早上10点运行
 		EvaluationInterval: 10 * time.Minute, // 每10分钟评估一次策略
 		LockTimeout:        30 * time.Second, // 锁超时时间30秒
 		LockRetryInterval:  1 * time.Second,  // 锁重试间隔1秒
@@ -51,7 +52,7 @@ func NewElasticScalingMonitor(db *gorm.DB, config MonitorConfig, logger *zap.Log
 	// 创建设备缓存
 	deviceCache := NewDeviceCache(redisHandler, redis.NewKeyBuilder("navy", "v1"))
 
-	return &ElasticScalingMonitor{
+	monitor := &ElasticScalingMonitor{
 		db:             db,
 		redisHandler:   redisHandler,
 		scalingService: NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
@@ -60,6 +61,8 @@ func NewElasticScalingMonitor(db *gorm.DB, config MonitorConfig, logger *zap.Log
 		stopChan:       make(chan struct{}),
 		isRunning:      false,
 	}
+	monitor.cron = cron.New(cron.WithLogger(cron.DefaultLogger))
+	return monitor
 }
 
 // Start 启动监控服务
@@ -74,6 +77,7 @@ func (m *ElasticScalingMonitor) Start() {
 
 	// 启动策略评估协程
 	go m.startStrategyEvaluator()
+	m.cron.Start()
 }
 
 // Stop 停止监控服务
@@ -82,6 +86,8 @@ func (m *ElasticScalingMonitor) Stop() {
 		return
 	}
 
+	ctx := m.cron.Stop()
+	<-ctx.Done()
 	close(m.stopChan)
 	m.isRunning = false
 	m.logger.Info("Stopping elastic scaling monitoring service")
@@ -89,19 +95,16 @@ func (m *ElasticScalingMonitor) Stop() {
 
 // startStrategyEvaluator 启动策略评估
 func (m *ElasticScalingMonitor) startStrategyEvaluator() {
-	ticker := time.NewTicker(m.config.EvaluationInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-m.stopChan:
-			return
-		case <-ticker.C:
-			if err := m.evaluateStrategiesWithLock(); err != nil {
-				m.logger.Error("Strategy evaluation failed", zap.Error(err))
-			}
+	_, err := m.cron.AddFunc(m.config.MonitorCron, func() {
+		if err := m.evaluateStrategiesWithLock(); err != nil {
+			m.logger.Error("Strategy evaluation failed", zap.Error(err))
 		}
+	})
+	if err != nil {
+		m.logger.Error("Failed to add cron job", zap.Error(err))
 	}
+
+	<-m.stopChan
 }
 
 // evaluateStrategiesWithLock 使用Redis分布式锁评估策略

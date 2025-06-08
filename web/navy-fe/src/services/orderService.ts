@@ -21,6 +21,7 @@ export class OrderService {
     if (query.type) params.append('type', query.type);
     if (query.status) params.append('status', query.status);
     if (query.createdBy) params.append('createdBy', query.createdBy);
+    if (query.name) params.append('name', query.name);
     if (query.page) params.append('page', query.page.toString());
     if (query.pageSize) params.append('pageSize', query.pageSize.toString());
     if (query.startTime) params.append('startTime', query.startTime);

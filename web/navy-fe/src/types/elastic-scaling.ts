@@ -30,7 +30,7 @@ export interface StrategyExecutionHistory {
   executionTime: string;
   triggeredValue: string;
   thresholdValue: string;
-  result: 'order_created' | 'skipped' | 'failed_check';
+  result: 'order_created' | 'order_created_no_devices' | 'order_created_partial' | 'skipped' | 'failed_check';
   orderId?: number;
   reason: string;
 }
@@ -52,7 +52,7 @@ export interface OrderListItem {
   strategyId?: number;
   strategyName?: string;
   actionType: 'pool_entry' | 'pool_exit' | 'maintenance_request' | 'maintenance_uncordon';
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'pending_confirmation' | 'scheduled_for_maintenance' | 'maintenance_in_progress' | 'ignored';
+  status: 'pending' | 'processing' | 'returning' | 'return_completed' | 'no_return' | 'completed' | 'failed' | 'cancelled' | 'pending_confirmation' | 'scheduled_for_maintenance' | 'maintenance_in_progress' | 'ignored';
   deviceCount: number;
   createdBy: string;
   createdAt: string;
@@ -114,6 +114,8 @@ export interface DashboardStats {
   deviceCount: number;
   availableDeviceCount: number;
   inPoolDeviceCount: number;
+  inspectedResourcePoolCount?: number; // 新增：已巡检资源池数
+  targetResourcePoolCount?: number;    // 新增：目标资源池数
 }
 
 // 资源类型数据

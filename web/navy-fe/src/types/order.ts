@@ -4,7 +4,7 @@
 export type OrderType = 'elastic_scaling' | 'maintenance' | 'deployment';
 
 // 订单状态枚举
-export type OrderStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'ignored';
+export type OrderStatus = 'pending' | 'processing' | 'returning' | 'return_completed' | 'no_return' | 'completed' | 'failed' | 'cancelled' | 'ignored' | 'pending_confirmation' | 'scheduled_for_maintenance' | 'maintenance_in_progress';
 
 // 基础订单接口
 export interface Order {
@@ -28,6 +28,7 @@ export interface OrderQuery {
   type?: OrderType;
   status?: OrderStatus;
   createdBy?: string;
+  name?: string;
   page?: number;
   pageSize?: number;
   startTime?: string;
@@ -44,6 +45,7 @@ export interface PaginatedOrderResponse {
 export interface OrderStatusUpdateRequest {
   status: OrderStatus;
   reason?: string;
+  type?: OrderType;
 }
 
 // 订单创建请求
@@ -69,6 +71,9 @@ export interface OrderStatistics {
 export const ORDER_STATUS_OPTIONS = [
   { value: 'pending', label: '待处理', color: '#faad14' },
   { value: 'processing', label: '处理中', color: '#1890ff' },
+  { value: 'returning', label: '归还中', color: '#722ed1' },
+  { value: 'return_completed', label: '归还完成', color: '#13c2c2' },
+  { value: 'no_return', label: '无需归还', color: '#52c41a' },
   { value: 'completed', label: '已完成', color: '#52c41a' },
   { value: 'failed', label: '失败', color: '#f5222d' },
   { value: 'cancelled', label: '已取消', color: '#d9d9d9' },
@@ -103,11 +108,17 @@ export function getOrderTypeInfo(type: OrderType) {
 export function canUpdateOrderStatus(status: OrderStatus, targetStatus: OrderStatus): boolean {
   const statusFlow: Record<OrderStatus, OrderStatus[]> = {
     pending: ['processing', 'cancelled', 'ignored'],
-    processing: ['completed', 'failed', 'cancelled'],
+    processing: ['returning', 'no_return', 'completed', 'failed', 'cancelled'],
+    returning: ['return_completed', 'no_return', 'failed', 'cancelled'],
+    return_completed: ['completed'],
+    no_return: ['completed'],
     completed: [],
     failed: ['pending'],
     cancelled: ['pending'],
     ignored: ['pending'],
+    pending_confirmation: ['scheduled_for_maintenance', 'cancelled'],
+    scheduled_for_maintenance: ['maintenance_in_progress', 'cancelled'],
+    maintenance_in_progress: ['completed', 'failed'],
   };
 
   return statusFlow[status]?.includes(targetStatus) || false;
@@ -120,5 +131,5 @@ export function isFinalStatus(status: OrderStatus): boolean {
 
 // 订单状态是否为活跃状态
 export function isActiveStatus(status: OrderStatus): boolean {
-  return ['pending', 'processing'].includes(status);
+  return ['pending', 'processing', 'returning'].includes(status);
 }

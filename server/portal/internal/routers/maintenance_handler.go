@@ -13,7 +13,7 @@ import (
 
 // MaintenanceHandler 设备维护处理器
 type MaintenanceHandler struct {
-	service *service.MaintenanceService
+	service *service.MaintenanceServiceV2
 }
 
 // NewMaintenanceHandler 创建设备维护处理器
@@ -21,7 +21,7 @@ func NewMaintenanceHandler(db *gorm.DB) *MaintenanceHandler {
 	logger, _ := zap.NewProduction()
 
 	return &MaintenanceHandler{
-		service: service.NewMaintenanceService(db,logger),
+		service: service.NewMaintenanceServiceV2(db, logger),
 	}
 }
 
@@ -55,13 +55,13 @@ func (h *MaintenanceHandler) RegisterRoutes(api *gin.RouterGroup) {
 func (h *MaintenanceHandler) RequestMaintenance(c *gin.Context) {
 	var request service.MaintenanceRequestDTO
 	if err := c.ShouldBindJSON(&request); err != nil {
-		render.BadRequest(c, "无效的请求格式: "+err.Error())
+		render.BadRequest(c, MsgInvalidMaintenanceRequest+err.Error())
 		return
 	}
 
 	// 验证必填字段
 	if request.DeviceID == 0 && request.CICode == "" {
-		render.BadRequest(c, "设备ID或CI编码不能为空")
+		render.BadRequest(c, MsgDeviceIDOrCICodeRequired)
 		return
 	}
 
@@ -122,15 +122,111 @@ func (h *MaintenanceHandler) MaintenanceCallback(c *gin.Context) {
 	}
 }
 
-// GetPendingMaintenanceRequests 获取待处理的维护请求
-// @Summary 获取待处理的维护请求
-// @Description 获取所有待确认或已确认待执行的维护请求
-// @Tags 设备维护
+// getMaintenance 获取维护任务详情
+// @Summary 获取维护任务详情
+// @Description 根据维护任务ID获取维护任务的详细信息
+// @Tags 维护管理
 // @Accept json
 // @Produce json
+// @Param id path string true "维护任务ID"
 // @Success 200 {object} render.Response
-// @Failure 500 {object} render.Response
-// @Router /fe-v1/device-maintenance/requests [get]
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 404 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/maintenance/{id} [get]
+func (h *MaintenanceHandler) getMaintenance(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		render.BadRequest(c, "维护任务ID不能为空")
+		return
+	}
+
+	// TODO: 实现获取维护任务详情的逻辑
+	render.Success(c, gin.H{"message": "获取维护任务详情功能待实现"})
+}
+
+// listMaintenances 获取维护任务列表
+// @Summary 获取维护任务列表
+// @Description 获取维护任务列表，支持分页和过滤
+// @Tags 维护管理
+// @Accept json
+// @Produce json
+// @Param page query int false "页码，默认1"
+// @Param size query int false "每页大小，默认10"
+// @Param status query string false "维护状态"
+// @Param type query string false "维护类型"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/maintenance [get]
+func (h *MaintenanceHandler) listMaintenances(c *gin.Context) {
+	// TODO: 实现获取维护任务列表的逻辑
+	render.Success(c, gin.H{"message": "获取维护任务列表功能待实现"})
+}
+
+// createMaintenance 创建维护任务
+// @Summary 创建维护任务
+// @Description 创建新的维护任务
+// @Tags 维护管理
+// @Accept json
+// @Produce json
+// @Param request body service.CreateMaintenanceRequest true "创建维护任务请求"
+// @Success 201 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/maintenance [post]
+func (h *MaintenanceHandler) createMaintenance(c *gin.Context) {
+	// TODO: 实现创建维护任务的逻辑
+	render.Success(c, gin.H{"message": "创建维护任务功能待实现"})
+}
+
+// updateMaintenance 更新维护任务
+// @Summary 更新维护任务
+// @Description 更新维护任务信息
+// @Tags 维护管理
+// @Accept json
+// @Produce json
+// @Param id path string true "维护任务ID"
+// @Param request body service.UpdateMaintenanceRequest true "更新维护任务请求"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 404 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/maintenance/{id} [put]
+func (h *MaintenanceHandler) updateMaintenance(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		render.BadRequest(c, "维护任务ID不能为空")
+		return
+	}
+
+	// TODO: 实现更新维护任务的逻辑
+	render.Success(c, gin.H{"message": "更新维护任务功能待实现"})
+}
+
+// deleteMaintenance 删除维护任务
+// @Summary 删除维护任务
+// @Description 删除指定的维护任务
+// @Tags 维护管理
+// @Accept json
+// @Produce json
+// @Param id path string true "维护任务ID"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 404 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/maintenance/{id} [delete]
+func (h *MaintenanceHandler) deleteMaintenance(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		render.BadRequest(c, "维护任务ID不能为空")
+		return
+	}
+
+	// TODO: 实现删除维护任务的逻辑
+	render.Success(c, gin.H{"message": "删除维护任务功能待实现"})
+}
+
 func (h *MaintenanceHandler) GetPendingMaintenanceRequests(c *gin.Context) {
 	requests, err := h.service.GetPendingMaintenanceRequests()
 	if err != nil {

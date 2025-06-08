@@ -51,6 +51,7 @@ const CreateOrderModal = React.forwardRef<
   const [selectedPolicy, setSelectedPolicy] = useState<ResourcePoolDeviceMatchingPolicy | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [searchingDevices, setSearchingDevices] = useState(false);
+  const [removedBlockIds, setRemovedBlockIds] = useState<string[]>([]);
 
   // 设备选择相关状态
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -134,69 +135,140 @@ const CreateOrderModal = React.forwardRef<
     // Add / ensure "同集群" for pool_exit (This logic will apply its label after the above processing)
     if (currentActionType === 'pool_exit') {
       const clusterName = currentCluster.name || currentCluster.clusterName || currentCluster.clusterNameCn || currentCluster.alias || `集群-${currentCluster.id}`;
-      const poolExitBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: clusterName, operator: LogicalOperator.And, label: '同集群' };
-      if (!newQueryGroups.some(g => g.blocks.some(b => b.field === 'cluster' && b.conditionType === ConditionType.Equal && b.label === '同集群'))) {
+      const poolExitBlock: FilterBlock = { id: 'dynamic-pool-exit-cluster', type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: clusterName, operator: LogicalOperator.And, label: '同集群' };
+      if (!newQueryGroups.some(g => g.blocks.some(b => b.id === 'dynamic-pool-exit-cluster'))) {
          newQueryGroups.push({ id: uuidv4(), blocks: [poolExitBlock], operator: LogicalOperator.And });
       }
     }
     // Add / ensure "未入池设备" for pool_entry (This logic will apply its label after the above processing)
     else { 
-      const unpooledDeviceBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.IsEmpty, operator: LogicalOperator.And, label: '未入池设备' };
-      if (!newQueryGroups.some(g => g.blocks.some(b => b.field === 'cluster' && b.conditionType === ConditionType.IsEmpty && b.label === '未入池设备'))) {
+      const unpooledDeviceBlock: FilterBlock = { id: 'dynamic-unpooled', type: FilterType.Device, field: 'cluster', conditionType: ConditionType.IsEmpty, operator: LogicalOperator.And, label: '未入池设备' };
+      if (!newQueryGroups.some(g => g.blocks.some(b => b.id === 'dynamic-unpooled'))) {
         newQueryGroups.unshift({ id: uuidv4(), blocks: [unpooledDeviceBlock], operator: LogicalOperator.And });
       }
       // Add location-based filters from checkboxes
       const additionalLocationBlocks: FilterBlock[] = [];
       if (currentCheckedFilters.idc && currentCluster.idc) {
-        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'idc', conditionType: ConditionType.Equal, value: currentCluster.idc, operator: LogicalOperator.And, label: `idc = ${currentCluster.idc}` });
+        additionalLocationBlocks.push({ id: 'dynamic-location-idc', type: FilterType.Device, field: 'idc', conditionType: ConditionType.Equal, value: currentCluster.idc, operator: LogicalOperator.And, label: `idc = ${currentCluster.idc}` });
       }
       if (currentCheckedFilters.zone && currentCluster.zone) {
-        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'zone', conditionType: ConditionType.Equal, value: currentCluster.zone, operator: LogicalOperator.And, label: `zone = ${currentCluster.zone}` });
+        additionalLocationBlocks.push({ id: 'dynamic-location-zone', type: FilterType.Device, field: 'zone', conditionType: ConditionType.Equal, value: currentCluster.zone, operator: LogicalOperator.And, label: `zone = ${currentCluster.zone}` });
       }
-      const roomValue = currentCluster.room || currentCluster.idc || '';
-      if (currentCheckedFilters.room && roomValue) {
-        additionalLocationBlocks.push({ id: uuidv4(), type: FilterType.Device, field: 'room', conditionType: ConditionType.Equal, value: roomValue, operator: LogicalOperator.And, label: `room = ${roomValue}` });
+      let roomValue = currentCluster.room || '';
+      const clusterNameToParseForBuild = currentCluster.clusterName || '';
+      if (!roomValue && clusterNameToParseForBuild && !clusterNameToParseForBuild.includes('-test')) {
+        const roomRegex = /^[^-]+-.*?(\d+)-(?:calico|flannel)/;
+        const match = clusterNameToParseForBuild.match(roomRegex);
+        if (match && match[1]) {
+            roomValue = match[1];
+        }
+      }
+      if (currentCheckedFilters.room) {
+        additionalLocationBlocks.push({ id: 'dynamic-location-room', type: FilterType.Device, field: 'room', conditionType: ConditionType.Equal, value: roomValue, operator: LogicalOperator.And, label: `room = ${roomValue}` });
       }
       if (additionalLocationBlocks.length > 0) {
         newQueryGroups.push({ id: uuidv4(), blocks: additionalLocationBlocks, operator: LogicalOperator.And });
       }
     }
-    setFilterGroups(newQueryGroups);
-  }, []);
+    const finalGroups = newQueryGroups.map(group => ({
+      ...group,
+      blocks: group.blocks?.filter(block => !removedBlockIds.includes(block.id || ''))
+    })).filter(group => group.blocks && group.blocks.length > 0);
+
+    setFilterGroups(finalGroups);
+  }, [removedBlockIds]);
 
   // 暴露组件方法
   React.useImperativeHandle(ref, () => ({
     open: (values?: any) => {
-      if (values) {
-        const { name, devices, ...rest } = values;
-        form.setFieldsValue({
-          ...rest,
-          name: `克隆自${name}`,
-          devices: devices
-        });
-        // 同步更新设备列表状态
-        if (devices && Array.isArray(devices)) {
-          setDevices(devices);
+      // 统一处理重置逻辑，确保每次打开都是干净的状态
+      form.resetFields();
+      setDevices([]);
+      setSelectedPolicy(null);
+      setFilterGroups([]);
+      setCheckedFilters({ idc: false, zone: false, room: false });
+      setRemovedBlockIds([]);
+      
+      if (values) { // 克隆或编辑模式
+        // 设置克隆模式状态
+        setIsCloneMode(true);
+        // 保存克隆的数据到状态中，等待资源池数据加载完成后再设置
+        setClonedOrderData(values);
+        // 保存克隆的设备信息
+        if (values.devices && Array.isArray(values.devices)) {
+          setClonedDevices(values.devices);
         }
+      } else {
+        // 新建模式
+        setIsCloneMode(false);
+        setClonedOrderData(null);
+        setClonedDevices([]);
       }
+      // 如果是新建模式 (values为空), 上面的重置逻辑已经处理完毕
     }
   }));
 
-  // 处理初始值
+  // 新增状态来保存克隆的订单数据
+  const [clonedOrderData, setClonedOrderData] = useState<any>(null);
+
+  // 当资源池数据加载完成后，如果有克隆数据需要处理，重新设置表单值
   useEffect(() => {
-    if (initialValues) {
-      const { name, devices, ...rest } = initialValues;
-      form.setFieldsValue({
-        ...rest,
+    if (resourcePools.length > 0 && clonedOrderData) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { name, devices, clusterId, actionType, resourcePoolType, ...rest } = clonedOrderData;
+      
+      // 验证resourcePoolType是否在当前可用的资源池类型中
+      const isValidResourcePoolType = resourcePools.some(pool => pool.type === resourcePoolType);
+      
+      const formValues = {
+        ...rest, // 保留其他相关字段
+        resourcePoolType: isValidResourcePoolType ? resourcePoolType : undefined, // 只有在有效时才设置资源池类型
         name: `克隆自${name}`,
-        devices: devices
-      });
-      // 同步更新设备列表状态
-      if (devices && Array.isArray(devices)) {
-        setDevices(devices);
-      }
+        clusterId: undefined, // 克隆时不复制集群，让用户重新选择
+        actionType: undefined, // 克隆时不复制动作类型，让用户重新选择
+      };
+      
+      form.setFieldsValue(formValues);
+      
+      // 在克隆模式下保留设备信息
+       if (devices && Array.isArray(devices)) {
+         // 在克隆模式下，立即设置设备信息
+         setDevices(devices);
+         // 同时更新克隆设备状态，用于后续保护逻辑
+         setClonedDevices(devices);
+       } else {
+         setDevices([]);
+         setClonedDevices([]);
+       }
+       
+       // 清空克隆数据，避免重复处理
+       setClonedOrderData(null);
     }
-  }, [initialValues, form]);
+  }, [resourcePools, clonedOrderData, form]);
+
+  // 处理初始值 (例如编辑或外部触发的克隆)
+  // 注释掉旧的 initialValues 处理逻辑，现在使用 clonedOrderData
+  // useEffect(() => {
+  //   if (initialValues) {
+  //     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  //     const { name, devices, clusterId, actionType, resourcePoolType, ...rest } = initialValues;
+  //     form.setFieldsValue({
+  //       ...rest, // 保留其他相关字段
+  //       resourcePoolType, // 显式设置 resourcePoolType
+  //       name: `克隆自${name}`,
+  //     });
+  //     if (devices && Array.isArray(devices)) {
+  //       setDevices(devices);
+  //     } else {
+  //       setDevices([]);
+  //     }
+  //     form.setFieldsValue({
+  //       clusterId: undefined,
+  //       actionType: undefined,
+  //     });
+  //   }
+  //   // 移除了else块，以避免与 open 方法中的重置逻辑冲突
+  // }, [initialValues, form]);
 
   // Effect to fetch initial filter options
   useEffect(() => {
@@ -218,6 +290,15 @@ const CreateOrderModal = React.forwardRef<
           return { type, name: type };
         });
         setResourcePools(poolTypes);
+
+        // 克隆时，resourcePoolType 可能已经通过 initialValues 或 open() 设置到 form 中了。
+        // 但此时 resourcePools (Select的options) 可能尚未加载。
+        // 当 resourcePools 加载完成后，如果 form 中存在 resourcePoolType 且该类型有效，
+        // 再次调用 setFieldsValue 可以帮助 Select 组件正确回显。
+        const currentResourcePoolTypeValue = form.getFieldValue('resourcePoolType');
+        if (currentResourcePoolTypeValue && poolTypes.some(p => p.type === currentResourcePoolTypeValue)) {
+          form.setFieldsValue({ resourcePoolType: currentResourcePoolTypeValue });
+        }
       } catch (error) {
         console.error('获取资源池类型失败:', error);
         message.error('获取资源池类型失败，请刷新重试');
@@ -225,8 +306,10 @@ const CreateOrderModal = React.forwardRef<
         setResourcePools([]);
       }
     };
-    fetchInitialData();
-  }, []); // Empty deps: run once on mount
+    if (visible) {
+      fetchInitialData();
+    }
+  }, [visible, form]); // 添加 form 和 visible 到依赖项
 
   // Effect to react to changes and update displayed query groups
   useEffect(() => {
@@ -247,7 +330,8 @@ const CreateOrderModal = React.forwardRef<
     clusterId,      // Watched from form
     clusters,       // Prop
     checkedFilters, // State for checkboxes
-    buildAndDisplayQueryGroups // The useCallback function itself
+    buildAndDisplayQueryGroups, // The useCallback function itself
+    removedBlockIds
   ]);
 
   // Effect to fetch matching policies when resourcePoolType or actionType change
@@ -257,6 +341,7 @@ const CreateOrderModal = React.forwardRef<
         setLoading(true);
         // Reset policy and dependent filters before fetching new ones
         setSelectedPolicy(null);
+        setRemovedBlockIds([]);
         // setFilterGroups([]); // Covered by the main reactive useEffect
         // setCheckedFilters({ idc: false, zone: false, room: false }); // Covered by the main reactive useEffect via selectedPolicy=null
 
@@ -294,10 +379,12 @@ const CreateOrderModal = React.forwardRef<
       setMatchingPolicies([]);
       setSelectedPolicy(null);
       setCheckedFilters({ idc: false, zone: false, room: false });
+      setRemovedBlockIds([]);
     }
   }, [resourcePoolType, actionType]); // Removed form dependency
 
   // Update filter groups based on checkbox changes (for location filters)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const updateFilterGroups = useCallback((newCheckedState: { idc: boolean; zone: boolean; room: boolean }, currentClusterDetails: any) => {
     // This function is primarily for *manual* checkbox interactions.
     // The main reactive useEffect should handle most updates.
@@ -312,10 +399,27 @@ const CreateOrderModal = React.forwardRef<
   }, []);
 
 
+  // 添加状态来跟踪是否为克隆模式
+  const [isCloneMode, setIsCloneMode] = useState(false);
+  const [clonedDevices, setClonedDevices] = useState<Device[]>([]);
+
   // Simplified handleFormValuesChange - now mostly for policy fetching logic trigger
   const handleFormValuesChange = async (changedValues: any) => {
     if (changedValues.resourcePoolType || changedValues.actionType) {
-      setDevices([]);
+      // 在克隆模式下，保护克隆的设备信息不被清空
+      // 只有在非克隆模式下才清空设备，或者用户已经进行了设备查询操作后再次更改配置
+      if (!isCloneMode) {
+        setDevices([]);
+      } else {
+        // 克隆模式下，如果用户更改了配置且当前设备不是克隆的设备，才清空
+        const currentDeviceIds = devices.map(d => d.id).sort().join(',');
+        const clonedDeviceIds = clonedDevices.map(d => d.id).sort().join(',');
+        if (currentDeviceIds !== clonedDeviceIds) {
+          // 当前设备已经不是克隆的设备了，说明用户已经进行了查询，可以清空
+          setDevices([]);
+        }
+        // 如果当前设备仍然是克隆的设备，则保持不变，让用户可以继续编辑
+      }
     }
   };
 
@@ -330,6 +434,7 @@ const CreateOrderModal = React.forwardRef<
       }
       const formData = {
         ...values,
+        type: 'elastic_scaling', // 确保订单类型为弹性伸缩
         devices: devices.map(device => device.id),
         deviceCount: devices.length // Use actual selected device count
       };
@@ -388,39 +493,52 @@ const CreateOrderModal = React.forwardRef<
     // Add / ensure "同集群" for pool_exit
     if (currentActionType === 'pool_exit') { // use watched actionType
       const clusterName = currentCluster.name || currentCluster.clusterName || currentCluster.clusterNameCn || currentCluster.alias || `集群-${currentCluster.id}`;
-      const poolExitBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: clusterName, operator: LogicalOperator.And, label: '同集群' };
-      if (!finalQueryGroups.some(g => g.blocks.some(b => b.field === 'cluster' && b.conditionType === ConditionType.Equal && b.label === '同集群'))) {
+      const poolExitBlock: FilterBlock = { id: 'dynamic-pool-exit-cluster', type: FilterType.Device, field: 'cluster', conditionType: ConditionType.Equal, value: clusterName, operator: LogicalOperator.And, label: '同集群' };
+      if (!finalQueryGroups.some(g => g.blocks.some(b => b.id === 'dynamic-pool-exit-cluster'))) {
          finalQueryGroups.push({ id: uuidv4(), blocks: [poolExitBlock], operator: LogicalOperator.And });
       }
     } 
     // Add / ensure "未入池设备" for pool_entry
     else { 
-      const unpooledDeviceBlock: FilterBlock = { id: uuidv4(), type: FilterType.Device, field: 'cluster', conditionType: ConditionType.IsEmpty, operator: LogicalOperator.And, label: '未入池设备' };
-      if (!finalQueryGroups.some(g => g.blocks.some(b => b.field === 'cluster' && b.conditionType === ConditionType.IsEmpty && b.label === '未入池设备'))) {
+      const unpooledDeviceBlock: FilterBlock = { id: 'dynamic-unpooled', type: FilterType.Device, field: 'cluster', conditionType: ConditionType.IsEmpty, operator: LogicalOperator.And, label: '未入池设备' };
+      if (!finalQueryGroups.some(g => g.blocks.some(b => b.id === 'dynamic-unpooled'))) {
         finalQueryGroups.unshift({ id: uuidv4(), blocks: [unpooledDeviceBlock], operator: LogicalOperator.And });
       }
       // Add location-based filters from checkboxes
       const additionalBlocksFromCheckboxes: FilterBlock[] = [];
        if (checkedFilters.idc && currentCluster.idc) {
-        additionalBlocksFromCheckboxes.push({ id: uuidv4(), type: FilterType.Device, field: 'idc', conditionType: ConditionType.Equal, value: currentCluster.idc, operator: LogicalOperator.And, label: `idc = ${currentCluster.idc}` });
+        additionalBlocksFromCheckboxes.push({ id: 'dynamic-location-idc', type: FilterType.Device, field: 'idc', conditionType: ConditionType.Equal, value: currentCluster.idc, operator: LogicalOperator.And, label: `idc = ${currentCluster.idc}` });
       }
       if (checkedFilters.zone && currentCluster.zone) {
-        additionalBlocksFromCheckboxes.push({ id: uuidv4(), type: FilterType.Device, field: 'zone', conditionType: ConditionType.Equal, value: currentCluster.zone, operator: LogicalOperator.And, label: `zone = ${currentCluster.zone}` });
+        additionalBlocksFromCheckboxes.push({ id: 'dynamic-location-zone', type: FilterType.Device, field: 'zone', conditionType: ConditionType.Equal, value: currentCluster.zone, operator: LogicalOperator.And, label: `zone = ${currentCluster.zone}` });
       }
-      const roomValue = currentCluster.room || currentCluster.idc || '';
-      if (checkedFilters.room && roomValue) {
-        additionalBlocksFromCheckboxes.push({ id: uuidv4(), type: FilterType.Device, field: 'room', conditionType: ConditionType.Equal, value: roomValue, operator: LogicalOperator.And, label: `room = ${roomValue}` });
+      let roomValue = currentCluster.room || '';
+      const clusterNameToParseForSearch = currentCluster.clusterName || '';
+      if (!roomValue && clusterNameToParseForSearch && !clusterNameToParseForSearch.includes('-test')) {
+        const roomRegex = /^[^-]+-.*?(\d+)-(?:calico|flannel)/;
+        const match = clusterNameToParseForSearch.match(roomRegex);
+        if (match && match[1]) {
+            roomValue = match[1];
+        }
+      }
+      if (checkedFilters.room) {
+        additionalBlocksFromCheckboxes.push({ id: 'dynamic-location-room', type: FilterType.Device, field: 'room', conditionType: ConditionType.Equal, value: roomValue, operator: LogicalOperator.And, label: `room = ${roomValue}` });
       }
       if (additionalBlocksFromCheckboxes.length > 0) {
           finalQueryGroups.push({ id: uuidv4(), blocks: additionalBlocksFromCheckboxes, operator: LogicalOperator.And });
       }
     }
     
-    setFilterGroups(finalQueryGroups);
+    const groupsForQuery = finalQueryGroups.map(group => ({
+      ...group,
+      blocks: group.blocks.filter(block => !removedBlockIds.includes(block.id || ''))
+    })).filter(group => group.blocks.length > 0);
+    
+    setFilterGroups(groupsForQuery);
 
     try {
       setSearchingDevices(true);
-      const response = await queryDevices({ groups: finalQueryGroups, page: 1, size: 20 });
+      const response = await queryDevices({ groups: groupsForQuery, page: 1, size: 20 });
       
       // 这里只是获取初始数据，完整分页逻辑在DeviceSelectionDrawer中处理
       const initialDevices = response.list || [];
@@ -440,6 +558,20 @@ const CreateOrderModal = React.forwardRef<
   const handleSelectDevices = (selectedDevices: Device[]) => {
     setDevices(selectedDevices);
     message.success(`已选择 ${selectedDevices.length} 台设备`);
+  };
+
+  const handleRemoveFilterBlock = (blockIdToRemove: string) => {
+    // Add any block (dynamic or static) to removedBlockIds
+    setRemovedBlockIds(prev => Array.from(new Set([...prev, blockIdToRemove])));
+    
+    // Uncheck checkboxes if a location filter is removed
+    if (blockIdToRemove === 'dynamic-location-idc') {
+        setCheckedFilters(prev => ({ ...prev, idc: false }));
+    } else if (blockIdToRemove === 'dynamic-location-zone') {
+        setCheckedFilters(prev => ({ ...prev, zone: false }));
+    } else if (blockIdToRemove === 'dynamic-location-room') {
+        setCheckedFilters(prev => ({ ...prev, room: false }));
+    }
   };
 
   return (
@@ -573,7 +705,16 @@ const CreateOrderModal = React.forwardRef<
             label="动作类型"
             rules={[{ required: true, message: '请选择动作类型' }]}
           >
-            <Select placeholder="请选择动作类型">
+            <Select
+              placeholder="请选择动作类型"
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.children?.toString().toLowerCase().indexOf(input.toLowerCase()) ?? -1) >= 0
+              }
+              showArrow
+              style={{ width: '100%' }}
+            >
               <Option value="pool_entry">
                 <CloudUploadOutlined style={{ color: '#1890ff', marginRight: 4 }} /> 入池
               </Option>
@@ -645,18 +786,13 @@ const CreateOrderModal = React.forwardRef<
                                   checked={checkedFilters.idc}
                                   style={{ fontSize: '14px', padding: '8px 0' }}
                                   onChange={(e) => {
-                                    // 更新选中状态
-                                    const newCheckedFilters = {
-                                      ...checkedFilters,
-                                      idc: e.target.checked
-                                    };
-                                    setCheckedFilters(newCheckedFilters);
-                                    
-                                    // 更新筛选条件
-                                    const clusterId = form.getFieldValue('clusterId');
-                                    const selectedCluster = clusters.find(c => c.id === clusterId);
-                                    if (selectedCluster) {
-                                      updateFilterGroups(newCheckedFilters, selectedCluster);
+                                    const isChecked = e.target.checked;
+                                    setCheckedFilters(prev => ({ ...prev, idc: isChecked }));
+                                    const blockId = 'dynamic-location-idc';
+                                    if (isChecked) {
+                                      setRemovedBlockIds(prev => prev.filter(id => id !== blockId));
+                                    } else {
+                                      setRemovedBlockIds(prev => Array.from(new Set([...prev, blockId])));
                                     }
                                   }}
                                 >
@@ -668,18 +804,13 @@ const CreateOrderModal = React.forwardRef<
                                   checked={checkedFilters.zone}
                                   style={{ fontSize: '14px', padding: '8px 0' }}
                                   onChange={(e) => {
-                                    // 更新选中状态
-                                    const newCheckedFilters = {
-                                      ...checkedFilters,
-                                      zone: e.target.checked
-                                    };
-                                    setCheckedFilters(newCheckedFilters);
-                                    
-                                    // 更新筛选条件
-                                    const clusterId = form.getFieldValue('clusterId');
-                                    const selectedCluster = clusters.find(c => c.id === clusterId);
-                                    if (selectedCluster) {
-                                      updateFilterGroups(newCheckedFilters, selectedCluster);
+                                    const isChecked = e.target.checked;
+                                    setCheckedFilters(prev => ({ ...prev, zone: isChecked }));
+                                    const blockId = 'dynamic-location-zone';
+                                    if (isChecked) {
+                                      setRemovedBlockIds(prev => prev.filter(id => id !== blockId));
+                                    } else {
+                                      setRemovedBlockIds(prev => Array.from(new Set([...prev, blockId])));
                                     }
                                   }}
                                 >
@@ -691,18 +822,13 @@ const CreateOrderModal = React.forwardRef<
                                   checked={checkedFilters.room}
                                   style={{ fontSize: '14px', padding: '8px 0' }}
                                   onChange={(e) => {
-                                    // 更新选中状态
-                                    const newCheckedFilters = {
-                                      ...checkedFilters,
-                                      room: e.target.checked
-                                    };
-                                    setCheckedFilters(newCheckedFilters);
-                                    
-                                    // 更新筛选条件
-                                    const clusterId = form.getFieldValue('clusterId');
-                                    const selectedCluster = clusters.find(c => c.id === clusterId);
-                                    if (selectedCluster) {
-                                      updateFilterGroups(newCheckedFilters, selectedCluster);
+                                    const isChecked = e.target.checked;
+                                    setCheckedFilters(prev => ({ ...prev, room: isChecked }));
+                                    const blockId = 'dynamic-location-room';
+                                    if (isChecked) {
+                                      setRemovedBlockIds(prev => prev.filter(id => id !== blockId));
+                                    } else {
+                                      setRemovedBlockIds(prev => Array.from(new Set([...prev, blockId])));
                                     }
                                   }}
                                 >
@@ -778,10 +904,12 @@ const CreateOrderModal = React.forwardRef<
                                         key={block.id}
                                         color={tagColor}
                                         style={{ margin: '4px' }}
+                                        closable
+                                        onClose={() => handleRemoveFilterBlock(block.id || '')}
                                       >
                                         {['idc', 'zone', 'room'].includes(block.field || '') && block.conditionType === ConditionType.Equal 
                                           ? `${block.field} = ${block.value}` 
-                                          : (blockContent || '无参数')}
+                                          : blockContent}
                                       </Tag>
                                     );
                                   })}
@@ -857,20 +985,15 @@ const CreateOrderModal = React.forwardRef<
                                 checked={checkedFilters.idc}
                                 style={{ fontSize: '14px', padding: '8px 0' }}
                                 onChange={(e) => {
-                                  // 更新选中状态
-                                  const newCheckedFilters = {
-                                    ...checkedFilters,
-                                    idc: e.target.checked
-                                  };
-                                  setCheckedFilters(newCheckedFilters);
-                                  
-                                  // 更新筛选条件
-                                  const clusterId = form.getFieldValue('clusterId');
-                                  const selectedCluster = clusters.find(c => c.id === clusterId);
-                                  if (selectedCluster) {
-                                    updateFilterGroups(newCheckedFilters, selectedCluster);
-                                  }
-                                }}
+                                    const isChecked = e.target.checked;
+                                    setCheckedFilters(prev => ({ ...prev, idc: isChecked }));
+                                    const blockId = 'dynamic-location-idc';
+                                    if (isChecked) {
+                                      setRemovedBlockIds(prev => prev.filter(id => id !== blockId));
+                                    } else {
+                                      setRemovedBlockIds(prev => Array.from(new Set([...prev, blockId])));
+                                    }
+                                  }}
                               >
                                 同集群IDC
                               </Checkbox>
@@ -880,20 +1003,15 @@ const CreateOrderModal = React.forwardRef<
                                 checked={checkedFilters.zone}
                                 style={{ fontSize: '14px', padding: '8px 0' }}
                                 onChange={(e) => {
-                                  // 更新选中状态
-                                  const newCheckedFilters = {
-                                    ...checkedFilters,
-                                    zone: e.target.checked
-                                  };
-                                  setCheckedFilters(newCheckedFilters);
-                                  
-                                  // 更新筛选条件
-                                  const clusterId = form.getFieldValue('clusterId');
-                                  const selectedCluster = clusters.find(c => c.id === clusterId);
-                                  if (selectedCluster) {
-                                    updateFilterGroups(newCheckedFilters, selectedCluster);
-                                  }
-                                }}
+                                    const isChecked = e.target.checked;
+                                    setCheckedFilters(prev => ({ ...prev, zone: isChecked }));
+                                    const blockId = 'dynamic-location-zone';
+                                    if (isChecked) {
+                                      setRemovedBlockIds(prev => prev.filter(id => id !== blockId));
+                                    } else {
+                                      setRemovedBlockIds(prev => Array.from(new Set([...prev, blockId])));
+                                    }
+                                  }}
                               >
                                 同集群Zone
                               </Checkbox>
@@ -903,20 +1021,15 @@ const CreateOrderModal = React.forwardRef<
                                 checked={checkedFilters.room}
                                 style={{ fontSize: '14px', padding: '8px 0' }}
                                 onChange={(e) => {
-                                  // 更新选中状态
-                                  const newCheckedFilters = {
-                                    ...checkedFilters,
-                                    room: e.target.checked
-                                  };
-                                  setCheckedFilters(newCheckedFilters);
-                                  
-                                  // 更新筛选条件
-                                  const clusterId = form.getFieldValue('clusterId');
-                                  const selectedCluster = clusters.find(c => c.id === clusterId);
-                                  if (selectedCluster) {
-                                    updateFilterGroups(newCheckedFilters, selectedCluster);
-                                  }
-                                }}
+                                    const isChecked = e.target.checked;
+                                    setCheckedFilters(prev => ({ ...prev, room: isChecked }));
+                                    const blockId = 'dynamic-location-room';
+                                    if (isChecked) {
+                                      setRemovedBlockIds(prev => prev.filter(id => id !== blockId));
+                                    } else {
+                                      setRemovedBlockIds(prev => Array.from(new Set([...prev, blockId])));
+                                    }
+                                  }}
                               >
                                 同集群Room
                               </Checkbox>
@@ -987,15 +1100,17 @@ const CreateOrderModal = React.forwardRef<
                                     }
 
                                     return (
-                                                                              <Tag
-                                          key={block.id}
-                                          color={tagColor}
-                                          style={{ margin: '4px' }}
-                                        >
-                                          {['idc', 'zone', 'room'].includes(block.field || '') && block.conditionType === ConditionType.Equal 
-                                            ? `${block.field} = ${block.value}` 
-                                            : blockContent}
-                                        </Tag>
+                                      <Tag
+                                        key={block.id}
+                                        color={tagColor}
+                                        style={{ margin: '4px' }}
+                                        closable
+                                        onClose={() => handleRemoveFilterBlock(block.id || '')}
+                                      >
+                                        {['idc', 'zone', 'room'].includes(block.field || '') && block.conditionType === ConditionType.Equal 
+                                          ? `${block.field} = ${block.value}` 
+                                          : blockContent}
+                                      </Tag>
                                     );
                                   })}
                                 </div>

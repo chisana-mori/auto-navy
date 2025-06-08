@@ -10,7 +10,7 @@ import (
 func TestToRichOrderDTO(t *testing.T) {
 	// 创建测试数据
 	now := portal.NavyTime(time.Now())
-	
+
 	order := &portal.Order{
 		BaseModel: portal.BaseModel{
 			ID:        1,
@@ -36,73 +36,9 @@ func TestToRichOrderDTO(t *testing.T) {
 			StrategyID:             nil,
 			ActionType:             "pool_entry",
 			DeviceCount:            2,
-			ExternalTicketID:       "EXT123",
 			StrategyTriggeredValue: "80%",
 			StrategyThresholdValue: "70%",
-			Devices: []portal.Device{
-				{
-					BaseModel: portal.BaseModel{
-						ID:        1,
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-					CICode:         "DEV001",
-					IP:             "192.168.1.100",
-					ArchType:       "x86_64",
-					IDC:            "IDC1",
-					Room:           "Room1",
-					Cabinet:        "Cabinet1",
-					CabinetNO:      "C001",
-					InfraType:      "物理机",
-					IsLocalization: false,
-					NetZone:        "DMZ",
-					Group:          "计算节点",
-					AppID:          "APP001",
-					AppName:        "测试应用",
-					CPU:            16.0,
-					Memory:         64.0,
-					Model:          "Dell R740",
-					OS:             "CentOS 7",
-					Company:        "Dell",
-					Status:         "运行中",
-					Role:           "worker",
-					Cluster:        "test-cluster",
-					ClusterID:      100,
-					IsSpecial:      false,
-					FeatureCount:   0,
-				},
-				{
-					BaseModel: portal.BaseModel{
-						ID:        2,
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-					CICode:         "DEV002",
-					IP:             "192.168.1.101",
-					ArchType:       "x86_64",
-					IDC:            "IDC1",
-					Room:           "Room1",
-					Cabinet:        "Cabinet2",
-					CabinetNO:      "C002",
-					InfraType:      "物理机",
-					IsLocalization: true,
-					NetZone:        "DMZ",
-					Group:          "计算节点",
-					AppID:          "APP001",
-					AppName:        "测试应用",
-					CPU:            32.0,
-					Memory:         128.0,
-					Model:          "华为 2288H",
-					OS:             "openEuler 20.03",
-					Company:        "华为",
-					Status:         "运行中",
-					Role:           "worker",
-					Cluster:        "test-cluster",
-					ClusterID:      100,
-					IsSpecial:      true,
-					FeatureCount:   2,
-				},
-			},
+			// Devices field is removed
 		},
 	}
 
@@ -151,46 +87,7 @@ func TestToRichOrderDTO(t *testing.T) {
 		t.Errorf("期望设备数量为2，实际为%d", dto.ElasticScalingDetail.DeviceCount)
 	}
 
-	// 验证设备信息
-	if len(dto.Devices) != 2 {
-		t.Fatalf("期望设备数量为2，实际为%d", len(dto.Devices))
-	}
-
-	// 验证第一个设备
-	device1 := dto.Devices[0]
-	if device1.CICode != "DEV001" {
-		t.Errorf("期望第一个设备CI码为DEV001，实际为%s", device1.CICode)
-	}
-
-	if device1.IP != "192.168.1.100" {
-		t.Errorf("期望第一个设备IP为192.168.1.100，实际为%s", device1.IP)
-	}
-
-	if device1.CPU != 16.0 {
-		t.Errorf("期望第一个设备CPU为16.0，实际为%f", device1.CPU)
-	}
-
-	if device1.IsLocalization != false {
-		t.Errorf("期望第一个设备非国产化，实际为%t", device1.IsLocalization)
-	}
-
-	// 验证第二个设备
-	device2 := dto.Devices[1]
-	if device2.CICode != "DEV002" {
-		t.Errorf("期望第二个设备CI码为DEV002，实际为%s", device2.CICode)
-	}
-
-	if device2.IsLocalization != true {
-		t.Errorf("期望第二个设备为国产化，实际为%t", device2.IsLocalization)
-	}
-
-	if device2.IsSpecial != true {
-		t.Errorf("期望第二个设备为特殊设备，实际为%t", device2.IsSpecial)
-	}
-
-	if device2.FeatureCount != 2 {
-		t.Errorf("期望第二个设备特性数量为2，实际为%d", device2.FeatureCount)
-	}
+	// Device-related assertions are removed as the device list is no longer populated in this DTO.
 
 	// 验证统计信息
 	if dto.DeviceCount != 2 {

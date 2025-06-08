@@ -10,7 +10,7 @@ import {
   OrderStats,
   PaginatedResponse
 } from '../types/elastic-scaling';
-import { orderService } from './orderService';
+// import { orderService } from './orderService';
 import type { OrderStatusUpdateRequest } from '../types/order';
 
 const API_BASE = '/fe-v1/elastic-scaling';
@@ -57,8 +57,15 @@ export const strategyApi = {
   },
 
   // 获取策略执行历史
-  getStrategyExecutionHistory: async (id: number): Promise<any[]> => {
-    const response = await axios.get(`${API_BASE}/strategies/${id}/execution-history`);
+  getStrategyExecutionHistory: async (id: number, params?: { page?: number; size?: number; clusterName?: string }): Promise<any> => {
+    const response = await axios.get(`${API_BASE}/strategies/${id}/execution-history`, {
+      params: {
+        page: params?.page || 1,
+        size: params?.size || 10,
+        ...(params?.clusterName && { clusterName: params.clusterName }),
+        ...params
+      }
+    });
     return response.data.data;
   }
 };
@@ -71,6 +78,7 @@ export const orderApi = {
     strategyId?: number;
     actionType?: string;
     status?: string;
+    name?: string;
     page?: number;
     pageSize?: number;
   }): Promise<PaginatedResponse<OrderListItem>> => {
@@ -90,13 +98,9 @@ export const orderApi = {
     return response.data.data;
   },
 
-  // 更新订单状态 - 使用新的通用订单服务
-  updateOrderStatus: async (id: number, status: string, reason?: string): Promise<void> => {
-    const statusUpdate: OrderStatusUpdateRequest = {
-      status: status as any,
-      reason
-    };
-    await orderService.updateOrderStatus(id, statusUpdate);
+  // 更新订单状态
+  updateOrderStatus: async (id: number, statusUpdate: OrderStatusUpdateRequest): Promise<void> => {
+    await axios.put(`${API_BASE}/orders/${id}/status`, statusUpdate);
   },
 
   // 获取订单设备

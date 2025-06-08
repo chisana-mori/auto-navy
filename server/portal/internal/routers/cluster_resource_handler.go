@@ -24,10 +24,10 @@ func NewClusterResourceHandler(db *gorm.DB) *ClusterResourceHandler {
 
 // RegisterRoutes registers the cluster resource-related routes.
 func (h *ClusterResourceHandler) RegisterRoutes(api *gin.RouterGroup) {
-	clusterResourcesGroup := api.Group("/cluster-resources")
+	clusterResourcesGroup := api.Group(RouteGroupClusterResources)
 	{
-		clusterResourcesGroup.GET("/remaining", h.GetRemainingClusterResources)
-		clusterResourcesGroup.GET("/allocation-rate", h.GetResourcePoolAllocationRate)
+		clusterResourcesGroup.GET(SubRouteRemaining, h.GetRemainingClusterResources)
+		clusterResourcesGroup.GET(SubRouteAllocationRate, h.GetResourcePoolAllocationRate)
 	}
 }
 
@@ -43,12 +43,22 @@ func (h *ClusterResourceHandler) RegisterRoutes(api *gin.RouterGroup) {
 // @Failure 400 {object} render.ErrorResponse "Invalid date format"
 // @Failure 500 {object} render.ErrorResponse "Internal server error"
 // @Router /api/cluster-resources/remaining [get]
+type ClusterResourceQuery struct {
+	Date          string `form:"date"`
+	PurposeFilter string `form:"purpose_filter"`
+}
+
 func (h *ClusterResourceHandler) GetRemainingClusterResources(c *gin.Context) {
+	var query ClusterResourceQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		render.BadRequest(c, MsgInvalidParams+err.Error())
+		return
+	}
+
 	// Parse optional date parameter
 	var queryDate *time.Time
-	dateStr := c.Query("date")
-	if dateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", dateStr)
+	if query.Date != "" {
+		parsedDate, err := time.Parse("2006-01-02", query.Date)
 		if err != nil {
 			render.Fail(c, http.StatusBadRequest, "Invalid date format. Please use YYYY-MM-DD format.")
 			return
@@ -58,9 +68,8 @@ func (h *ClusterResourceHandler) GetRemainingClusterResources(c *gin.Context) {
 
 	// Parse optional description filter parameter
 	var descFilter *string
-	descFilterStr := c.Query("purpose_filter")
-	if descFilterStr != "" {
-		descFilter = &descFilterStr
+	if query.PurposeFilter != "" {
+		descFilter = &query.PurposeFilter
 	}
 
 	// Calculate remaining resources with optional date and description filter
@@ -90,23 +99,20 @@ func (h *ClusterResourceHandler) GetRemainingClusterResources(c *gin.Context) {
 // @Failure 404 {object} render.ErrorResponse "No data found for the specified cluster and resource pool"
 // @Failure 500 {object} render.ErrorResponse "Internal server error"
 // @Router /fe-v1/cluster-resources/allocation-rate [get]
+type ResourcePoolAllocationQuery struct {
+	ClusterName  string `form:"cluster_name" binding:"required"`
+	ResourcePool string `form:"resource_pool" binding:"required"`
+}
+
 func (h *ClusterResourceHandler) GetResourcePoolAllocationRate(c *gin.Context) {
-	// Parse required parameters
-	clusterName := c.Query("cluster_name")
-	resourcePool := c.Query("resource_pool")
-
-	if clusterName == "" {
-		render.Fail(c, http.StatusBadRequest, "cluster_name parameter is required")
-		return
-	}
-
-	if resourcePool == "" {
-		render.Fail(c, http.StatusBadRequest, "resource_pool parameter is required")
+	var query ResourcePoolAllocationQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		render.BadRequest(c, MsgInvalidParams+err.Error())
 		return
 	}
 
 	// Get allocation rates for today
-	allocationRate, err := h.service.GetResourcePoolAllocationRate(clusterName, resourcePool)
+	allocationRate, err := h.service.GetResourcePoolAllocationRate(query.ClusterName, query.ResourcePool)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, "Failed to get resource pool allocation rate: "+err.Error())
 		return

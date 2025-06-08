@@ -22,8 +22,8 @@ type ResourcePoolDeviceMatchingPolicyHandler struct {
 // NewResourcePoolDeviceMatchingPolicyHandler 创建资源池设备匹配策略处理器
 func NewResourcePoolDeviceMatchingPolicyHandler(db *gorm.DB) *ResourcePoolDeviceMatchingPolicyHandler {
 	// 创建 Redis 客户端和键构建器
-	redisHandler := redis.NewRedisHandler("default")
-	keyBuilder := redis.NewKeyBuilder("navy", service.CacheVersion)
+	redisHandler := redis.NewRedisHandler(RedisDefault)
+	keyBuilder := redis.NewKeyBuilder(RedisNamespace, service.CacheVersion)
 
 	// 创建设备缓存服务
 	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)
@@ -38,18 +38,18 @@ func NewResourcePoolDeviceMatchingPolicyHandler(db *gorm.DB) *ResourcePoolDevice
 
 // RegisterRoutes 注册路由
 func (h *ResourcePoolDeviceMatchingPolicyHandler) RegisterRoutes(router *gin.RouterGroup) {
-	resourcePoolGroup := router.Group("/resource-pool")
+	resourcePoolGroup := router.Group(RouteGroupResourcePool)
 	{
 		// 匹配策略相关接口
-		matchingPoliciesGroup := resourcePoolGroup.Group("/matching-policies")
+		matchingPoliciesGroup := resourcePoolGroup.Group(SubRouteMatchingPolicies)
 		{
 			matchingPoliciesGroup.GET("", h.GetResourcePoolDeviceMatchingPolicies)
 			matchingPoliciesGroup.POST("", h.CreateResourcePoolDeviceMatchingPolicy)
-			matchingPoliciesGroup.GET("/:id", h.GetResourcePoolDeviceMatchingPolicy)
-			matchingPoliciesGroup.PUT("/:id", h.UpdateResourcePoolDeviceMatchingPolicy)
-			matchingPoliciesGroup.DELETE("/:id", h.DeleteResourcePoolDeviceMatchingPolicy)
-			matchingPoliciesGroup.PUT("/:id/status", h.UpdateResourcePoolDeviceMatchingPolicyStatus)
-			matchingPoliciesGroup.GET("/by-type", h.GetResourcePoolDeviceMatchingPoliciesByType)
+			matchingPoliciesGroup.GET(RouteParamID, h.GetResourcePoolDeviceMatchingPolicy)
+			matchingPoliciesGroup.PUT(RouteParamID, h.UpdateResourcePoolDeviceMatchingPolicy)
+			matchingPoliciesGroup.DELETE(RouteParamID, h.DeleteResourcePoolDeviceMatchingPolicy)
+			matchingPoliciesGroup.PUT(RouteParamIDStatus, h.UpdateResourcePoolDeviceMatchingPolicyStatus)
+			matchingPoliciesGroup.GET(SubRouteByType, h.GetResourcePoolDeviceMatchingPoliciesByType)
 		}
 	}
 }
@@ -68,14 +68,14 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) RegisterRoutes(router *gin.Rou
 // @Router /resource-pool/matching-policies [get]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingPolicies(c *gin.Context) {
 	// 获取分页参数
-	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	page, err := strconv.Atoi(c.DefaultQuery(ParamPage, DefaultPageValue))
 	if err != nil || page <= 0 {
-		page = 1
+		page = DefaultPageInt
 	}
 
-	size, err := strconv.Atoi(c.DefaultQuery("size", "10"))
-	if err != nil || size <= 0 || size > 100 {
-		size = 10
+	size, err := strconv.Atoi(c.DefaultQuery(ParamSize, DefaultSizeValue))
+	if err != nil || size <= 0 || size > MaxSizeInt {
+		size = DefaultSizeInt
 	}
 
 	// 创建一个带有超时的上下文
@@ -90,11 +90,11 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingP
 
 		// 检查是否是超时错误
 		if ctx.Err() == context.DeadlineExceeded {
-			render.InternalServerError(c, "请求超时，请稍后重试")
+			render.InternalServerError(c, MsgRequestTimeout)
 			return
 		}
 
-		render.InternalServerError(c, "获取匹配策略失败: "+err.Error())
+		render.InternalServerError(c, MsgFailedToGetPolicies+err.Error())
 		return
 	}
 
@@ -115,9 +115,9 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingP
 // @Router /resource-pool/matching-policies/{id} [get]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingPolicy(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, "invalid policy ID")
+		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
 
@@ -180,9 +180,9 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) CreateResourcePoolDeviceMatchi
 // @Router /resource-pool/matching-policies/{id} [put]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchingPolicy(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, "invalid policy ID")
+		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
 
@@ -205,7 +205,7 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchi
 		return
 	}
 
-	render.SuccessWithMessage(c, "policy updated successfully", nil)
+	render.SuccessWithMessage(c, MsgPolicyUpdatedSuccess, nil)
 }
 
 // DeleteResourcePoolDeviceMatchingPolicy 删除资源池设备匹配策略
@@ -222,9 +222,9 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchi
 // @Router /resource-pool/matching-policies/{id} [delete]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) DeleteResourcePoolDeviceMatchingPolicy(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, "invalid policy ID")
+		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
 
@@ -234,7 +234,7 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) DeleteResourcePoolDeviceMatchi
 		return
 	}
 
-	render.SuccessWithMessage(c, "policy deleted successfully", nil)
+	render.SuccessWithMessage(c, MsgPolicyDeletedSuccess, nil)
 }
 
 // UpdateResourcePoolDeviceMatchingPolicyStatus 更新资源池设备匹配策略状态
@@ -252,9 +252,9 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) DeleteResourcePoolDeviceMatchi
 // @Router /resource-pool/matching-policies/{id}/status [put]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchingPolicyStatus(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, "invalid policy ID")
+		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
 
@@ -271,7 +271,7 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchi
 		return
 	}
 
-	render.SuccessWithMessage(c, "policy status updated successfully", nil)
+	render.SuccessWithMessage(c, MsgPolicyStatusUpdatedSuccess, nil)
 }
 
 // GetResourcePoolDeviceMatchingPoliciesByType 根据资源池类型和动作类型获取匹配策略
@@ -286,24 +286,20 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchi
 // @Failure 400 {object} render.Response
 // @Failure 500 {object} render.Response
 // @Router /resource-pool/matching-policies/by-type [get]
+type PolicyTypeQuery struct {
+	ResourcePoolType string `form:"resourcePoolType" binding:"required"`
+	ActionType       string `form:"actionType" binding:"required"`
+}
+
 func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingPoliciesByType(c *gin.Context) {
-	// 获取查询参数
-	resourcePoolType := c.Query("resourcePoolType")
-	actionType := c.Query("actionType")
-
-	// 验证参数
-	if resourcePoolType == "" {
-		render.BadRequest(c, "resourcePoolType is required")
-		return
-	}
-
-	if actionType == "" {
-		render.BadRequest(c, "actionType is required")
+	var query PolicyTypeQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		render.BadRequest(c, MsgInvalidParams+err.Error())
 		return
 	}
 
 	// 调用服务获取策略
-	policies, err := h.policyService.GetResourcePoolDeviceMatchingPoliciesByType(c.Request.Context(), resourcePoolType, actionType)
+	policies, err := h.policyService.GetResourcePoolDeviceMatchingPoliciesByType(c.Request.Context(), query.ResourcePoolType, query.ActionType)
 	if err != nil {
 		render.InternalServerError(c, err.Error())
 		return

@@ -10,11 +10,41 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	// 预加载字段
+	preloadElasticScalingDetail = "ElasticScalingDetail"
+	preloadDevices              = "Devices"
+
+	// 数据库字段
+fieldOrderNumber    = "order_number = ?"
+fieldID             = "id = ?"
+fieldType           = "type = ?"
+fieldStatus         = "status"
+fieldStatusEq       = "status = ?"
+fieldCreatedBy      = "created_by = ?"
+fieldNameLike       = "name LIKE ?"
+fieldCreatedAtGTE   = "created_at >= ?"
+fieldCreatedAtLTE   = "created_at <= ?"
+fieldUpdatedAt      = "updated_at"
+fieldExecutor       = "executor"
+fieldExecutionTime  = "execution_time"
+fieldCompletionTime = "completion_time"
+fieldFailureReason  = "failure_reason"
+
+	// 默认消息
+	msgOrderCancelled = "订单已取消"
+	msgOrderIgnored   = "订单已忽略"
+
+	// 订单号前缀
+	orderNumberPrefix = "ORD%d"
+)
+
 // OrderQuery 订单查询参数
 type OrderQuery struct {
 	Type      portal.OrderType   `json:"type"`
 	Status    portal.OrderStatus `json:"status"`
 	CreatedBy string             `json:"createdBy"`
+	Name      string             `json:"name"`      // 订单名称，支持模糊查询
 	Page      int                `json:"page"`
 	PageSize  int                `json:"pageSize"`
 	StartTime *time.Time         `json:"startTime"`
@@ -85,8 +115,8 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, order *portal.Order)
 func (s *orderServiceImpl) GetOrderByID(ctx context.Context, id int64) (*portal.Order, error) {
 	var order portal.Order
 	err := s.db.WithContext(ctx).
-		Preload("ElasticScalingDetail").
-		Preload("Devices").
+		Preload(preloadElasticScalingDetail).
+		Preload(preloadDevices).
 		First(&order, id).Error
 
 	if err != nil {
@@ -100,10 +130,9 @@ func (s *orderServiceImpl) GetOrderByID(ctx context.Context, id int64) (*portal.
 func (s *orderServiceImpl) GetOrderByNumber(ctx context.Context, orderNumber string) (*portal.Order, error) {
 	var order portal.Order
 	err := s.db.WithContext(ctx).
-		Preload("ElasticScalingDetail").
-		Preload("Devices").
-		Where("order_number = ?", orderNumber).
-		First(&order).Error
+		Preload(preloadElasticScalingDetail).
+		Preload(preloadDevices).
+		Where(fieldOrderNumber, orderNumber).First(&order).Error
 
 	if err != nil {
 		return nil, err
@@ -115,30 +144,45 @@ func (s *orderServiceImpl) GetOrderByNumber(ctx context.Context, orderNumber str
 // UpdateOrderStatus 更新订单状态
 func (s *orderServiceImpl) UpdateOrderStatus(ctx context.Context, id int64, status portal.OrderStatus, executor string, reason string) error {
 	updates := map[string]interface{}{
-		"status":     status,
-		"executor":   executor,
-		"updated_at": time.Now(),
+		fieldStatus:    status,
+		fieldExecutor:  executor,
+		fieldUpdatedAt: time.Now(),
 	}
 
 	// 根据状态设置相应的时间字段
 	switch status {
 	case portal.OrderStatusProcessing:
-		updates["execution_time"] = time.Now()
+		updates[fieldExecutionTime] = time.Now()
 	case portal.OrderStatusCompleted:
-		updates["completion_time"] = time.Now()
+		updates[fieldCompletionTime] = time.Now()
+	case portal.OrderStatusReturning:
+		// 归还中状态，设置执行时间（如果还没有设置的话）
+		if updates[fieldExecutionTime] == nil {
+			updates[fieldExecutionTime] = time.Now()
+		}
+	case portal.OrderStatusReturnCompleted:
+		updates[fieldCompletionTime] = time.Now()
+	case portal.OrderStatusNoReturn:
+		updates[fieldCompletionTime] = time.Now()
 	case portal.OrderStatusFailed:
-		updates["completion_time"] = time.Now()
+		updates[fieldCompletionTime] = time.Now()
 		if reason != "" {
-			updates["failure_reason"] = reason
+			updates[fieldFailureReason] = reason
 		}
 	case portal.OrderStatusCancelled:
-		updates["completion_time"] = time.Now()
+		updates[fieldCompletionTime] = time.Now()
 		if reason != "" {
-			updates["failure_reason"] = reason
+			updates[fieldFailureReason] = reason
 		}
+	case portal.OrderStatusIgnored:
+		updates[fieldCompletionTime] = time.Now()
+		if reason != "" {
+			updates[fieldFailureReason] = reason
+		}
+		// portal.OrderStatusPending 状态不需要特殊处理，只更新基本字段
 	}
 
-	return s.db.WithContext(ctx).Model(&portal.Order{}).Where("id = ?", id).Updates(updates).Error
+	return s.db.WithContext(ctx).Model(&portal.Order{}).Where(fieldID, id).Updates(updates).Error
 }
 
 // ListOrders 获取订单列表
@@ -150,19 +194,22 @@ func (s *orderServiceImpl) ListOrders(ctx context.Context, query OrderQuery) ([]
 
 	// 应用过滤条件
 	if query.Type != "" {
-		db = db.Where("type = ?", query.Type)
+		db = db.Where(fieldType, query.Type)
 	}
 	if query.Status != "" {
-		db = db.Where("status = ?", query.Status)
+		db = db.Where(fieldStatusEq, query.Status)
 	}
 	if query.CreatedBy != "" {
-		db = db.Where("created_by = ?", query.CreatedBy)
+		db = db.Where(fieldCreatedBy, query.CreatedBy)
+	}
+	if query.Name != "" {
+		db = db.Where(fieldNameLike, "%"+query.Name+"%")
 	}
 	if query.StartTime != nil {
-		db = db.Where("created_at >= ?", query.StartTime)
+		db = db.Where(fieldCreatedAtGTE, query.StartTime)
 	}
 	if query.EndTime != nil {
-		db = db.Where("created_at <= ?", query.EndTime)
+		db = db.Where(fieldCreatedAtLTE, query.EndTime)
 	}
 
 	// 获取总数
@@ -177,9 +224,9 @@ func (s *orderServiceImpl) ListOrders(ctx context.Context, query OrderQuery) ([]
 	}
 
 	// 预加载关联数据
-	err := db.Preload("ElasticScalingDetail").
-		Preload("Devices").
-		Order("created_at DESC").
+	err := db.Preload(preloadElasticScalingDetail).
+		Preload(preloadDevices).
+		Order(OrderByCreatedAtDesc).
 		Find(&orders).Error
 
 	return orders, total, err
@@ -207,15 +254,15 @@ func (s *orderServiceImpl) FailOrder(ctx context.Context, id int64, executor str
 
 // CancelOrder 取消订单
 func (s *orderServiceImpl) CancelOrder(ctx context.Context, id int64, executor string) error {
-	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusCancelled, executor, "订单已取消")
+	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusCancelled, executor, msgOrderCancelled)
 }
 
 // IgnoreOrder 忽略订单
 func (s *orderServiceImpl) IgnoreOrder(ctx context.Context, id int64, executor string) error {
-	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusIgnored, executor, "订单已忽略")
+	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusIgnored, executor, msgOrderIgnored)
 }
 
 // generateOrderNumber 生成唯一订单号
 func (s *orderServiceImpl) generateOrderNumber() string {
-	return fmt.Sprintf("ORD%d", time.Now().UnixNano()/1000000)
+	return fmt.Sprintf(orderNumberPrefix, time.Now().UnixNano()/1000000)
 }

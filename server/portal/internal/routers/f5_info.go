@@ -11,20 +11,7 @@ import (
 	"gorm.io/gorm" // Added import for gorm
 )
 
-// Constants for HTTP status codes and default values
-const (
-	base10                = 10
-	bitSize64             = 64
-	routeParamID          = "id" // Route parameter for ID
-	msgInvalidIDFormat    = "invalid id format"
-	msgInvalidQueryParams = "invalid query parameters: %s"
-	msgInvalidRequestBody = "invalid request body: %s"
-	msgFailedToList       = "failed to list F5 infos: %s"
-	msgFailedToUpdate     = "failed to update F5 info: %s"
-	msgFailedToDelete     = "failed to delete F5 info: %s"
-	msgSuccessUpdate      = "F5 info updated successfully"
-	msgSuccessDelete      = "F5 info deleted successfully"
-)
+// Constants for HTTP status codes and default values - moved to constants.go
 
 // F5InfoHandler handles HTTP requests related to F5Info.
 type F5InfoHandler struct {
@@ -49,23 +36,23 @@ func (h *F5InfoHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// @Summary 获取F5信息详情
-// @Description 根据ID获取F5信息的详细信息
+// getF5Info 获取F5信息
+// @Summary 获取F5信息
+// @Description 根据F5 ID获取F5设备的详细信息
 // @Tags F5管理
 // @Accept json
 // @Produce json
-// @Param id path int true "F5信息ID" example:"1"
-// @Success 200 {object} service.F5InfoResponse "成功获取F5信息详情"
-// @Failure 400 {object} service.ErrorResponse "参数错误"
-// @Failure 404 {object} service.ErrorResponse "F5信息不存在"
-// @Failure 500 {object} service.ErrorResponse "获取F5信息详情失败"
-// @Router /f5/{id} [get]
-// getF5Info handles GET /f5/:id requests.
+// @Param id path string true "F5设备ID"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 404 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/f5/{id} [get]
 func (h *F5InfoHandler) getF5Info(c *gin.Context) {
-	idStr := c.Param(routeParamID)
-	id, err := strconv.ParseInt(idStr, base10, bitSize64)
+	idStr := c.Param(ParamID)
+	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, msgInvalidIDFormat)
+		render.BadRequest(c, MsgInvalidIDFormat)
 		return
 	}
 
@@ -82,33 +69,28 @@ func (h *F5InfoHandler) getF5Info(c *gin.Context) {
 	render.Success(c, f5Info)
 }
 
+// listF5Info 获取F5信息列表
 // @Summary 获取F5信息列表
-// @Description 获取F5信息列表，支持分页和多条件筛选
+// @Description 获取F5设备信息列表，支持分页
 // @Tags F5管理
 // @Accept json
 // @Produce json
-// @Param page query int true "页码" example:"1"
-// @Param size query int true "每页数量" example:"10"
-// @Param name query string false "F5名称" example:"f5-test"
-// @Param vip query string false "VIP地址" example:"192.168.1.1"
-// @Param port query string false "端口" example:"80"
-// @Param appid query string false "应用ID" example:"app-001"
-// @Param status query string false "状态" example:"active"
-// @Success 200 {object} service.F5InfoListResponse "成功获取F5信息列表"
-// @Failure 400 {object} service.ErrorResponse "参数错误"
-// @Failure 500 {object} service.ErrorResponse "获取F5信息列表失败"
-// @Router /f5 [get]
-// listF5Infos handles GET /f5 requests.
+// @Param page query int false "页码，默认1"
+// @Param size query int false "每页大小，默认10"
+// @Success 200 {object} render.Response
+// @Failure 400 {object} render.ErrorResponse
+// @Failure 500 {object} render.ErrorResponse
+// @Router /fe-v1/f5 [get]
 func (h *F5InfoHandler) listF5Infos(c *gin.Context) {
 	var query service.F5InfoQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		render.BadRequest(c, fmt.Sprintf(msgInvalidQueryParams, err.Error()))
+		render.BadRequest(c, MsgInvalidQueryParams+err.Error())
 		return
 	}
 
 	response, err := h.service.ListF5Infos(c.Request.Context(), &query)
 	if err != nil {
-		render.InternalServerError(c, fmt.Sprintf(msgFailedToList, err.Error()))
+		render.InternalServerError(c, fmt.Sprintf(MsgFailedToListF5, err.Error()))
 		return
 	}
 
@@ -129,16 +111,16 @@ func (h *F5InfoHandler) listF5Infos(c *gin.Context) {
 // @Router /f5/{id} [put]
 // updateF5Info handles PUT /f5/:id requests.
 func (h *F5InfoHandler) updateF5Info(c *gin.Context) {
-	idStr := c.Param(routeParamID)
-	id, err := strconv.ParseInt(idStr, base10, bitSize64)
+	idStr := c.Param(ParamID)
+	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, msgInvalidIDFormat)
+		render.BadRequest(c, MsgInvalidIDFormat)
 		return
 	}
 
 	var dto service.F5InfoUpdateDTO
 	if bindErr := c.ShouldBindJSON(&dto); bindErr != nil {
-		render.BadRequest(c, fmt.Sprintf(msgInvalidRequestBody, bindErr.Error()))
+		render.BadRequest(c, fmt.Sprintf(MsgInvalidRequestBody, bindErr.Error()))
 		return
 	}
 
@@ -146,12 +128,12 @@ func (h *F5InfoHandler) updateF5Info(c *gin.Context) {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, "f5", id) {
 			render.NotFound(c, err.Error())
 		} else {
-			render.InternalServerError(c, fmt.Sprintf(msgFailedToUpdate, err.Error()))
+			render.InternalServerError(c, fmt.Sprintf(MsgFailedToUpdateF5, err.Error()))
 		}
 		return
 	}
 
-	render.SuccessWithMessage(c, msgSuccessUpdate, nil)
+	render.SuccessWithMessage(c, MsgF5UpdateSuccess, nil)
 }
 
 // @Summary 删除F5信息
@@ -167,10 +149,10 @@ func (h *F5InfoHandler) updateF5Info(c *gin.Context) {
 // @Router /f5/{id} [delete]
 // deleteF5Info handles DELETE /f5/:id requests.
 func (h *F5InfoHandler) deleteF5Info(c *gin.Context) {
-	idStr := c.Param(routeParamID)
-	id, err := strconv.ParseInt(idStr, base10, bitSize64)
+	idStr := c.Param(ParamID)
+	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
 	if err != nil {
-		render.BadRequest(c, msgInvalidIDFormat)
+		render.BadRequest(c, MsgInvalidIDFormat)
 		return
 	}
 
@@ -178,10 +160,10 @@ func (h *F5InfoHandler) deleteF5Info(c *gin.Context) {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, "f5", id) {
 			render.NotFound(c, err.Error())
 		} else {
-			render.InternalServerError(c, fmt.Sprintf(msgFailedToDelete, err.Error()))
+			render.InternalServerError(c, fmt.Sprintf(MsgFailedToDeleteF5, err.Error()))
 		}
 		return
 	}
 
-	render.SuccessWithMessage(c, msgSuccessDelete, nil)
+	render.SuccessWithMessage(c, MsgF5DeleteSuccess, nil)
 }

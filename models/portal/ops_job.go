@@ -9,16 +9,16 @@ import (
 // OpsJob 运维任务信息.
 type OpsJob struct {
 	BaseModel
-	Name        string    `gorm:"column:name;type:varchar(255);not null" json:"name"`              // 任务名称
-	Description string    `gorm:"column:description;type:text" json:"description"`                 // 任务描述
-	Status      string    `gorm:"column:status;type:varchar(50);not null" json:"status"`
+	Name        string `gorm:"column:name;type:varchar(255);not null"` // 任务名称
+	Description string `gorm:"column:description;type:text"`           // 任务描述
+	Status      string `gorm:"column:status;type:varchar(50);not null"`
 	// 任务状态：pending, running, completed, failed
-	Progress    int       `gorm:"column:progress;type:int;default:0" json:"progress"`              // 任务进度（0-100）
-	StartTime   time.Time `gorm:"column:start_time;type:datetime" json:"start_time"`               // 开始时间
-	EndTime     time.Time `gorm:"column:end_time;type:datetime" json:"end_time"`                   // 结束时间
-	LogContent  string    `gorm:"column:log_content;type:text" json:"log_content"`                 // 日志内容
+	Progress   int       `gorm:"column:progress;type:int;default:0"` // 任务进度（0-100）
+	StartTime  time.Time `gorm:"column:start_time;type:datetime"`    // 开始时间
+	EndTime    time.Time `gorm:"column:end_time;type:datetime"`      // 结束时间
+	LogContent string    `gorm:"column:log_content;type:text"`       // 日志内容
 
-	Deleted     string    `gorm:"column:deleted;type:varchar(255)" json:"deleted,omitempty"`       // 软删除标记
+	Deleted string `gorm:"column:deleted;type:varchar(255)"` // 软删除标记
 }
 
 // TableName 指定表名.

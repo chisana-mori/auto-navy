@@ -1,13 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useEffect, useState, useRef } from 'react';
-import './Dashboard.css';
-import './DeviceMatchingPolicy.less';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Card, Row, Col, Progress, Button, Table, Tag, Space,
   Select, Tabs, Empty, Divider, Alert, Tooltip, Badge,
   Modal, Form, Input, InputNumber, Radio, Drawer, Descriptions, message,
   Spin,
-  Result, Checkbox // Added Result and Checkbox import
+  Result, Checkbox
 } from 'antd';
 import {
   CloudServerOutlined, RocketOutlined, AppstoreOutlined, SettingOutlined,
@@ -17,10 +15,11 @@ import {
   ClockCircleOutlined, PauseCircleOutlined, WarningOutlined,
   LinkOutlined, DisconnectOutlined, AreaChartOutlined,
   DesktopOutlined, ExclamationCircleOutlined, CloseCircleOutlined, EyeOutlined,
-  StopOutlined, DatabaseOutlined, CopyOutlined
+  StopOutlined, DatabaseOutlined, CopyOutlined, CheckOutlined
 } from '@ant-design/icons';
-import { statsApi, strategyApi, orderApi } from '../../services/elasticScalingService';
-import clusterService, { getResourcePoolAllocationRate, ResourcePoolAllocationRate } from '../../services/clusterService';
+import ReactECharts from 'echarts-for-react';
+
+import type { OrderStatus } from '../../types/order';
 import {
   ResourceAllocationTrend,
   ResourceTypeData,
@@ -33,11 +32,19 @@ import {
   PaginatedResponse,
   OrderStats
 } from '../../types/elastic-scaling';
-import ReactECharts from 'echarts-for-react';
+
+import { statsApi, strategyApi, orderApi } from '../../services/elasticScalingService';
+import clusterService, { getResourcePoolAllocationRate, ResourcePoolAllocationRate } from '../../services/clusterService';
+
+import OrderStatusFlow from './OrderStatusFlow';
 import DeviceMatchingPolicy from './DeviceMatchingPolicy';
 import EmptyOrderState from './EmptyOrderState';
 import CreateOrderModal from './CreateOrderModal';
 
+import './Dashboard.css';
+import './DeviceMatchingPolicy.less';
+
+const { confirm } = Modal;
 const { Option } = Select;
 const { TabPane } = Tabs;
 
@@ -45,9 +52,15 @@ const { TabPane } = Tabs;
 type StrategiesState = PaginatedResponse<Strategy> | null;
 type OrdersState = PaginatedResponse<OrderListItem> | null;
 
+
 const Dashboard: React.FC = () => {
   // 状态管理
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // 订单实际分配率数据缓存
+  const allocationDataCache = useRef(new Map<number, { data: OrderListItem, timestamp: number }>()).current;
+  const ALLOCATION_CACHE_DURATION = 5 * 60 * 1000; // 5分钟
+
   const createOrderModalRef = useRef<any>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [strategies, setStrategies] = useState<StrategiesState>(null);
@@ -60,6 +73,7 @@ const Dashboard: React.FC = () => {
   const [processingOrders, setProcessingOrders] = useState<OrderListItem[]>([]);
   const [completedOrders, setCompletedOrders] = useState<OrderListItem[]>([]);
   const [allOrders, setAllOrders] = useState<PaginatedResponse<OrderListItem> | null>(null);
+  const [bottomAllOrders, setBottomAllOrders] = useState<PaginatedResponse<OrderListItem> | null>(null);
   const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState('7d');
   const [selectedResourceTypes, setSelectedResourceTypes] = useState<string[]>([]);
@@ -70,7 +84,10 @@ const Dashboard: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   const [orderFilter, setOrderFilter] = useState<string | null>(null);
-  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('processing'); // 默认显示处理中订单
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [nameFilter, setNameFilter] = useState<string>('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('completed'); // 默认显示已完成订单
   const [customTabVisible, setCustomTabVisible] = useState<boolean>(false);
   const [customTabStatus, setCustomTabStatus] = useState<string>('');
   const [createStrategyModalVisible, setCreateStrategyModalVisible] = useState(false);
@@ -80,33 +97,85 @@ const Dashboard: React.FC = () => {
   const [clonedOrderInfo, setClonedOrderInfo] = useState<any>(null);
   const [resourcePools, setResourcePools] = useState<any[]>([]);
 
+  // 策略执行历史相关状态
+  const [executionHistoryDrawerVisible, setExecutionHistoryDrawerVisible] = useState(false);
+  const [selectedStrategyForHistory, setSelectedStrategyForHistory] = useState<Strategy | null>(null);
+  const [executionHistory, setExecutionHistory] = useState<any[]>([]);
+  const [executionHistoryLoading, setExecutionHistoryLoading] = useState(false);
+  const [historyClusterFilter, setHistoryClusterFilter] = useState<string>('');
+
   const handleCloneOrder = async (order: OrderListItem) => {
     try {
       // 先获取订单详情以获取设备列表
       const orderDetail = await orderApi.getOrder(order.id);
 
+      const cloneData = {
+        name: order.name || order.orderNumber,
+        resourcePoolType: order.resourcePoolType,
+        deviceCount: order.deviceCount,
+        devices: orderDetail.devices || []
+      };
+
       setCreateOrderModalVisible(true);
       if (createOrderModalRef.current) {
-        createOrderModalRef.current.open({
-          name: order.name || order.orderNumber,
-          resourcePoolType: order.resourcePoolType,
-          deviceCount: order.deviceCount,
-          devices: orderDetail.devices || []
-        });
+        createOrderModalRef.current.open(cloneData);
       }
     } catch (error) {
       console.error('获取订单详情失败:', error);
       // 如果获取详情失败，仍然打开模态框但不包含设备信息
+      const fallbackData = {
+        name: order.name || order.orderNumber,
+        resourcePoolType: order.resourcePoolType,
+        deviceCount: order.deviceCount,
+        devices: []
+      };
+      console.log('Dashboard克隆订单 - 失败时传递给Modal的数据:', fallbackData);
+
       setCreateOrderModalVisible(true);
       if (createOrderModalRef.current) {
-        createOrderModalRef.current.open({
-          name: order.name || order.orderNumber,
-          resourcePoolType: order.resourcePoolType,
-          deviceCount: order.deviceCount,
-          devices: []
-        });
+        createOrderModalRef.current.open(fallbackData);
       }
     }
+  };
+
+  // 查看策略执行历史
+  const handleViewExecutionHistory = async (strategy: Strategy, clusterNameFilter?: string) => {
+    setSelectedStrategyForHistory(strategy);
+    setExecutionHistoryDrawerVisible(true);
+    setExecutionHistoryLoading(true);
+    if (clusterNameFilter === undefined) {
+      setHistoryClusterFilter(''); // 重置集群过滤器
+    }
+
+    try {
+      const response = await strategyApi.getStrategyExecutionHistory(strategy.id, {
+        clusterName: clusterNameFilter || historyClusterFilter || undefined
+      });
+      // 从分页响应中提取历史数据
+      const history = response.data || [];
+      // 后端已经返回了集群名称，不需要前端再次处理
+      setExecutionHistory(history || []);
+    } catch (error) {
+      console.error('获取策略执行历史失败:', error);
+      message.error('获取策略执行历史失败');
+      setExecutionHistory([]);
+    } finally {
+      setExecutionHistoryLoading(false);
+    }
+  };
+
+  // 处理集群过滤器变化
+  const handleClusterFilterChange = (value: string) => {
+    setHistoryClusterFilter(value);
+    // 延迟搜索，避免频繁请求
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      if (selectedStrategyForHistory) {
+        handleViewExecutionHistory(selectedStrategyForHistory, value);
+      }
+    }, 500);
   };
 
   // 资源池类型列表
@@ -125,6 +194,48 @@ const Dashboard: React.FC = () => {
   // 策略表单
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
+
+  // 获取订单的实际分配率数据（带缓存）
+  const fetchOrderAllocationData = useCallback(async (order: OrderListItem): Promise<OrderListItem> => {
+    const cachedData = allocationDataCache.get(order.id);
+    if (cachedData && Date.now() - cachedData.timestamp < ALLOCATION_CACHE_DURATION) {
+      return cachedData.data;
+    }
+
+    try {
+      // 修复：传递 clusterName 和 resourcePoolType 字符串，而不是 clusterId 和数组
+      const cluster = clusters.find(c => c.id === order.clusterId);
+      if (!cluster) {
+        throw new Error(`未找到 ID 为 ${order.clusterId} 的集群`);
+      }
+
+      const allocationData = await getResourcePoolAllocationRate(cluster.name, order.resourcePoolType || 'total');
+
+      // 修复：正确处理可能为 null 的 allocationData 并访问对象属性
+      const enhancedOrder = {
+        ...order,
+        actualCpuAllocation: allocationData?.cpu_rate,
+        actualMemoryAllocation: allocationData?.memory_rate,
+        hasAllocationData: allocationData !== null,
+      };
+      allocationDataCache.set(order.id, { data: enhancedOrder, timestamp: Date.now() });
+      return enhancedOrder;
+    } catch (error) {
+      console.warn(`获取订单 ${order.id} 的分配率数据失败:`, error);
+      return { ...order, hasAllocationData: false };
+    }
+  }, [allocationDataCache, clusters, ALLOCATION_CACHE_DURATION]);
+
+  // 清理过期的分配率数据缓存
+  const clearAllocationDataCache = useCallback(() => {
+    const now = Date.now();
+    // 修复：使用 forEach 替代 for...of 来避免 TS2802 错误
+    allocationDataCache.forEach((value, key) => {
+      if (now - value.timestamp > ALLOCATION_CACHE_DURATION) {
+        allocationDataCache.delete(key);
+      }
+    });
+  }, [allocationDataCache, ALLOCATION_CACHE_DURATION]);
 
   // 策略表格列定义
   const strategyColumns = [
@@ -316,10 +427,19 @@ const Dashboard: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 200,
       align: 'center' as const,
       render: (text: string, record: Strategy) => (
         <Space size="middle" className="action-buttons">
+          <Tooltip title="执行历史" placement="top">
+            <Button
+              type="text"
+              icon={<ClockCircleOutlined />}
+              onClick={() => handleViewExecutionHistory(record)}
+              className="history-button"
+              style={{ color: '#722ed1' }}
+            />
+          </Tooltip>
           <Tooltip title="编辑" placement="top">
             <Button
               type="text"
@@ -417,10 +537,10 @@ const Dashboard: React.FC = () => {
   const CACHE_DURATION = 5 * 60 * 1000;
 
   // 检查缓存是否有效
-  const isCacheValid = (cacheKey: string) => {
+  const isCacheValid = useCallback((cacheKey: string) => {
     const lastFetch = dataCache.lastFetchTime[cacheKey as keyof typeof dataCache.lastFetchTime];
     return Date.now() - lastFetch < CACHE_DURATION;
-  };
+  }, [dataCache, CACHE_DURATION]);
 
   // 获取资源池类型（带缓存）
   const fetchResourceTypes = async (forceRefresh = false) => {
@@ -535,7 +655,7 @@ const Dashboard: React.FC = () => {
   const fetchDataTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 数据加载函数（带防抖和缓存）
-  const fetchData = async (forceRefresh = false) => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     // 防抖：如果正在获取数据，则忽略新的请求
     if (isDataFetching && !forceRefresh) {
       console.log('数据正在加载中，忽略重复请求');
@@ -567,19 +687,26 @@ const Dashboard: React.FC = () => {
         console.log('开始获取仪表板数据');
         
         // 并行获取所有数据以提高性能
-        const [statsResult, strategiesResult, ordersResult, orderStatsResult] = await Promise.allSettled([
+        const [statsResult, strategiesResult, ordersResult, bottomOrdersResult, orderStatsResult] = await Promise.allSettled([
           // 获取工作台统计数据
           statsApi.getDashboardStats(),
           // 获取策略列表
           strategyApi.getStrategies({ page: 1, pageSize: 5 }),
-          // 获取所有订单状态的数据
+          // 获取所有订单状态的数据（顶部卡片不受搜索过滤影响）
           Promise.all([
             orderApi.getOrders({ status: 'pending', page: 1, pageSize: 10 }),
             orderApi.getOrders({ status: 'processing', page: 1, pageSize: 10 }),
+            orderApi.getOrders({ status: 'returning', page: 1, pageSize: 10 }),
             orderApi.getOrders({ status: 'completed', page: 1, pageSize: 10 }),
             orderApi.getOrders({ status: 'cancelled', page: 1, pageSize: 10 }),
             orderApi.getOrders({ page: 1, pageSize: 10 })
           ]),
+          // 获取底部全部订单数据（受搜索过滤影响）
+          orderApi.getOrders({ 
+            ...(nameFilter.trim() ? { name: nameFilter.trim() } : {}), 
+            page: 1, 
+            pageSize: 10 
+          }),
           // 获取订单统计数据
           statsApi.getOrderStats('week')
         ]);
@@ -594,7 +721,7 @@ const Dashboard: React.FC = () => {
         }
 
         if (ordersResult.status === 'fulfilled') {
-          const [pendingOrdersData, processingOrdersData, completedOrdersData, cancelledOrdersData, allOrdersData] = ordersResult.value;
+          const [pendingOrdersData, processingOrdersData, returningOrdersData, completedOrdersData, cancelledOrdersData, allOrdersData] = ordersResult.value;
           
           // 为订单获取实际分配率数据
           const enhanceOrdersWithAllocationData = async (orders: OrderListItem[]) => {
@@ -612,23 +739,52 @@ const Dashboard: React.FC = () => {
           };
 
           // 并行获取所有订单的分配率数据
-          const [enhancedPendingOrders, enhancedProcessingOrders, enhancedCompletedOrders, enhancedCancelledOrders] = await Promise.all([
+          const [enhancedPendingOrders, enhancedProcessingOrders, enhancedReturningOrders, enhancedCompletedOrders, enhancedCancelledOrders] = await Promise.all([
             enhanceOrdersWithAllocationData(pendingOrdersData.list),
             enhanceOrdersWithAllocationData(processingOrdersData.list),
+            enhanceOrdersWithAllocationData(returningOrdersData.list),
             enhanceOrdersWithAllocationData(completedOrdersData.list),
             enhanceOrdersWithAllocationData(cancelledOrdersData.list)
           ]);
 
-          setPendingOrders(enhancedPendingOrders);
+          // 将待处理、处理中和归还中的订单合并显示在待处理订单页面
+          setPendingOrders([...enhancedPendingOrders, ...enhancedProcessingOrders, ...enhancedReturningOrders]);
+          // 处理中订单页面只显示processing状态的订单
           setProcessingOrders(enhancedProcessingOrders);
           setCompletedOrders(enhancedCompletedOrders);
           setCancelledOrders(enhancedCancelledOrders);
           
-          // 为allOrders也更新分配率数据
+          // 为allOrders也更新分配率数据（不受搜索过滤影响）
           const enhancedAllOrdersList = await enhanceOrdersWithAllocationData(allOrdersData.list);
           setAllOrders({
             ...allOrdersData,
             list: enhancedAllOrdersList
+          });
+        }
+
+        // 处理底部全部订单数据（受搜索过滤影响）
+        if (bottomOrdersResult.status === 'fulfilled') {
+          const bottomOrdersData = bottomOrdersResult.value;
+          
+          // 为底部订单获取实际分配率数据
+          const enhanceOrdersWithAllocationData = async (orders: OrderListItem[]) => {
+            const enhancedOrders = await Promise.all(
+              orders.map(async (order) => {
+                try {
+                  return await fetchOrderAllocationData(order);
+                } catch (error) {
+                  console.warn(`获取订单 ${order.id} 分配率数据失败:`, error);
+                  return { ...order, hasAllocationData: false };
+                }
+              })
+            );
+            return enhancedOrders;
+          };
+
+          const enhancedBottomOrdersList = await enhanceOrdersWithAllocationData(bottomOrdersData.list);
+          setBottomAllOrders({
+            ...bottomOrdersData,
+            list: enhancedBottomOrdersList
           });
         }
 
@@ -645,14 +801,41 @@ const Dashboard: React.FC = () => {
         setIsLoading(false);
         setIsDataFetching(false);
       }
+    }, 200);
+  }, [isDataFetching, nameFilter, fetchOrderAllocationData, clearAllocationDataCache, isCacheValid]);
+
+  // 使用 ref 来持有最新的 fetchData 函数，避免闭包问题
+  const fetchDataRef = useRef(fetchData);
+  useEffect(() => {
+    fetchDataRef.current = fetchData;
+  }, [fetchData]);
+
+  // 处理订单名字过滤器变化
+  const handleOrderNameFilterChange = (value: string) => {
+    setNameFilter(value);
+    // 延迟搜索，避免频繁请求
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      // 调用 ref 中最新的 fetchData 函数
+      fetchDataRef.current(true);
     }, 500);
   };
+
+  // 防抖搜索函数（保留兼容性）
+  const debouncedSearch = useCallback((searchValue: string) => {
+    handleOrderNameFilterChange(searchValue);
+  }, []);
 
   // 清理定时器
   useEffect(() => {
     return () => {
       if (fetchDataTimeoutRef.current) {
         clearTimeout(fetchDataTimeoutRef.current);
+      }
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
     };
   }, []);
@@ -1038,14 +1221,21 @@ const Dashboard: React.FC = () => {
 
     return (
             <Row gutter={24} className="stats-cards">
-        <Col xs={24} sm={8} md={8}>
+        <Col xs={24} sm={6} md={6}>
           <Card className="stat-card success">
-            <div className="stat-value">{`${stats.enabledStrategyCount}/${stats.strategyCount}`}</div>
+            <div className="stat-value">{`${stats.triggeredTodayCount}/${stats.enabledStrategyCount}`}</div>
             <div className="stat-label">今日已巡检/总策略</div>
-            <Progress percent={(stats.enabledStrategyCount / stats.strategyCount) * 100} size="small" />
+            <Progress percent={(stats.enabledStrategyCount > 0 ? (stats.triggeredTodayCount / stats.enabledStrategyCount) * 100 : 0)} size="small" />
           </Card>
         </Col>
-        <Col xs={24} sm={8} md={8}>
+        <Col xs={24} sm={6} md={6}>
+          <Card className="stat-card info">
+            <div className="stat-value">{`${stats.inspectedResourcePoolCount || 0}/${stats.targetResourcePoolCount || 0}`}</div>
+            <div className="stat-label">今日已巡检/目标资源池数</div>
+            <Progress percent={(stats.targetResourcePoolCount && stats.targetResourcePoolCount > 0 ? ((stats.inspectedResourcePoolCount || 0) / stats.targetResourcePoolCount!) * 100 : 0)} size="small" />
+          </Card>
+        </Col>
+        <Col xs={24} sm={6} md={6}>
           <Card className={`stat-card ${stats.abnormalClusterCount > 0 ? 'warning' : ''}`}>
             <div className="stat-value">{`${stats.clusterCount - stats.abnormalClusterCount}/${stats.clusterCount}`}</div>
             <div className="stat-label">正常集群/总集群数</div>
@@ -1054,7 +1244,7 @@ const Dashboard: React.FC = () => {
             )}
           </Card>
         </Col>
-        <Col xs={24} sm={8} md={8}>
+        <Col xs={24} sm={6} md={6}>
           <Card className={`stat-card ${stats.pendingOrderCount > 0 ? 'error' : ''}`}>
             <div className="stat-value">{stats.pendingOrderCount}</div>
             <div className="stat-label">待处理资源伸缩任务</div>
@@ -1068,11 +1258,17 @@ const Dashboard: React.FC = () => {
   };
 
   // 渲染订单卡片
-  const renderOrderCard = (order: OrderListItem, showResourceInfo: boolean = false, isPendingSection: boolean = false) => {
+  const renderOrderCard = (order: OrderListItem, showResourceInfo: boolean = false, isPendingSection: boolean = false, isSimpleCard: boolean = false) => {
     const actionTypeText = order.actionType === 'pool_entry' ? '入池' : '退池';
     const orderStatusText =
       order.status === 'pending' ? '待处理' :
-      (order.status === 'processing' ? '处理中' : '已完成');
+      order.status === 'processing' ? '处理中' :
+      order.status === 'returning' ? '归还中' :
+      order.status === 'return_completed' ? '归还完成' :
+      order.status === 'no_return' ? '无需归还' :
+      order.status === 'cancelled' ? '已取消' :
+      order.status === 'failed' ? '失败' :
+      '已完成';
 
     return (
       <div
@@ -1091,20 +1287,32 @@ const Dashboard: React.FC = () => {
           </div>
           <Tag color={
             order.status === 'pending' ? 'error' :
-            (order.status === 'processing' ? 'processing' : 'success')
+            order.status === 'processing' ? 'processing' :
+            order.status === 'returning' ? 'purple' :
+            order.status === 'return_completed' ? 'cyan' :
+            order.status === 'no_return' ? 'success' :
+            order.status === 'failed' ? 'error' :
+            order.status === 'cancelled' ? 'default' :
+            'success'
           }>
             {orderStatusText}
           </Tag>
         </div>
         <div className="order-card-body">
           <div className="order-meta">
-            <div className="order-meta-item" style={{ flex: 1 }}>
-              <div className="order-meta-label">集群</div>
-              <div className="order-meta-value">{order.clusterName}</div>
+            <div className="order-meta-item order-detail-meta-item" style={{ flex: 1 }}>
+              <div className="order-meta-label order-detail-meta-label">集群</div>
+              <div className="order-meta-value order-detail-meta-value">
+                <ClusterOutlined style={{ color: '#52c41a', marginRight: 4 }} />
+                {order.clusterName}
+              </div>
             </div>
-            <div className="order-meta-item" style={{ flex: 1 }}>
-              <div className="order-meta-label">设备数量</div>
-              <div className="order-meta-value">{order.deviceCount} 台</div>
+            <div className="order-meta-item order-detail-meta-item" style={{ flex: 1 }}>
+              <div className="order-meta-label order-detail-meta-label">设备数量</div>
+              <div className="order-meta-value order-detail-meta-value">
+                <DesktopOutlined />
+                {order.deviceCount} 台
+              </div>
             </div>
           </div>
 
@@ -1112,7 +1320,7 @@ const Dashboard: React.FC = () => {
           {showResourceInfo && (
             <div className="resource-info-card">
               <div className="resource-header">
-                <ClusterOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                <DatabaseOutlined style={{ marginRight: 8, color: '#1890ff' }} />
                 资源池: {(order.resourcePoolType === 'compute' ? '' : order.resourcePoolType) || 'total'}
               </div>
               <div className="resource-grid">
@@ -1171,14 +1379,30 @@ const Dashboard: React.FC = () => {
                 message={
                   order.hasAllocationData === false ?
                     '暂无分配率数据，无法评估集群状态' :
-                    order.actionType === 'pool_entry' ?
-                      `CPU分配率已超过阈值(80%)，需添加节点提升集群容量` :
-                      `CPU分配率低于阈值(55%)，可回收闲置节点`
+                    (() => {
+                      const cpuValue = getCpuValue(order);
+                      if (cpuValue >= 75) {
+                        return 'CPU分配率已超过阈值(80%)，需添加节点提升集群容量';
+                      } else if (cpuValue <= 55) {
+                        return 'CPU分配率低于阈值(55%)，可回收闲置节点';
+                      } else {
+                        return 'CPU分配率正常，集群资源充足';
+                      }
+                    })()
                 }
                 type={
                   order.hasAllocationData === false ?
                     "info" :
-                    order.actionType === 'pool_entry' ? "error" : "warning"
+                    (() => {
+                      const cpuValue = getCpuValue(order);
+                      if (cpuValue >= 80) {
+                        return "error";
+                      } else if (cpuValue <= 55) {
+                        return "warning";
+                      } else {
+                        return "success";
+                      }
+                    })()
                 }
                 showIcon
                 style={{ marginTop: 12 }}
@@ -1193,7 +1417,7 @@ const Dashboard: React.FC = () => {
               e.stopPropagation();
               handleViewOrderDetails(order.id);
             }}>
-              查看详情
+              详情
             </Button>
             <Button type="link" icon={<CopyOutlined />} onClick={(e) => {
               e.stopPropagation();
@@ -1202,19 +1426,25 @@ const Dashboard: React.FC = () => {
               克隆
             </Button>
           </Space>
-          {isPendingSection && order.status === 'pending' && (
-            <>
+          {/* 只有在待处理区域且不是简略卡片时才显示操作按钮 */}
+          {!isSimpleCard && isPendingSection && order.status === 'pending' && (
+            <div className="order-action-buttons">
               <Button
                 danger
                 icon={<StopOutlined />}
                 onClick={(e) => {
                   e.stopPropagation();
-                  ignoreOrder(order.id);
-                }}
-                style={{ 
-                  marginRight: 8,
-                  backgroundColor: '#fff7e6',
-                  borderColor: '#ffbb96'
+                  confirm({
+                    title: '确定取消该订单吗？',
+                    icon: <ExclamationCircleOutlined />,
+                    content: '取消后订单将无法恢复。',
+                    okText: '确定',
+                    okType: 'danger',
+                    cancelText: '取消',
+                    onOk() {
+                      ignoreOrder(order.id);
+                    },
+                  });
                 }}
               >
                 取消
@@ -1224,12 +1454,151 @@ const Dashboard: React.FC = () => {
                 icon={order.actionType === 'pool_entry' ? <CloudUploadOutlined /> : <CloudDownloadOutlined />}
                 onClick={(e) => {
                   e.stopPropagation();
-                  executeOrder(order.id, order.actionType);
+                  confirm({
+                    title: `确定执行${actionTypeText}操作吗？`,
+                    icon: <ExclamationCircleOutlined />,
+                    content: '执行后将开始处理该订单。',
+                    okText: '确定',
+                    cancelText: '取消',
+                    onOk() {
+                      executeOrder(order.id, order.actionType);
+                    },
+                  });
                 }}
               >
                 执行{actionTypeText}
               </Button>
-            </>
+            </div>
+          )}
+          {/* 只有在不是简略卡片时才显示状态操作按钮 */}
+          {!isSimpleCard && order.status === 'processing' && order.actionType === 'pool_entry' && (
+            <div className="order-action-buttons">
+              <Button
+                danger
+                icon={<StopOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm({
+                    title: '确定取消该订单吗？',
+                    icon: <ExclamationCircleOutlined />,
+                    content: '取消后订单将无法恢复。',
+                    okText: '确定',
+                    okType: 'danger',
+                    cancelText: '取消',
+                    onOk() {
+                      updateOrderStatus(order.id, 'cancelled');
+                    },
+                  });
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm({
+                    title: '确定标记为入池完成吗？',
+                    icon: <ExclamationCircleOutlined />,
+                    content: '标记后订单状态将更新。',
+                    okText: '确定',
+                    cancelText: '取消',
+                    onOk() {
+                      updateOrderStatus(order.id, 'completed');
+                    },
+                  });
+                }}
+              >
+                入池完成
+              </Button>
+            </div>
+          )}
+          {/* 只有在不是简略卡片时才显示状态操作按钮 */}
+          {!isSimpleCard && order.status === 'processing' && order.actionType === 'pool_exit' && (
+            <div className="order-action-buttons">
+              <Button
+                danger
+                icon={<StopOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm({
+                    title: '确定取消该订单吗？',
+                    icon: <ExclamationCircleOutlined />,
+                    content: '取消后订单将无法恢复。',
+                    okText: '确定',
+                    okType: 'danger',
+                    cancelText: '取消',
+                    onOk() {
+                      updateOrderStatus(order.id, 'cancelled');
+                    },
+                  });
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm({
+                    title: '确定标记为退池完成吗？',
+                    icon: <ExclamationCircleOutlined />,
+                    content: '标记后订单状态将更新。',
+                    okText: '确定',
+                    cancelText: '取消',
+                    onOk() {
+                      updateOrderStatus(order.id, 'returning');
+                    },
+                  });
+                }}
+              >
+                退池完成
+              </Button>
+            </div>
+          )}
+          {/* 只有在不是简略卡片时才显示状态操作按钮 */}
+          {!isSimpleCard && order.status === 'returning' && (
+            <div className="order-action-buttons">
+              <Button
+                icon={<CheckOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm({
+                    title: '确定标记为无须归还吗？',
+                    icon: <ExclamationCircleOutlined />,
+                    content: '标记后订单状态将更新。',
+                    okText: '确定',
+                    cancelText: '取消',
+                    onOk() {
+                      updateOrderStatus(order.id, 'no_return');
+                    },
+                  });
+                }}
+              >
+                无须归还
+              </Button>
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm({
+                    title: '确定标记为归还完成吗？',
+                    icon: <ExclamationCircleOutlined />,
+                    content: '标记后订单状态将更新。',
+                    okText: '确定',
+                    cancelText: '取消',
+                    onOk() {
+                      updateOrderStatus(order.id, 'return_completed');
+                    },
+                  });
+                }}
+              >
+                归还完成
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -1248,7 +1617,9 @@ const Dashboard: React.FC = () => {
   const renderOrderStats = () => {
     if (!allOrders) return null;
 
+    // 待处理订单现在包含pending、processing、returning三种状态
     const pendingCount = pendingOrders.length;
+    // 处理中订单现在只包含processing状态
     const processingCount = processingOrders.length;
     const completedCount = completedOrders.length;
     // 使用已取消订单列表的长度
@@ -1256,26 +1627,28 @@ const Dashboard: React.FC = () => {
     const totalCount = allOrders.total;
 
     return (
-      <div className="order-status-summary">
-        <div className="order-status-item">
-          <div className="order-status-value order-status-pending">{pendingCount}</div>
-          <div className="order-status-label">待处理</div>
-        </div>
-        <div className="order-status-item">
-          <div className="order-status-value order-status-processing">{processingCount}</div>
-          <div className="order-status-label">处理中</div>
-        </div>
-        <div className="order-status-item">
-          <div className="order-status-value order-status-done">{completedCount}</div>
-          <div className="order-status-label">已完成</div>
-        </div>
-        <div className="order-status-item">
-          <div className="order-status-value order-status-cancelled">{cancelledCount}</div>
-          <div className="order-status-label">已取消</div>
-        </div>
-        <div className="order-status-item">
-          <div className="order-status-value">{totalCount}</div>
-          <div className="order-status-label">总订单</div>
+      <div>
+        <div className="order-status-summary">
+          <div className="order-status-item">
+            <div className="order-status-value order-status-pending">{pendingCount}</div>
+            <div className="order-status-label">待处理</div>
+          </div>
+          <div className="order-status-item">
+            <div className="order-status-value order-status-processing">{processingCount}</div>
+            <div className="order-status-label">处理中</div>
+          </div>
+          <div className="order-status-item">
+            <div className="order-status-value order-status-done">{completedCount}</div>
+            <div className="order-status-label">已完成</div>
+          </div>
+          <div className="order-status-item">
+            <div className="order-status-value order-status-cancelled">{cancelledCount}</div>
+            <div className="order-status-label">已取消</div>
+          </div>
+          <div className="order-status-item">
+            <div className="order-status-value">{totalCount}</div>
+            <div className="order-status-label">总订单</div>
+          </div>
         </div>
       </div>
     );
@@ -1374,30 +1747,29 @@ const Dashboard: React.FC = () => {
               {
                 value: pendingCount,
                 name: '待处理',
-                itemStyle: { color: '#f5222d' }
+                itemStyle: { color: '#3b82f6' }
               },
               {
                 value: processingCount,
                 name: '处理中',
-                itemStyle: { color: '#faad14' }
+                itemStyle: { color: '#06b6d4' }
               },
               {
                 value: completedCount,
                 name: '已完成',
-                itemStyle: { color: '#52c41a' }
+                itemStyle: { color: '#10b981' }
               },
               {
                 value: cancelledCount,
                 name: '已取消',
-                itemStyle: { color: '#8c8c8c' }
+                itemStyle: { color: '#64748b' }
               }
             ]
           }
         ]
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingOrders, processingOrders, completedOrders]);
+  }, [pendingOrders, processingOrders, completedOrders, orderStats]);
 
   // 处理查看订单详情
   const handleViewOrderDetails = async (orderId: number) => {
@@ -1415,7 +1787,7 @@ const Dashboard: React.FC = () => {
   const executeOrder = async (orderId: number, actionType: string) => {
     try {
       // 更新订单状态为处理中
-      await orderApi.updateOrderStatus(orderId, 'processing');
+      await orderApi.updateOrderStatus(orderId, { status: 'processing' as OrderStatus });
 
       // 提示用户
       Modal.success({
@@ -1434,7 +1806,10 @@ const Dashboard: React.FC = () => {
   const ignoreOrder = async (orderId: number) => {
     try {
       // 更新订单状态为已取消
-      await orderApi.updateOrderStatus(orderId, 'cancelled');
+      await orderApi.updateOrderStatus(orderId, {
+        status: 'cancelled' as OrderStatus,
+        type: 'elastic_scaling' // 确保订单类型为弹性伸缩
+      });
 
       // 提示用户
       message.success('订单已取消');
@@ -1444,6 +1819,27 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error ignoring order:', error);
       message.error('取消订单失败');
+    }
+  };
+
+  // 更新订单状态
+  const updateOrderStatus = async (orderId: number, status: OrderStatus) => {
+    try {
+      await orderApi.updateOrderStatus(orderId, {
+        status: status,
+        type: 'elastic_scaling'
+      });
+
+      const statusText = 
+        status === 'no_return' ? '无须归还' :
+        status === 'return_completed' ? '归还完成' :
+        status;
+
+      message.success(`订单状态已更新为：${statusText}`);
+      fetchData(true);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      message.error('更新订单状态失败');
     }
   };
 
@@ -1457,6 +1853,10 @@ const Dashboard: React.FC = () => {
   // 打开创建订单模态框
   const handleOpenCreateOrderModal = () => {
     setCreateOrderModalVisible(true);
+    // 确保每次打开都重置表单状态，清除缓存数据
+    if (createOrderModalRef.current) {
+      createOrderModalRef.current.open(); // 不传参数，表示新建模式
+    }
   };
 
   // 关闭创建订单模态框
@@ -1538,9 +1938,11 @@ const Dashboard: React.FC = () => {
         placeholder="选择资源类型"
         maxTagCount={2}
         allowClear
+        suffixIcon={<DatabaseOutlined style={{ color: '#1890ff' }} />}
       >
         {options.map(option => (
           <Option key={option.value} value={option.value}>
+            <DatabaseOutlined style={{ color: '#1890ff', marginRight: 8 }} />
             {option.value === 'compute' ? '' : option.label}
           </Option>
         ))}
@@ -1574,62 +1976,6 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // 获取订单的实际分配率数据
-  const fetchOrderAllocationData = async (order: OrderListItem): Promise<OrderListItem> => {
-    const cacheKey = `${order.clusterName}-${order.resourcePoolType || 'total'}`;
-    
-    // 检查缓存
-    if (allocationDataCache.current.has(cacheKey)) {
-      const cachedData = allocationDataCache.current.get(cacheKey);
-      return {
-        ...order,
-        actualCpuAllocation: cachedData?.cpu_rate,
-        actualMemAllocation: cachedData?.memory_rate,
-        hasAllocationData: cachedData !== null
-      };
-    }
-
-    try {
-      const allocationData = await getResourcePoolAllocationRate(
-        order.clusterName,
-        order.resourcePoolType || 'total'
-      );
-      
-      // 缓存结果（包括null结果）
-      allocationDataCache.current.set(cacheKey, allocationData);
-      
-      if (allocationData) {
-        return {
-          ...order,
-          actualCpuAllocation: allocationData.cpu_rate,
-          actualMemAllocation: allocationData.memory_rate,
-          hasAllocationData: true
-        };
-      } else {
-        // 没有数据时保持原有mock数据但标记为无实际数据
-        return {
-          ...order,
-          hasAllocationData: false
-        };
-      }
-    } catch (error) {
-      console.warn('获取分配率数据失败:', error);
-      // 缓存错误结果
-      allocationDataCache.current.set(cacheKey, null);
-      return {
-        ...order,
-        hasAllocationData: false
-      };
-    }
-  };
-
-  // 分配数据缓存
-  const allocationDataCache = useRef<Map<string, any>>(new Map());
-
-  // 清空分配数据缓存
-  const clearAllocationDataCache = () => {
-    allocationDataCache.current.clear();
-  };
 
   // 获取CPU分配率值
   const getCpuValue = (order: OrderListItem): number => {
@@ -1712,7 +2058,7 @@ const Dashboard: React.FC = () => {
   const [filterBySameIDC, setFilterBySameIDC] = useState<boolean>(false);
 
   // 筛选集群的函数
-  const getFilteredClusters = () => {
+  const getFilteredClusters = useCallback(() => {
     if ((!filterBySameRoom && !filterBySameIDC) || !selectedClusterId) {
       // 如果没有选择集群或没有勾选任何筛选项，返回全部集群
       return clusters;
@@ -1737,7 +2083,7 @@ const Dashboard: React.FC = () => {
       
       return true;
     });
-  };
+  }, [filterBySameRoom, filterBySameIDC, selectedClusterId, clusters]);
 
   // 当筛选条件变化时处理筛选
   useEffect(() => {
@@ -1772,7 +2118,7 @@ const Dashboard: React.FC = () => {
         }
       }
     }
-  }, [filterBySameRoom, filterBySameIDC, selectedClusterId, clusters]);
+  }, [filterBySameRoom, filterBySameIDC, selectedClusterId, clusters, getFilteredClusters]);
 
   return (
     <div className="dashboard">
@@ -1792,7 +2138,7 @@ const Dashboard: React.FC = () => {
       {/* 待处理订单区域 */}
       <Card
         className="content-card"
-        title="待处理弹性伸缩订单"
+        title="待处理订单"
         extra={
           <Space>
             <Button
@@ -1803,34 +2149,57 @@ const Dashboard: React.FC = () => {
               style={{ borderRadius: '6px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             />
             <Select
-              placeholder="订单类型"
+              placeholder="订单状态"
               style={{ width: 120 }}
               allowClear
-              onChange={(value) => setOrderFilter(value)}
+              onChange={(value) => setStatusFilter(value)}
             >
+              <Option value="pending">待处理</Option>
+              <Option value="processing">处理中</Option>
+              <Option value="returning">归还中</Option>
+            </Select>
+            <Select
+               placeholder="订单类型"
+               style={{ width: 120 }}
+               allowClear
+               onChange={(value) => setOrderFilter(value)}
+             >
               <Option value="pool_entry">入池</Option>
               <Option value="pool_exit">退池</Option>
             </Select>
-            <Button icon={<SearchOutlined />} onClick={() => fetchData(true)}>搜索</Button>
+
           </Space>
         }
       >
         {(() => {
-          const filteredOrders = pendingOrders.filter(order => !orderFilter || order.actionType === orderFilter);
+          const filteredOrders = pendingOrders.filter(order => {
+            const statusMatch = !statusFilter || order.status === statusFilter;
+            const typeMatch = !orderFilter || order.actionType === orderFilter;
+            return statusMatch && typeMatch;
+          });
 
           if (filteredOrders.length > 0) {
             return (
               <Row gutter={16}>
                 {filteredOrders.map(order => (
-                  <Col xs={24} sm={12} md={8} key={order.id}>
+                  <Col xs={24} sm={12} md={6} key={order.id}>
                     {renderOrderCard(order, true, true)}
                   </Col>
                 ))}
               </Row>
             );
-          } else if (orderFilter) {
+          } else if (statusFilter || orderFilter) {
             // 有筛选条件但无结果时的显示
-            const actionTypeText = orderFilter === 'pool_entry' ? '入池' : '退池';
+            let filterText = '';
+            if (statusFilter && orderFilter) {
+              const statusText = statusFilter === 'pending' ? '待处理' : statusFilter === 'processing' ? '处理中' : '归还中';
+              const actionTypeText = orderFilter === 'pool_entry' ? '入池' : '退池';
+              filterText = `${statusText}的${actionTypeText}`;
+            } else if (statusFilter) {
+              filterText = statusFilter === 'pending' ? '待处理' : statusFilter === 'processing' ? '处理中' : '归还中';
+            } else {
+              filterText = orderFilter === 'pool_entry' ? '入池' : '退池';
+            }
             return (
               <div style={{
                 textAlign: 'center',
@@ -1849,14 +2218,14 @@ const Dashboard: React.FC = () => {
                         margin: '16px 0 8px',
                         color: 'rgba(0, 0, 0, 0.85)'
                       }}>
-                        暂无{actionTypeText}订单
+                        暂无{filterText}订单
                       </h3>
                       <p style={{
                         color: 'rgba(0, 0, 0, 0.45)',
                         margin: '0 0 24px',
                         fontSize: '14px'
                       }}>
-                        当前没有{actionTypeText}类型的订单，您可以创建一个新的{actionTypeText}订单
+                        当前没有{filterText}类型的订单，您可以创建一个新的订单
                       </p>
                     </div>
                   }
@@ -1871,7 +2240,7 @@ const Dashboard: React.FC = () => {
                       boxShadow: '0 2px 0 rgba(5, 145, 255, 0.1)'
                     }}
                   >
-                    创建{actionTypeText}订单
+                    创建订单
                   </Button>
                 </Empty>
               </div>
@@ -1896,6 +2265,7 @@ const Dashboard: React.FC = () => {
               onChange={(value) => handleTrendParamsChange(value, selectedTimeRange, selectedResourceTypes)}
               placeholder="选择集群"
               optionLabelProp="label"
+              suffixIcon={<ClusterOutlined style={{ color: '#52c41a' }} />}
             >
               {getFilteredClusters().map(cluster => (
                 <Option 
@@ -1903,6 +2273,7 @@ const Dashboard: React.FC = () => {
                   value={cluster.id}
                   label={cluster.name || `集群-${cluster.id}`}
                 >
+                  <ClusterOutlined style={{ color: '#52c41a', marginRight: 8 }} />
                   <span>{cluster.name || cluster.clusterName || cluster.clusterNameCn || cluster.alias || `集群-${cluster.id}`}</span>
                 </Option>
               ))}
@@ -2080,14 +2451,22 @@ const Dashboard: React.FC = () => {
               <Option value="completed">已完成</Option>
               <Option value="cancelled">已取消</Option>
               <Option value="all">全部</Option>
-              <Option value="failed">失败</Option>
-              <Option value="expired">已过期</Option>
+              <Option value="return_completed">已归还</Option>
+              <Option value="no_return">无须归还</Option>
             </Select>
             <Select defaultValue="7d" style={{ width: 100 }}>
               <Option value="7d">最近7天</Option>
               <Option value="30d">最近30天</Option>
               <Option value="90d">最近90天</Option>
             </Select>
+            <Input
+              placeholder="搜索订单名称"
+              style={{ width: 200 }}
+              value={nameFilter}
+              onChange={(e) => handleOrderNameFilterChange(e.target.value)}
+              allowClear
+              prefix={isDataFetching ? <Spin size="small" /> : <SearchOutlined />}
+            />
           </Space>
         }
       >
@@ -2107,7 +2486,7 @@ const Dashboard: React.FC = () => {
                   // 不需要修改orderStatusFilter，因为它已经是'custom'
                   // 但我们需要确保customTabStatus有值
                   if (!customTabStatus) {
-                    setCustomTabStatus('failed'); // 默认使用'failed'作为自定义状态
+                    setCustomTabStatus('return_completed'); // 默认使用'return_completed'作为自定义状态
                   }
                 } else {
                   // 切换到标准标签页
@@ -2117,33 +2496,7 @@ const Dashboard: React.FC = () => {
               }}
               className="order-tabs"
             >
-              <TabPane
-                tab={
-                  <span>
-                    <Badge status="processing" />
-                    处理中订单
-                    <span className="order-count-badge processing">
-                      {processingOrders.length}
-                    </span>
-                  </span>
-                }
-                key="processing"
-              >
-                <div className="order-cards-grid">
-                  {processingOrders.length > 0 ? (
-                    processingOrders.map(order => renderOrderCard(order))
-                  ) : (
-                    <div style={{ padding: '20px 0', textAlign: 'center' }}>
-                      <Empty
-                        description={
-                          <span style={{ color: 'rgba(0,0,0,0.45)' }}>暂无处理中订单</span>
-                        }
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabPane>
+
               <TabPane
                 tab={
                   <span>
@@ -2158,7 +2511,7 @@ const Dashboard: React.FC = () => {
               >
                 <div className="order-cards-grid">
                   {completedOrders.length > 0 ? (
-                    completedOrders.map(order => renderOrderCard(order))
+                    completedOrders.map(order => renderOrderCard(order, false, false, true))
                   ) : (
                     <div style={{ padding: '20px 0', textAlign: 'center' }}>
                       <Empty
@@ -2196,7 +2549,7 @@ const Dashboard: React.FC = () => {
                       extra={<Button type="primary" onClick={() => fetchData(true)}>重试</Button>}
                     />
                   ) : cancelledOrders && cancelledOrders.length > 0 ? (
-                    cancelledOrders.map(order => renderOrderCard(order, false, false))
+                    cancelledOrders.map(order => renderOrderCard(order, false, false, true))
                   ) : (
                     <div style={{ padding: '20px 0', textAlign: 'center' }}>
                       <Empty
@@ -2215,15 +2568,15 @@ const Dashboard: React.FC = () => {
                     <Badge status="default" />
                     全部订单
                     <span className="order-count-badge all">
-                      {allOrders ? allOrders.total : 0}
+                      {bottomAllOrders ? bottomAllOrders.total : 0}
                     </span>
                   </span>
                 }
                 key="all"
               >
                 <div className="order-cards-grid">
-                  {allOrders && allOrders.list.length > 0 ? (
-                    allOrders.list.map((order: OrderListItem) => renderOrderCard(order))
+                  {bottomAllOrders && bottomAllOrders.list.length > 0 ? (
+                    bottomAllOrders.list.map((order: OrderListItem) => renderOrderCard(order, false, false, true))
                   ) : (
                     <div style={{ padding: '20px 0', textAlign: 'center' }}>
                       <Empty
@@ -2243,10 +2596,9 @@ const Dashboard: React.FC = () => {
                   tab={
                     <span>
                       <Badge status="warning" color="#fa8c16" />
-                      {customTabStatus === 'failed' ? '失败订单' :
+                      {customTabStatus === 'return_completed' ? '已归还订单' :
                        customTabStatus === 'cancelled' ? '已取消订单' :
-                       customTabStatus === 'expired' ? '已过期订单' :
-                       customTabStatus === 'pending' ? '待处理订单' :
+                       customTabStatus === 'no_return' ? '无须归还订单' :
                        `${customTabStatus}订单`}
                       <span className="order-count-badge custom">
                         {getCustomStatusOrders().length}
@@ -2257,15 +2609,14 @@ const Dashboard: React.FC = () => {
                 >
                   <div className="order-cards-grid">
                     {getCustomStatusOrders().length > 0 ? (
-                      getCustomStatusOrders().map((order: OrderListItem) => renderOrderCard(order))
+                      getCustomStatusOrders().map((order: OrderListItem) => renderOrderCard(order, false, false, true))
                     ) : (
                       <div style={{ padding: '20px 0', textAlign: 'center' }}>
                         <Empty
                           description={
-                            <span style={{ color: 'rgba(0,0,0,0.45)' }}>暂无{customTabStatus === 'failed' ? '失败' :
+                            <span style={{ color: 'rgba(0,0,0,0.45)' }}>暂无{customTabStatus === 'return_completed' ? '已归还' :
                               customTabStatus === 'cancelled' ? '已取消' :
-                              customTabStatus === 'expired' ? '已过期' :
-                              customTabStatus === 'pending' ? '待处理' :
+                              customTabStatus === 'no_return' ? '无须归还' :
                               customTabStatus}订单</span>
                           }
                           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -2308,12 +2659,24 @@ const Dashboard: React.FC = () => {
                   <Badge
                     status={
                       selectedOrder.status === 'pending' ? 'error' :
-                      (selectedOrder.status === 'processing' ? 'processing' : 'success')
+                      selectedOrder.status === 'processing' ? 'processing' :
+                      selectedOrder.status === 'returning' ? 'processing' :
+                      selectedOrder.status === 'return_completed' ? 'success' :
+                      selectedOrder.status === 'no_return' ? 'success' :
+                      selectedOrder.status === 'cancelled' ? 'default' :
+                      selectedOrder.status === 'failed' ? 'error' :
+                      'success'
                     }
                     text={
                       <span style={{ fontWeight: 500 }}>
                         {selectedOrder.status === 'pending' ? '待处理' :
-                        (selectedOrder.status === 'processing' ? '处理中' : '已完成')}
+                        selectedOrder.status === 'processing' ? '处理中' :
+                        selectedOrder.status === 'returning' ? '归还中' :
+                        selectedOrder.status === 'return_completed' ? '归还完成' :
+                        selectedOrder.status === 'no_return' ? '无需归还' :
+                        selectedOrder.status === 'cancelled' ? '已取消' :
+                        selectedOrder.status === 'failed' ? '失败' :
+                        '已完成'}
                       </span>
                     }
                   />
@@ -2333,6 +2696,9 @@ const Dashboard: React.FC = () => {
                 <Descriptions.Item label="创建人">
                   <Tag color="cyan" style={{ padding: '2px 6px' }}>{selectedOrder.createdBy || '系统'}</Tag>
                 </Descriptions.Item>
+                <Descriptions.Item label="执行人">
+                  <Tag color="orange" style={{ padding: '2px 6px' }}>{selectedOrder.executor || '未指定'}</Tag>
+                </Descriptions.Item>
               </Descriptions>
 
               {/* 订单描述单独显示 */}
@@ -2342,6 +2708,15 @@ const Dashboard: React.FC = () => {
                   <div style={{ color: '#666', lineHeight: '1.6', fontSize: '13px' }}>{selectedOrder.description}</div>
                 </div>
               )}
+
+              {/* 订单状态流转图 */}
+              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fafafa', borderRadius: '6px', border: '1px solid #f0f0f0' }}>
+                <div style={{ marginBottom: '8px', fontWeight: 500, color: '#262626', fontSize: '14px' }}>订单状态流转</div>
+                <OrderStatusFlow 
+                  actionType={selectedOrder.actionType} 
+                  currentStatus={selectedOrder.status} 
+                />
+              </div>
             </div>
 
             <div className="detail-section">
@@ -3167,6 +3542,218 @@ const Dashboard: React.FC = () => {
           </>
         )}
       </Modal>
+
+      {/* 策略执行历史抽屉 */}
+      <Drawer
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <ClockCircleOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+            <span>策略执行历史</span>
+            {selectedStrategyForHistory && (
+              <Tag color="blue" style={{ marginLeft: 8 }}>
+                {selectedStrategyForHistory.name}
+              </Tag>
+            )}
+          </div>
+        }
+        width={800}
+        open={executionHistoryDrawerVisible}
+        onClose={() => setExecutionHistoryDrawerVisible(false)}
+        extra={
+          <Space>
+            <Input
+              placeholder="搜索集群名称"
+              value={historyClusterFilter}
+              onChange={(e) => handleClusterFilterChange(e.target.value)}
+              style={{ width: 200 }}
+              prefix={<SearchOutlined />}
+              allowClear
+            />
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => selectedStrategyForHistory && handleViewExecutionHistory(selectedStrategyForHistory)}
+            >
+              刷新
+            </Button>
+          </Space>
+        }
+      >
+        {executionHistoryLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin size="large" tip="正在加载执行历史..." />
+          </div>
+        ) : (
+          <div>
+            {/* 执行历史统计 */}
+            <Card size="small" style={{ marginBottom: 16 }}>
+              <Row gutter={16}>
+                <Col span={6}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 'bold', color: '#52c41a' }}>
+                      {executionHistory.filter(h => h.result === 'order_created').length}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666' }}>成功生成订单</div>
+                  </div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 'bold', color: '#ff7a45' }}>
+                      {executionHistory.filter(h => h.result === 'order_created_no_devices').length}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666' }}>设备不足提醒</div>
+                  </div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 'bold', color: '#faad14' }}>
+                      {executionHistory.filter(h => h.result === 'order_created_partial').length}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666' }}>部分匹配订单</div>
+                  </div>
+                </Col>
+                <Col span={6}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }}>
+                      {executionHistory.filter(h => h.result.includes('failure')).length}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666' }}>执行失败</div>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* 执行历史列表 */}
+            <Table
+              dataSource={executionHistory}
+              rowKey="id"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条记录`
+              }}
+              size="small"
+              columns={[
+                {
+                  title: '执行时间',
+                  dataIndex: 'executionTime',
+                  key: 'executionTime',
+                  width: 140,
+                  render: (time: string) => (
+                    <div style={{ fontSize: 12 }}>
+                      {new Date(time).toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  )
+                },
+                {
+                  title: '集群',
+                  dataIndex: 'clusterName',
+                  key: 'clusterName',
+                  width: 120,
+                  render: (clusterName: string) => (
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
+                      <span style={{ fontSize: 12 }}>{clusterName || '未知集群'}</span>
+                    </div>
+                  )
+                },
+                {
+                  title: '资源池',
+                  dataIndex: 'resourcePool',
+                  key: 'resourcePool',
+                  width: 80,
+                  render: (resourcePool: string) => (
+                    <Tag color="blue">
+                      {resourcePool || 'total'}
+                    </Tag>
+                  )
+                },
+                {
+                  title: '触发值/阈值',
+                  key: 'values',
+                  width: 100,
+                  render: (record: any) => (
+                    <div style={{ fontSize: 11 }}>
+                      <div>触发: {record.triggeredValue}</div>
+                      <div style={{ color: '#666' }}>阈值: {record.thresholdValue}</div>
+                    </div>
+                  )
+                },
+                {
+                  title: '执行结果',
+                  dataIndex: 'result',
+                  key: 'result',
+                  width: 120,
+                  render: (result: string) => {
+                    const getResultConfig = (result: string) => {
+                      switch (result) {
+                        case 'order_created':
+                          return { color: 'success', text: '生成订单', icon: <CheckCircleOutlined /> };
+                        case 'order_created_no_devices':
+                          return { color: 'warning', text: '设备不足提醒', icon: <WarningOutlined /> };
+                        case 'order_created_partial':
+                          return { color: 'processing', text: '部分匹配', icon: <ExclamationCircleOutlined /> };
+                        case 'failure_threshold_not_met':
+                          return { color: 'default', text: '阈值未满足', icon: <CloseCircleOutlined /> };
+                        default:
+                          if (result.includes('failure')) {
+                            return { color: 'error', text: '执行失败', icon: <CloseCircleOutlined /> };
+                          }
+                          return { color: 'default', text: result, icon: <ClockCircleOutlined /> };
+                      }
+                    };
+
+                    const config = getResultConfig(result);
+                    return (
+                      <Tag color={config.color} style={{ fontSize: 11 }}>
+                        {config.icon}
+                        <span style={{ marginLeft: 4 }}>{config.text}</span>
+                      </Tag>
+                    );
+                  }
+                },
+                {
+                  title: '订单',
+                  dataIndex: 'orderId',
+                  key: 'orderId',
+                  width: 80,
+                  render: (orderId: number) => (
+                    orderId ? (
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => handleViewOrderDetails(orderId)}
+                        style={{ padding: 0, fontSize: 11 }}
+                      >
+                        #{orderId}
+                      </Button>
+                    ) : (
+                      <span style={{ color: '#ccc', fontSize: 11 }}>--</span>
+                    )
+                  )
+                },
+                {
+                  title: '详情',
+                  dataIndex: 'reason',
+                  key: 'reason',
+                  ellipsis: true,
+                  render: (reason: string) => (
+                    <Tooltip title={reason} placement="topLeft">
+                      <span style={{ fontSize: 11, color: '#666' }}>
+                        {reason.length > 30 ? `${reason.substring(0, 30)}...` : reason}
+                      </span>
+                    </Tooltip>
+                  )
+                }
+              ]}
+            />
+          </div>
+        )}
+      </Drawer>
 
       {/* 创建订单模态框 */}
       <CreateOrderModal

@@ -64,6 +64,8 @@ type StrategyDetailDTO struct {
 // StrategyExecutionHistoryDTO 策略执行历史
 type StrategyExecutionHistoryDTO struct {
 	ID             int64     `json:"id"`
+	ClusterID      int64     `json:"clusterId"`
+	ResourceType   string    `json:"resourceType"`
 	ExecutionTime  time.Time `json:"executionTime"`
 	TriggeredValue string    `json:"triggeredValue"`
 	ThresholdValue string    `json:"thresholdValue"`
@@ -72,19 +74,37 @@ type StrategyExecutionHistoryDTO struct {
 	Reason         string    `json:"reason"`
 }
 
+// StrategyExecutionHistoryDetailDTO 策略执行历史详情（包含策略名和集群名）
+type StrategyExecutionHistoryDetailDTO struct {
+	ID             int64     `json:"id"`
+	StrategyID     int64     `json:"strategyId"`
+	StrategyName   string    `json:"strategyName"`
+	ClusterID      int64     `json:"clusterId"`
+	ClusterName    string    `json:"clusterName"`
+	ResourceType   string    `json:"resourceType"`
+	ExecutionTime  time.Time `json:"executionTime"`
+	TriggeredValue string    `json:"triggeredValue"`
+	ThresholdValue string    `json:"thresholdValue"`
+	Result         string    `json:"result"`
+	OrderID        *int64    `json:"orderId"`
+	HasOrder       bool      `json:"hasOrder"`
+	Reason         string    `json:"reason"`
+}
+
 // OrderDTO 弹性伸缩订单DTO
 type OrderDTO struct {
-	ID                     int64                  `json:"id,omitempty"`
-	OrderNumber            string                 `json:"orderNumber"`
-	Name                   string                 `json:"name"`        // 订单名称
-	Description            string                 `json:"description"` // 订单描述
-	ClusterID              int64                  `json:"clusterId"`
-	ClusterName            string                 `json:"clusterName,omitempty"`
-	StrategyID             *int64                 `json:"strategyId"`
-	StrategyName           string                 `json:"strategyName,omitempty"`
-	ActionType             string                 `json:"actionType"` // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
-	Status                 string                 `json:"status"`
-	DeviceCount            int                    `json:"deviceCount"`
+	ID               int64  `json:"id,omitempty"`
+	OrderNumber      string `json:"orderNumber"`
+	Name             string `json:"name"`        // 订单名称
+	Description      string `json:"description"` // 订单描述
+	ClusterID        int64  `json:"clusterId"`
+	ClusterName      string `json:"clusterName,omitempty"`
+	StrategyID       *int64 `json:"strategyId"`
+	StrategyName     string `json:"strategyName,omitempty"`
+	ActionType       string `json:"actionType"`       // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
+	ResourcePoolType string `json:"resourcePoolType"` // 资源池类型
+	Status           string `json:"status"`
+	DeviceCount      int    `json:"deviceCount"`
 	// DeviceID字段已移除，使用Devices列表和OrderDevice关联表
 	DeviceInfo             *DeviceDTO             `json:"deviceInfo,omitempty"`
 	Executor               string                 `json:"executor"`
@@ -104,19 +124,20 @@ type OrderDTO struct {
 
 // OrderListItemDTO 订单列表项
 type OrderListItemDTO struct {
-	ID           int64     `json:"id"`
-	OrderNumber  string    `json:"orderNumber"`
-	Name         string    `json:"name"`        // 订单名称
-	Description  string    `json:"description"` // 订单描述
-	ClusterID    int64     `json:"clusterId"`
-	ClusterName  string    `json:"clusterName"`
-	StrategyID   *int64    `json:"strategyId"`
-	StrategyName string    `json:"strategyName"`
-	ActionType   string    `json:"actionType"`
-	Status       string    `json:"status"`
-	DeviceCount  int       `json:"deviceCount"`
-	CreatedBy    string    `json:"createdBy"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID               int64     `json:"id"`
+	OrderNumber      string    `json:"orderNumber"`
+	Name             string    `json:"name"`        // 订单名称
+	Description      string    `json:"description"` // 订单描述
+	ClusterID        int64     `json:"clusterId"`
+	ClusterName      string    `json:"clusterName"`
+	StrategyID       *int64    `json:"strategyId"`
+	StrategyName     string    `json:"strategyName"`
+	ActionType       string    `json:"actionType"`
+	ResourcePoolType string    `json:"resourcePoolType"` // 资源池类型
+	Status           string    `json:"status"`
+	DeviceCount      int       `json:"deviceCount"`
+	CreatedBy        string    `json:"createdBy"`
+	CreatedAt        time.Time `json:"createdAt"`
 }
 
 // OrderDetailDTO 订单详情
@@ -144,15 +165,17 @@ type DeviceDTO struct {
 
 // DashboardStatsDTO 工作台概览统计
 type DashboardStatsDTO struct {
-	StrategyCount        int `json:"strategyCount"`        // 策略总数
-	TriggeredTodayCount  int `json:"triggeredTodayCount"`  // 今日已触发策略数
-	EnabledStrategyCount int `json:"enabledStrategyCount"` // 已启用策略数
-	ClusterCount         int `json:"clusterCount"`         // 集群总数
-	AbnormalClusterCount int `json:"abnormalClusterCount"` // 异常集群数
-	PendingOrderCount    int `json:"pendingOrderCount"`    // 待处理订单数
-	DeviceCount          int `json:"deviceCount"`          // 设备总数
-	AvailableDeviceCount int `json:"availableDeviceCount"` // 可用设备数
-	InPoolDeviceCount    int `json:"inPoolDeviceCount"`    // 池内设备数
+	StrategyCount              int `json:"strategyCount"`              // 策略总数
+	TriggeredTodayCount        int `json:"triggeredTodayCount"`        // 今日已触发策略数
+	EnabledStrategyCount       int `json:"enabledStrategyCount"`       // 已启用策略数
+	ClusterCount               int `json:"clusterCount"`               // 集群总数
+	AbnormalClusterCount       int `json:"abnormalClusterCount"`       // 异常集群数
+	PendingOrderCount          int `json:"pendingOrderCount"`          // 待处理订单数
+	DeviceCount                int `json:"deviceCount"`                // 设备总数
+	AvailableDeviceCount       int `json:"availableDeviceCount"`       // 可用设备数
+	InPoolDeviceCount          int `json:"inPoolDeviceCount"`          // 池内设备数
+	TargetResourcePoolCount    int `json:"targetResourcePoolCount"`    // 目标巡检资源池数
+	InspectedResourcePoolCount int `json:"inspectedResourcePoolCount"` // 已巡检资源池数
 }
 
 // 资源类型数据DTO

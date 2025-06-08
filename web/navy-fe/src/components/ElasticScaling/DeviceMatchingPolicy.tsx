@@ -955,7 +955,7 @@ const DeviceMatchingPolicy: React.FC = () => {
                   >
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
-                        <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
+                        <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
                         {option.value === 'compute' ? '' : option.value}
                       </Option>
                     ))}
@@ -1201,7 +1201,7 @@ const DeviceMatchingPolicy: React.FC = () => {
                   >
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
-                        <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
+                        <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
                         {option.value === 'compute' ? '' : option.value}
                       </Option>
                     ))}
