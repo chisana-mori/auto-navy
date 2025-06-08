@@ -102,6 +102,8 @@ const Dashboard: React.FC = () => {
   const [selectedStrategyForHistory, setSelectedStrategyForHistory] = useState<Strategy | null>(null);
   const [executionHistory, setExecutionHistory] = useState<any[]>([]);
   const [executionHistoryLoading, setExecutionHistoryLoading] = useState(false);
+  const [executionHistoryTotal, setExecutionHistoryTotal] = useState(0);
+  const [executionHistoryPagination, setExecutionHistoryPagination] = useState({ page: 1, size: 10 });
   const [historyClusterFilter, setHistoryClusterFilter] = useState<string>('');
 
   const handleCloneOrder = async (order: OrderListItem) => {
@@ -120,8 +122,10 @@ const Dashboard: React.FC = () => {
       if (createOrderModalRef.current) {
         createOrderModalRef.current.open(cloneData);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取订单详情失败:', error);
+      const errorMsg = error?.response?.data?.msg || error?.message || '获取订单详情失败';
+      message.error(errorMsg);
       // 如果获取详情失败，仍然打开模态框但不包含设备信息
       const fallbackData = {
         name: order.name || order.orderNumber,
@@ -139,34 +143,74 @@ const Dashboard: React.FC = () => {
   };
 
   // 查看策略执行历史
-  const handleViewExecutionHistory = async (strategy: Strategy, clusterNameFilter?: string) => {
+  const handleViewExecutionHistory = async (strategy: Strategy, clusterNameFilter?: string, resetPagination = true) => {
     setSelectedStrategyForHistory(strategy);
     setExecutionHistoryDrawerVisible(true);
     setExecutionHistoryLoading(true);
     if (clusterNameFilter === undefined) {
       setHistoryClusterFilter(''); // 重置集群过滤器
     }
+    
+    // 重置分页到第一页
+    if (resetPagination) {
+      setExecutionHistoryPagination({ page: 1, size: 10 });
+    }
 
     try {
       const response = await strategyApi.getStrategyExecutionHistory(strategy.id, {
+        page: resetPagination ? 1 : executionHistoryPagination.page,
+        size: resetPagination ? 10 : executionHistoryPagination.size,
         clusterName: clusterNameFilter || historyClusterFilter || undefined
       });
       // 从分页响应中提取历史数据
       const history = response.data || [];
+      const total = response.total || 0;
       // 后端已经返回了集群名称，不需要前端再次处理
       setExecutionHistory(history || []);
-    } catch (error) {
+      setExecutionHistoryTotal(total);
+    } catch (error: any) {
       console.error('获取策略执行历史失败:', error);
-      message.error('获取策略执行历史失败');
+      const errorMsg = error?.response?.data?.msg || error?.message || '获取策略执行历史失败';
+      message.error(errorMsg);
       setExecutionHistory([]);
+      setExecutionHistoryTotal(0);
     } finally {
       setExecutionHistoryLoading(false);
+    }
+  };
+
+  // 处理分页变化
+  const handleExecutionHistoryPaginationChange = async (page: number, size: number) => {
+    setExecutionHistoryPagination({ page, size });
+    if (selectedStrategyForHistory) {
+      setExecutionHistoryLoading(true);
+      try {
+        const response = await strategyApi.getStrategyExecutionHistory(selectedStrategyForHistory.id, {
+          page,
+          size,
+          clusterName: historyClusterFilter || undefined
+        });
+        const history = response.data || [];
+        const total = response.total || 0;
+        setExecutionHistory(history || []);
+        setExecutionHistoryTotal(total);
+      } catch (error: any) {
+        console.error('获取策略执行历史失败:', error);
+        const errorMsg = error?.response?.data?.msg || error?.message || '获取策略执行历史失败';
+        message.error(errorMsg);
+      } finally {
+        setExecutionHistoryLoading(false);
+      }
     }
   };
 
   // 处理集群过滤器变化
   const handleClusterFilterChange = (value: string) => {
     setHistoryClusterFilter(value);
+    // 当过滤条件改变时，重新获取数据并重置分页
+    if (selectedStrategyForHistory) {
+      handleViewExecutionHistory(selectedStrategyForHistory, value, true);
+    }
     // 延迟搜索，避免频繁请求
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -513,8 +557,10 @@ const Dashboard: React.FC = () => {
         }
         
         console.log('初始化数据加载完成');
-      } catch (error) {
+      } catch (error: any) {
         console.error('初始化数据加载失败:', error);
+        const errorMsg = error?.response?.data?.msg || error?.message || '初始化数据加载失败';
+        message.error(errorMsg);
       }
     };
 
@@ -581,8 +627,10 @@ const Dashboard: React.FC = () => {
       }));
 
       return { resourceTypes, poolTypes };
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取资源池类型失败:', error);
+      const errorMsg = error?.response?.data?.msg || error?.message || '获取资源池类型失败';
+      message.error(errorMsg);
       // 出错时不使用默认值，保持空状态
       setResourceTypeOptions([]);
       setResourcePools([]);
@@ -642,8 +690,10 @@ const Dashboard: React.FC = () => {
       }));
 
       return clustersData;
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取集群列表失败:', error);
+      const errorMsg = error?.response?.data?.msg || error?.message || '获取集群列表失败';
+      message.error(errorMsg);
       // 出错时使用空数组，避免页面崩溃
       setClusters([]);
       return [];
@@ -794,9 +844,11 @@ const Dashboard: React.FC = () => {
 
         setIsLoading(false);
         setIsDataFetching(false);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching data:', error);
-        setOrdersError('获取数据失败');
+        const errorMsg = error?.response?.data?.msg || error?.message || '获取数据失败';
+        setOrdersError(errorMsg);
+        message.error(errorMsg);
         setOrdersLoading(false);
         setIsLoading(false);
         setIsDataFetching(false);
@@ -1063,7 +1115,8 @@ const Dashboard: React.FC = () => {
       // 清空图表数据，显示空状态
       setCpuData(null);
       setMemoryData(null);
-      message.error('获取资源趋势数据失败');
+      const errorMsg = (error as any)?.response?.data?.msg || (error as any)?.message || '获取资源趋势数据失败';
+      message.error(errorMsg);
     } finally {
       // 无论成功还是失败，都重置加载状态
       setIsLoading(false);
@@ -1144,8 +1197,10 @@ const Dashboard: React.FC = () => {
 
       // 设置当前编辑的策略ID
       setCurrentEditStrategyId(id);
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取策略详情失败:', error);
+      const errorMsg = error?.response?.data?.msg || error?.message || '获取策略详情失败';
+      message.error(errorMsg);
       // 如果获取失败，关闭模态框
       setEditStrategyModalVisible(false);
 
@@ -1186,8 +1241,10 @@ const Dashboard: React.FC = () => {
             setStrategies(updatedStrategies);
           }
           console.log(`策略 ${id} 状态已更新为 ${newStatus}`);
-        } catch (error) {
+        } catch (error: any) {
           console.error('更新策略状态失败:', error);
+          const errorMsg = error?.response?.data?.msg || error?.message || '更新策略状态失败';
+          message.error(errorMsg);
         }
       },
     });
@@ -1208,8 +1265,10 @@ const Dashboard: React.FC = () => {
             };
             setStrategies(updatedStrategies);
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error deleting strategy:', error);
+          const errorMsg = error?.response?.data?.msg || error?.message || '删除策略失败';
+          message.error(errorMsg);
         }
       }
     });
@@ -1377,7 +1436,7 @@ const Dashboard: React.FC = () => {
               </div>
               <Alert
                 message={
-                  order.hasAllocationData === false ?
+                  order.hasAllocationData === false || getCpuValue(order) === 0 ?
                     '暂无分配率数据，无法评估集群状态' :
                     (() => {
                       const cpuValue = getCpuValue(order);
@@ -1391,7 +1450,7 @@ const Dashboard: React.FC = () => {
                     })()
                 }
                 type={
-                  order.hasAllocationData === false ?
+                  order.hasAllocationData === false || getCpuValue(order) === 0 ?
                     "info" :
                     (() => {
                       const cpuValue = getCpuValue(order);
@@ -1405,7 +1464,11 @@ const Dashboard: React.FC = () => {
                     })()
                 }
                 showIcon
-                style={{ marginTop: 12 }}
+                style={{
+                  marginTop: 12,
+                  fontSize: '12px', // 减小字体大小
+                  padding: '4px 8px', // 减小内边距
+                }}
                 banner
               />
             </div>
@@ -1778,8 +1841,10 @@ const Dashboard: React.FC = () => {
       setSelectedOrder(orderDetail);
       setSelectedStrategy(null);
       setDrawerVisible(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching order details:', error);
+      const errorMsg = error?.response?.data?.msg || error?.message || '获取订单详情失败';
+      message.error(errorMsg);
     }
   };
 
@@ -1797,8 +1862,10 @@ const Dashboard: React.FC = () => {
 
       // 刷新订单列表
       fetchData(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error executing order:', error);
+      const errorMsg = error?.response?.data?.msg || error?.message || '执行订单失败';
+      message.error(errorMsg);
     }
   };
 
@@ -1816,9 +1883,10 @@ const Dashboard: React.FC = () => {
 
       // 刷新订单列表
       fetchData(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error ignoring order:', error);
-      message.error('取消订单失败');
+      const errorMsg = error?.response?.data?.msg || error?.message || '取消订单失败';
+      message.error(errorMsg);
     }
   };
 
@@ -1837,9 +1905,10 @@ const Dashboard: React.FC = () => {
 
       message.success(`订单状态已更新为：${statusText}`);
       fetchData(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating order status:', error);
-      message.error('更新订单状态失败');
+      const errorMsg = error?.response?.data?.msg || error?.message || '更新订单状态失败';
+      message.error(errorMsg);
     }
   };
 
@@ -1893,9 +1962,10 @@ const Dashboard: React.FC = () => {
 
       // 刷新订单列表
       fetchData(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('创建订单失败:', error);
-      message.error('创建订单失败');
+      const errorMsg = error?.response?.data?.msg || error?.message || '创建订单失败';
+      message.error(errorMsg);
     }
   };
 
@@ -2261,11 +2331,17 @@ const Dashboard: React.FC = () => {
 
             <Select
               value={selectedClusterId}
-              style={{ width: 150 }}
+              style={{ width: 225 }}
               onChange={(value) => handleTrendParamsChange(value, selectedTimeRange, selectedResourceTypes)}
-              placeholder="选择集群"
+              placeholder="搜索或选择集群"
               optionLabelProp="label"
               suffixIcon={<ClusterOutlined style={{ color: '#52c41a' }} />}
+              showSearch
+              filterOption={(input, option) => {
+                const label = option?.label?.toString().toLowerCase() || '';
+                const children = option?.children?.toString().toLowerCase() || '';
+                return label.includes(input.toLowerCase()) || children.includes(input.toLowerCase());
+              }}
             >
               {getFilteredClusters().map(cluster => (
                 <Option 
@@ -2635,7 +2711,7 @@ const Dashboard: React.FC = () => {
       <Drawer
         title={selectedOrder ? `${selectedOrder.strategyName ? selectedOrder.strategyName : (selectedOrder.name || '手动创建')} - ${selectedOrder.actionType === 'pool_entry' ? '入池' : '退池'}` : (selectedStrategy ? `策略详情: ${selectedStrategy.name}` : '')}
         placement="right"
-        width={600}
+        width={1000}
         onClose={handleCloseDrawer}
         visible={drawerVisible}
         className="detail-drawer"
@@ -2747,7 +2823,7 @@ const Dashboard: React.FC = () => {
           </div>
         }
         open={createStrategyModalVisible}
-        width={800}
+        width={1000}
         okText="确定"
         cancelText="取消"
         onOk={() => {
@@ -2804,8 +2880,10 @@ const Dashboard: React.FC = () => {
               // 关闭弹窗并重置表单
               setCreateStrategyModalVisible(false);
               form.resetFields();
-            } catch (error) {
+            } catch (error: any) {
               console.error('创建策略失败:', error);
+              const errorMsg = error?.response?.data?.msg || error?.message || '创建策略失败';
+              message.error(errorMsg);
             }
           }).catch(errorInfo => {
             console.log('表单验证失败:', errorInfo);
@@ -3144,7 +3222,7 @@ const Dashboard: React.FC = () => {
         open={editStrategyModalVisible}
         maskClosable={false}
         destroyOnClose={false}
-        width={800}
+        width={1000}
         okText="确定"
         cancelText="取消"
         className="edit-strategy-modal"
@@ -3205,9 +3283,10 @@ const Dashboard: React.FC = () => {
               editForm.resetFields();
 
               message.success('策略更新成功');
-            } catch (error) {
+            } catch (error: any) {
               console.error('更新策略失败:', error);
-              message.error('更新策略失败，请重试');
+              const errorMsg = error?.response?.data?.msg || error?.message || '更新策略失败，请重试';
+              message.error(errorMsg);
             }
           }).catch(errorInfo => {
             console.log('表单验证失败:', errorInfo);
@@ -3556,7 +3635,7 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         }
-        width={800}
+        width={1000}
         open={executionHistoryDrawerVisible}
         onClose={() => setExecutionHistoryDrawerVisible(false)}
         extra={
@@ -3626,10 +3705,16 @@ const Dashboard: React.FC = () => {
             <Table
               dataSource={executionHistory}
               rowKey="id"
+              loading={executionHistoryLoading}
               pagination={{
-                pageSize: 10,
+                current: executionHistoryPagination.page,
+                pageSize: executionHistoryPagination.size,
+                total: executionHistoryTotal,
                 showSizeChanger: true,
-                showTotal: (total) => `共 ${total} 条记录`
+                showQuickJumper: true,
+                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条记录`,
+                onChange: (page, size) => handleExecutionHistoryPaginationChange(page, size || 10),
+                onShowSizeChange: (current, size) => handleExecutionHistoryPaginationChange(1, size)
               }}
               size="small"
               columns={[
@@ -3672,17 +3757,17 @@ const Dashboard: React.FC = () => {
                     </Tag>
                   )
                 },
-                {
-                  title: '触发值/阈值',
-                  key: 'values',
-                  width: 100,
-                  render: (record: any) => (
-                    <div style={{ fontSize: 11 }}>
-                      <div>触发: {record.triggeredValue}</div>
-                      <div style={{ color: '#666' }}>阈值: {record.thresholdValue}</div>
-                    </div>
-                  )
-                },
+                // {
+                //   title: '触发值/阈值',
+                //   key: 'values',
+                //   width: 100,
+                //   render: (record: any) => (
+                //     <div style={{ fontSize: 11 }}>
+                //       <div>触发: {record.triggeredValue}</div>
+                //       <div style={{ color: '#666' }}>阈值: {record.thresholdValue}</div>
+                //     </div>
+                //   )
+                // },
                 {
                   title: '执行结果',
                   dataIndex: 'result',
@@ -3697,6 +3782,8 @@ const Dashboard: React.FC = () => {
                           return { color: 'warning', text: '设备不足提醒', icon: <WarningOutlined /> };
                         case 'order_created_partial':
                           return { color: 'processing', text: '部分匹配', icon: <ExclamationCircleOutlined /> };
+                        case 'order_created_partial_devices':
+                          return { color: 'processing', text: '部分设备匹配', icon: <ExclamationCircleOutlined /> };
                         case 'failure_threshold_not_met':
                           return { color: 'default', text: '阈值未满足', icon: <CloseCircleOutlined /> };
                         default:

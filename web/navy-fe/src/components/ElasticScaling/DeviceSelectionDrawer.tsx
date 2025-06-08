@@ -42,6 +42,7 @@ interface DeviceSelectionDrawerProps {
   selectedDevices: Device[];
   loading?: boolean;
   simpleMode?: boolean; // 是否使用简单模式（只显示关键字搜索）
+  initialSelectionActionType?: string; // 新增属性，用于判断初始动作类型
 }
 
 const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
@@ -52,7 +53,8 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   appliedFilters = [], // 添加 appliedFilters 的解构和默认值
   selectedDevices,
   loading: externalLoading,
-  simpleMode = false
+  simpleMode = false,
+  initialSelectionActionType
 }) => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,13 +69,16 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   // 初始化本地选中设备
   useEffect(() => {
     if (visible) {
-      // 抽屉打开时，执行查询但不自动选中任何设备
-      // 除非用户已经明确选择了设备，才保留选中状态
-      if (selectedDevices.length > 0) {
+      // 如果是退池操作，则不默认选中任何设备
+      if (initialSelectionActionType === 'pool_exit') {
+        setLocalSelectedDevices([]);
+        setSelectedRowKeys([]);
+      } else if (selectedDevices.length > 0) {
+        // 其他情况，如果已有选中设备，则保留
         setLocalSelectedDevices(selectedDevices);
         setSelectedRowKeys(selectedDevices.map(device => device.id));
       } else {
-        // 重置选中状态
+        // 其他情况且无选中设备，则清空
         setLocalSelectedDevices([]);
         setSelectedRowKeys([]);
       }
@@ -81,14 +86,14 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
       // 重置分页信息，确保每次打开抽屉时都从第一页开始
       setPagination({
         current: 1,
-        pageSize: 20,
+        pageSize: 500, // 默认分页大小调整为500
         total: 0
       });
 
       // 当抽屉打开时，自动执行查询
-      fetchDevices(1, 20);
+      fetchDevices(1, 500); // 默认分页大小调整为500
     }
-  }, [visible, selectedDevices]);
+  }, [visible, selectedDevices, initialSelectionActionType]);
 
   // Effect to apply client-side search whenever clientSearchText or the base 'devices' list changes
   useEffect(() => {
@@ -158,7 +163,7 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   };
 
   // 查询设备
-  const fetchDevices = async (page = 1, pageSize = 20, keywordList?: string[]) => {
+  const fetchDevices = async (page = 1, pageSize = 500, keywordList?: string[]) => {
     try {
       setLoading(true);
 

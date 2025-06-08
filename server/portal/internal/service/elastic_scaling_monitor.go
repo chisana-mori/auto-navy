@@ -34,7 +34,7 @@ type MonitorConfig struct {
 // DefaultMonitorConfig 默认监控配置
 func DefaultMonitorConfig() MonitorConfig {
 	return MonitorConfig{
-		MonitorCron:        "0 10 * * *",       // 每天早上10点运行
+		MonitorCron:        "* * * * *",        // 每分钟运行一次
 		EvaluationInterval: 10 * time.Minute, // 每10分钟评估一次策略
 		LockTimeout:        30 * time.Second, // 锁超时时间30秒
 		LockRetryInterval:  1 * time.Second,  // 锁重试间隔1秒

@@ -133,7 +133,14 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 		}
 
 		if len(snapshots) == 0 {
-			logMsg := fmt.Sprintf("No resource snapshots found for cluster %d, resource type %s within the last %d days.", clusterID, resourceType, daysToCheck)
+			// 获取集群名称用于中文描述
+			var cluster portal.K8sCluster
+			clusterName := "未知集群"
+			if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
+				clusterName = cluster.ClusterName
+			}
+
+			logMsg := fmt.Sprintf("集群 %s（%s类型）在过去 %d 天内未找到资源快照数据", clusterName, resourceType, daysToCheck)
 			s.logger.Info(logMsg, zap.Int64("strategyID", strategy.ID))
 			currentTime := portal.NavyTime(time.Now())
 			s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultFailureNoSnapshots, nil, logMsg, "", "", &currentTime)
@@ -163,7 +170,7 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 				zap.Float64("memDelta", memDelta))
 
 			// 触发设备匹配和订单创建
-			if err := s.matchDevicesForStrategyFunc(strategy, clusterID, resourceType, triggeredValue, thresholdValue, cpuDelta, memDelta); err != nil {
+			if err := s.matchDevicesForStrategyFunc(strategy, clusterID, resourceType, triggeredValue, thresholdValue, cpuDelta, memDelta, &snapshots[len(snapshots)-1]); err != nil {
 				s.logger.Error("Error during device matching for strategy", zap.Error(err), zap.Int64("strategyID", strategy.ID))
 			}
 		} else {
@@ -173,8 +180,15 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 				zap.Int("consecutiveDays", consecutiveDays),
 				zap.Int("requiredDays", requiredDays))
 
-			reason := fmt.Sprintf("Threshold not consistently met for cluster %d and resource type %s for %d consecutive days (required: %d days).",
-				clusterID, resourceType, consecutiveDays, requiredDays)
+			// 获取集群名称用于中文描述
+			var cluster portal.K8sCluster
+			clusterName := "未知集群"
+			if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
+				clusterName = cluster.ClusterName
+			}
+
+			reason := fmt.Sprintf("集群 %s（%s类型）阈值未连续满足条件，当前连续天数 %d 天（需要 %d 天）",
+				clusterName, resourceType, consecutiveDays, requiredDays)
 			s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultFailureThresholdNotMet, nil, reason, triggeredValue, thresholdValue, &currentTime)
 		}
 	}

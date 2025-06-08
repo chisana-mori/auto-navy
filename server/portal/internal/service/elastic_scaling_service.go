@@ -66,7 +66,7 @@ type ElasticScalingService struct {
 	logger                      *zap.Logger           // Added logger
 	cache                       DeviceCacheInterface  // Changed to DeviceCacheInterface
 	orderService                OrderService          // 通用订单服务
-	matchDevicesForStrategyFunc func(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64) error
+	matchDevicesForStrategyFunc func(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error
 }
 
 // GetStrategyExecutionHistoryWithPagination 获取策略执行历史（分页）
@@ -85,8 +85,8 @@ func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strate
 
 	// 如果有集群名字过滤条件，需要关联集群表进行模糊查询
 	if clusterName != "" {
-		baseQuery = baseQuery.Joins("JOIN k8s_clusters ON strategy_execution_histories.cluster_id = k8s_clusters.id").
-			Where("k8s_clusters.cluster_name LIKE ? OR k8s_clusters.cluster_name_cn LIKE ?", "%"+clusterName+"%", "%"+clusterName+"%")
+		baseQuery = baseQuery.Joins("JOIN k8s_cluster ON strategy_execution_history.cluster_id = k8s_cluster.id").
+			Where("k8s_cluster.clustername LIKE ? OR k8s_cluster.clusternamecn LIKE ?", "%"+clusterName+"%", "%"+clusterName+"%")
 	}
 
 	// 获取总数
@@ -101,8 +101,8 @@ func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strate
 
 	// 如果有集群名字过滤条件，添加相同的关联查询
 	if clusterName != "" {
-		query = query.Joins("JOIN k8s_clusters ON strategy_execution_histories.cluster_id = k8s_clusters.id").
-			Where("k8s_clusters.cluster_name LIKE ? OR k8s_clusters.cluster_name_cn LIKE ?", "%"+clusterName+"%", "%"+clusterName+"%")
+		query = query.Joins("JOIN k8s_cluster ON strategy_execution_history.cluster_id = k8s_cluster.id").
+			Where("k8s_cluster.clustername LIKE ? OR k8s_cluster.clusternamecn LIKE ?", "%"+clusterName+"%", "%"+clusterName+"%")
 	}
 
 	query = query.Order("execution_time DESC").
@@ -179,6 +179,6 @@ func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, l
 }
 
 // SetMatchDevicesForStrategyFunc is a test helper to mock the device matching function.
-func (s *ElasticScalingService) SetMatchDevicesForStrategyFunc(f func(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64) error) {
+func (s *ElasticScalingService) SetMatchDevicesForStrategyFunc(f func(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error) {
 	s.matchDevicesForStrategyFunc = f
 }

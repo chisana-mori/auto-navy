@@ -2,7 +2,7 @@
 -- 用于创建测试所需的基础表结构
 
 -- 创建集群表
-CREATE TABLE IF NOT EXISTS k8s_clusters (
+CREATE TABLE IF NOT EXISTS k8s_cluster (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cluster_name TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS k8s_clusters (
 );
 
 -- 创建设备表
-CREATE TABLE IF NOT EXISTS devices (
+CREATE TABLE IF NOT EXISTS device (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ci_code TEXT NOT NULL,
     ip TEXT NOT NULL,
@@ -25,11 +25,11 @@ CREATE TABLE IF NOT EXISTS devices (
     feature_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (cluster_id) REFERENCES k8s_clusters(id)
+    FOREIGN KEY (cluster_id) REFERENCES k8s_cluster(id)
 );
 
 -- 创建查询模板表
-CREATE TABLE IF NOT EXISTS query_templates (
+CREATE TABLE IF NOT EXISTS query_template (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     groups TEXT NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS query_templates (
 );
 
 -- 创建弹性伸缩策略表
-CREATE TABLE IF NOT EXISTS elastic_scaling_strategies (
+CREATE TABLE IF NOT EXISTS elastic_scaling_strategy (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
@@ -61,23 +61,23 @@ CREATE TABLE IF NOT EXISTS elastic_scaling_strategies (
     created_by TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (entry_query_template_id) REFERENCES query_templates(id),
-    FOREIGN KEY (exit_query_template_id) REFERENCES query_templates(id)
+    FOREIGN KEY (entry_query_template_id) REFERENCES query_template(id),
+    FOREIGN KEY (exit_query_template_id) REFERENCES query_template(id)
 );
 
 -- 创建策略集群关联表
-CREATE TABLE IF NOT EXISTS strategy_cluster_associations (
+CREATE TABLE IF NOT EXISTS strategy_cluster_association (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     strategy_id INTEGER NOT NULL,
     cluster_id INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (strategy_id) REFERENCES elastic_scaling_strategies(id),
-    FOREIGN KEY (cluster_id) REFERENCES k8s_clusters(id)
+    FOREIGN KEY (strategy_id) REFERENCES elastic_scaling_strategy(id),
+    FOREIGN KEY (cluster_id) REFERENCES k8s_cluster(id)
 );
 
 -- 创建资源快照表
-CREATE TABLE IF NOT EXISTS resource_snapshots (
+CREATE TABLE IF NOT EXISTS k8s_cluster_resource_snapshot (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cluster_id INTEGER NOT NULL,
     resource_type TEXT NOT NULL,
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS resource_snapshots (
     memory_capacity REAL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (cluster_id) REFERENCES k8s_clusters(id)
+    FOREIGN KEY (cluster_id) REFERENCES k8s_cluster(id)
 );
 
 -- 创建订单表
@@ -117,8 +117,8 @@ CREATE TABLE IF NOT EXISTS elastic_scaling_order_details (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id),
-    FOREIGN KEY (strategy_id) REFERENCES elastic_scaling_strategies(id),
-    FOREIGN KEY (cluster_id) REFERENCES k8s_clusters(id)
+    FOREIGN KEY (strategy_id) REFERENCES elastic_scaling_strategy(id),
+    FOREIGN KEY (cluster_id) REFERENCES k8s_cluster(id)
 );
 
 -- 创建订单设备关联表
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS order_device (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id),
-    FOREIGN KEY (device_id) REFERENCES devices(id)
+    FOREIGN KEY (device_id) REFERENCES device(id)
 );
 
 -- 创建策略执行历史表
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS strategy_execution_history (
     order_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (strategy_id) REFERENCES elastic_scaling_strategies(id),
+    FOREIGN KEY (strategy_id) REFERENCES elastic_scaling_strategy(id),
     FOREIGN KEY (order_id) REFERENCES orders(id)
 );
 

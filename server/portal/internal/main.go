@@ -89,15 +89,15 @@ func main() {
 	routers.RegisterSwaggerRoutes(r)
 
 	// 启动弹性伸缩监控服务（仅在启用时）
-	if os.Getenv("ENABLE_ELASTIC_SCALING_MONITOR") == "true" {
-		monitorConfig := service.DefaultMonitorConfig()
-		// 使用已创建的 logger for monitor
-		monitor := service.NewElasticScalingMonitor(db, monitorConfig, logger)
-		monitor.Start()
+	// if os.Getenv("ENABLE_ELASTIC_SCALING_MONITOR") == "true" {
+	monitorConfig := service.DefaultMonitorConfig()
+	// 使用已创建的 logger for monitor
+	monitor := service.NewElasticScalingMonitor(db, monitorConfig, logger)
+	monitor.Start()
 
-		// 确保在应用退出时优雅地停止监控服务
-		defer monitor.Stop()
-	}
+	// 确保在应用退出时优雅地停止监控服务
+	defer monitor.Stop()
+	// }
 
 	// 启动服务器
 	port := ":8081"

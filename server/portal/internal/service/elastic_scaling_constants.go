@@ -35,6 +35,8 @@ const (
 	DeviceStatusProcessing = "processing"
 	DeviceStatusCompleted  = "completed"
 	DeviceStatusFailed     = "failed"
+	StatusSuccess          = "success"
+	StatusExecuting        = "executing"
 )
 
 // 阈值类型

@@ -538,7 +538,7 @@ const CreateOrderModal = React.forwardRef<
 
     try {
       setSearchingDevices(true);
-      const response = await queryDevices({ groups: groupsForQuery, page: 1, size: 20 });
+      const response = await queryDevices({ groups: groupsForQuery, page: 1, size: 500 });
       
       // 这里只是获取初始数据，完整分页逻辑在DeviceSelectionDrawer中处理
       const initialDevices = response.list || [];
@@ -1159,6 +1159,7 @@ const CreateOrderModal = React.forwardRef<
         selectedDevices={devices}
         loading={loading}
         simpleMode={useSimpleMode}
+        initialSelectionActionType={form.getFieldValue('actionType')}
       />
 
       <Card

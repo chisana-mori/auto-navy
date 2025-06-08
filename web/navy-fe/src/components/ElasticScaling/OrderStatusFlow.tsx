@@ -289,13 +289,15 @@ const OrderStatusFlow: React.FC<OrderStatusFlowProps> = ({ actionType, currentSt
       <Steps
         className="order-status-flow"
         current={currentStepIndex}
-        size="small"
+        size="default"
         direction="horizontal"
         style={{
           position: 'relative',
           zIndex: 1,
           margin: '0 auto',
-          maxWidth: 'fit-content'
+          width: '100%',
+          maxWidth: '800px',
+          padding: '16px 0'
         }}
         items={steps.map((step, index) => {
           const stepStatus = getStepStatus(step.status);
@@ -306,7 +308,7 @@ const OrderStatusFlow: React.FC<OrderStatusFlowProps> = ({ actionType, currentSt
           return {
             title: (
               <div style={{
-                fontSize: '13px',
+                fontSize: '14px',
                 fontWeight: isActive ? 600 : 500,
                 color: isCancelled && isCompleted ? '#ef4444' : 
                        isCancelled && isActive ? '#ef4444' : 
@@ -314,7 +316,8 @@ const OrderStatusFlow: React.FC<OrderStatusFlowProps> = ({ actionType, currentSt
                        isActive ? '#3b82f6' : '#64748b',
                 transition: 'all 0.3s ease',
                 textAlign: 'center',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                marginTop: '8px'
               }}>
                 {step.title}
               </div>
@@ -322,154 +325,175 @@ const OrderStatusFlow: React.FC<OrderStatusFlowProps> = ({ actionType, currentSt
             // 移除description以简化显示
             description: null,
             status: stepStatus,
-            icon: (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                background: 'transparent',
-                border: 'none',
-                boxShadow: isCompleted 
-                  ? '0 2px 8px rgba(16, 185, 129, 0.2), 0 0 0 2px rgba(16, 185, 129, 0.06)'
-                  : isActive 
-                  ? '0 2px 8px rgba(59, 130, 246, 0.2), 0 0 0 2px rgba(59, 130, 246, 0.06)'
-                  : '0 1px 3px rgba(0, 0, 0, 0.04)',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                animation: isActive ? 'pulse 2s infinite' : 'none',
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-                {/* 内部光效 */}
-                {(isActive || isCompleted) && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '1px',
-                    left: '1px',
-                    right: '1px',
-                    bottom: '1px',
+            icon: (() => {
+              const stepStatus = getStepStatus(step.status);
+              const isCancelled = step.title === '已取消';
+              
+              return (
+                <div 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '32px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(45deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(255,255,255,0.1) 100%)',
-                    pointerEvents: 'none'
-                  }} />
-                )}
-                
-                <style>
-                  {`
-                    @keyframes pulse {
-                      0%, 100% { opacity: 1; }
-                      50% { opacity: 0.85; }
-                    }
-                    @keyframes glow {
-                      0% { box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3), 0 0 0 3px rgba(59, 130, 246, 0.08); }
-                      100% { box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4), 0 0 0 4px rgba(59, 130, 246, 0.12); }
-                    }
-                    @keyframes bounce {
-                      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                      40% { transform: translateY(-3px); }
-                      60% { transform: translateY(-2px); }
-                    }
-                  `}
-                </style>
-                
-                {(() => {
-                  const getStepIcon = () => {
-                    // 根据步骤类型和状态选择合适的图标
-                    if (stepStatus === 'process') {
-                      // 如果当前步骤是最后一个步骤，直接显示完成图标
-                      const isLastStep = index === steps.length - 1;
-                      
-                      if (isLastStep) {
+                    background: 'transparent',
+                    border: 'none',
+                    boxShadow: isCompleted 
+                      ? '0 2px 8px rgba(16, 185, 129, 0.2), 0 0 0 2px rgba(16, 185, 129, 0.06)'
+                      : isActive 
+                      ? '0 2px 8px rgba(59, 130, 246, 0.2), 0 0 0 2px rgba(59, 130, 246, 0.06)'
+                      : '0 1px 3px rgba(0, 0, 0, 0.04)',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                    animation: isActive ? 'pulse 2s infinite' : 'none',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  data-cancelled={isCancelled ? 'true' : 'false'}
+                >
+                  {/* 内部光效 */}
+                  {(isActive || isCompleted) && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '1px',
+                      left: '1px',
+                      right: '1px',
+                      bottom: '1px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(45deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(255,255,255,0.1) 100%)',
+                      pointerEvents: 'none'
+                    }} />
+                  )}
+                  
+                  <style>
+                    {`
+                      @keyframes pulse {
+                        0%, 100% { opacity: 1; }
+                        50% { opacity: 0.85; }
+                      }
+                      @keyframes glow {
+                        0% { box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3), 0 0 0 3px rgba(59, 130, 246, 0.08); }
+                        100% { box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4), 0 0 0 4px rgba(59, 130, 246, 0.12); }
+                      }
+                      @keyframes bounce {
+                        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+                        40% { transform: translateY(-3px); }
+                        60% { transform: translateY(-2px); }
+                      }
+                    `}
+                  </style>
+                  
+                  {(() => {
+                    const getStepIcon = () => {
+                      // 特殊处理：如果是最后一个步骤且当前状态是已完成的最终状态
+                      if (index === steps.length - 1 && isFinalStatus(currentStatus) && currentStatus !== 'cancelled') {
                         // 最后一个节点直接显示完成状态
                         return <CheckOutlined style={{ 
-                          color: '#10b981', 
-                          fontSize: '14px'
+                          color: '#ffffff', 
+                          fontSize: '18px',
+                          fontWeight: 'bold'
                         }} />;
                       }
                       
-                      if (step.title === '创建') {
-                        return <RocketOutlined style={{ 
-                          color: '#3b82f6', 
-                          fontSize: '14px'
-                        }} />;
-                      } else if (step.title === '处理中') {
-                        return <SettingOutlined style={{ 
-                          color: '#3b82f6', 
-                          fontSize: '14px',
-                          animation: 'spin 2s linear infinite'
-                        }} />;
-                      } else if (step.title === '归还中') {
-                        return <SyncOutlined style={{ 
-                          color: '#3b82f6', 
-                          fontSize: '14px',
-                          animation: 'spin 2s linear infinite'
-                        }} />;
-                      } else if (step.title === '已取消') {
-                        return <CloseCircleOutlined style={{ 
-                          color: '#ef4444', 
-                          fontSize: '14px'
-                        }} />;
+                      // 根据步骤类型和状态选择合适的图标
+                      if (stepStatus === 'process') {
+                        // 如果当前步骤是最后一个步骤，直接显示完成图标
+                        const isLastStep = index === steps.length - 1;
+                        
+                        if (isLastStep) {
+                          // 最后一个节点直接显示完成状态
+                          return <CheckOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px',
+                            fontWeight: 'bold'
+                          }} />;
+                        }
+                        
+                        if (step.title === '创建') {
+                          return <RocketOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px',
+                            fontWeight: 'bold'
+                          }} />;
+                        } else if (step.title === '处理中') {
+                          return <SettingOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px',
+                            animation: 'spin 2s linear infinite'
+                          }} />;
+                        } else if (step.title === '归还中') {
+                          return <SyncOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px',
+                            animation: 'spin 2s linear infinite'
+                          }} />;
+                        } else if (step.title === '已取消') {
+                          return <CloseCircleOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px'
+                          }} />;
+                        } else {
+                          return <LoadingOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px',
+                            animation: 'spin 2s linear infinite'
+                          }} />;
+                        }
+                      } else if (stepStatus === 'finish') {
+                        if (step.title === '已取消') {
+                          return <CloseCircleOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px'
+                          }} />;
+                        } else {
+                          return <CheckOutlined style={{ 
+                            color: '#ffffff', 
+                            fontSize: '18px',
+                            fontWeight: 'bold'
+                          }} />;
+                        }
                       } else {
-                        return <LoadingOutlined style={{ 
-                          color: '#3b82f6', 
-                          fontSize: '14px',
-                          animation: 'spin 2s linear infinite'
-                        }} />;
+                        if (step.title === '创建') {
+                          return <RocketOutlined style={{ 
+                            color: '#9ca3af', 
+                            fontSize: '18px'
+                          }} />;
+                        } else if (step.title === '处理中') {
+                          return <SettingOutlined style={{ 
+                            color: '#9ca3af', 
+                            fontSize: '18px'
+                          }} />;
+                        } else if (step.title === '归还中') {
+                          return <SyncOutlined style={{ 
+                            color: '#9ca3af', 
+                            fontSize: '18px'
+                          }} />;
+                        } else if (step.title === '完成') {
+                          return <CheckCircleOutlined style={{ 
+                            color: '#9ca3af', 
+                            fontSize: '18px'
+                          }} />;
+                        } else if (step.title === '已取消') {
+                          return <CloseCircleOutlined style={{ 
+                            color: '#9ca3af', 
+                            fontSize: '18px'
+                          }} />;
+                        } else {
+                          return <PauseCircleOutlined style={{ 
+                            color: '#9ca3af', 
+                            fontSize: '18px'
+                          }} />;
+                        }
                       }
-                    } else if (stepStatus === 'finish') {
-                      if (step.title === '已取消') {
-                        return <CloseCircleOutlined style={{ 
-                          color: '#ef4444', 
-                          fontSize: '14px'
-                        }} />;
-                      } else {
-                        return <CheckOutlined style={{ 
-                          color: '#10b981', 
-                          fontSize: '14px'
-                        }} />;
-                      }
-                    } else {
-                      if (step.title === '创建') {
-                        return <RocketOutlined style={{ 
-                          color: '#94a3b8', 
-                          fontSize: '14px'
-                        }} />;
-                      } else if (step.title === '处理中') {
-                        return <SettingOutlined style={{ 
-                          color: '#94a3b8', 
-                          fontSize: '14px'
-                        }} />;
-                      } else if (step.title === '归还中') {
-                        return <SyncOutlined style={{ 
-                          color: '#94a3b8', 
-                          fontSize: '14px'
-                        }} />;
-                      } else if (step.title === '完成') {
-                        return <CheckCircleOutlined style={{ 
-                          color: '#94a3b8', 
-                          fontSize: '14px'
-                        }} />;
-                      } else if (step.title === '已取消') {
-                        return <CloseCircleOutlined style={{ 
-                          color: '#94a3b8', 
-                          fontSize: '14px'
-                        }} />;
-                      } else {
-                        return <PauseCircleOutlined style={{ 
-                          color: '#94a3b8', 
-                          fontSize: '14px'
-                        }} />;
-                      }
-                    }
-                  };
-                  
-                  return getStepIcon();
-                })()}
-              </div>
-            )
+                    };
+                    
+                    return getStepIcon();
+                  })()}
+                </div>
+              );
+            })()
           };
         })}
       />
@@ -481,6 +505,11 @@ const OrderStatusFlow: React.FC<OrderStatusFlowProps> = ({ actionType, currentSt
             to { transform: rotate(360deg); }
           }
           
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+          }
+          
           .ant-steps-item-process .ant-steps-item-icon,
           .ant-steps-item-finish .ant-steps-item-icon,
           .ant-steps-item-wait .ant-steps-item-icon {
@@ -488,6 +517,13 @@ const OrderStatusFlow: React.FC<OrderStatusFlowProps> = ({ actionType, currentSt
             border: none !important;
             box-shadow: none !important;
             outline: none !important;
+            width: 40px !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: 50% !important;
+            position: relative !important;
           }
           
           .ant-steps-item-icon {
@@ -495,33 +531,118 @@ const OrderStatusFlow: React.FC<OrderStatusFlowProps> = ({ actionType, currentSt
             border: none !important;
             box-shadow: none !important;
             outline: none !important;
+            width: 40px !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: 50% !important;
+            position: relative !important;
+          }
+          
+          .ant-steps-item-process .ant-steps-item-icon {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
+            animation: pulse 2s ease-in-out infinite !important;
+          }
+          
+          .ant-steps-item-finish .ant-steps-item-icon {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+          }
+          
+          .ant-steps-item-wait .ant-steps-item-icon {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+            border: 2px solid #cbd5e1 !important;
+          }
+          
+          .ant-steps-item-finish .ant-steps-item-icon[data-cancelled="true"] {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+          }
+          
+          .ant-steps-item-process .ant-steps-item-icon[data-cancelled="true"] {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+            animation: pulse 2s ease-in-out infinite !important;
           }
           
           .ant-steps-item {
-            padding-left: 8px !important;
-            padding-right: 8px !important;
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+            flex: 1 !important;
           }
           
           .ant-steps-item-tail {
-            padding: 0 4px !important;
+            padding: 0 8px !important;
+            top: 20px !important;
           }
           
           .ant-steps-item-tail::after {
-            background: linear-gradient(90deg, #e2e8f0 0%, #cbd5e1 100%) !important;
-            height: 2px !important;
+            background: linear-gradient(90deg, #e2e8f0 0%, #cbd5e1 50%, #e2e8f0 100%) !important;
+            height: 3px !important;
+            border-radius: 2px !important;
+            position: relative !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
           }
           
           .ant-steps-item-finish .ant-steps-item-tail::after {
-            background: linear-gradient(90deg, #10b981 0%, #059669 100%) !important;
+            background: linear-gradient(90deg, #10b981 0%, #059669 50%, #10b981 100%) !important;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2) !important;
           }
           
           .ant-steps-item-process .ant-steps-item-tail::after {
-            background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%) !important;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%) !important;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2) !important;
           }
           
           .ant-steps-item-title {
-            line-height: 1.2 !important;
+            line-height: 1.4 !important;
+            margin-top: 12px !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            color: #374151 !important;
+            text-align: center !important;
+            letter-spacing: 0.5px !important;
+          }
+          
+          .ant-steps-item-process .ant-steps-item-title {
+            color: #667eea !important;
+            font-weight: 600 !important;
+          }
+          
+          .ant-steps-item-finish .ant-steps-item-title {
+            color: #059669 !important;
+            font-weight: 600 !important;
+          }
+          
+          .ant-steps-item-wait .ant-steps-item-title {
+            color: #9ca3af !important;
+          }
+          
+          .ant-steps-item-description {
             margin-top: 4px !important;
+            font-size: 12px !important;
+            color: #6b7280 !important;
+            text-align: center !important;
+            line-height: 1.3 !important;
+          }
+          
+          .ant-steps-item-process .ant-steps-item-description {
+            color: #667eea !important;
+          }
+          
+          .ant-steps-item-finish .ant-steps-item-description {
+            color: #059669 !important;
+          }
+          
+          .ant-steps {
+            padding: 24px 16px !important;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+            border-radius: 16px !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.8) !important;
           }
         `}
       </style>

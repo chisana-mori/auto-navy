@@ -173,7 +173,7 @@ func (s *ElasticScalingService) GetOrder(id int64) (*OrderDetailDTO, error) {
 
 	// 获取关联设备
 	var orderDevices []portal.OrderDevice
-	if err := s.db.Where("order_detail_id = ?", detail.ID).Find(&orderDevices).Error; err != nil {
+	if err := s.db.Where("order_id = ?", order.ID).Find(&orderDevices).Error; err != nil {
 		return nil, err
 	}
 
@@ -500,24 +500,45 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 		if errRecord != nil {
 			s.logger.Error(logFailedToRecordHistory,
 				zap.Int64(zapKeyOrderID, order.ID),
-				zap.Int64p(zapKeyStrategyID, detail.StrategyID),
 				zap.Error(errRecord))
-			// 不返回错误，因为主操作（更新订单状态）已成功
 		}
 	}
 
 	return nil
 }
 
-// GetOrderDevices 获取订单关联的设备
-func (s *ElasticScalingService) GetOrderDevices(orderID int64) ([]DeviceDTO, error) {
-	var detail portal.ElasticScalingOrderDetail
-	if err := s.db.Where(fieldOrderID, orderID).First(&detail).Error; err != nil {
-		return nil, fmt.Errorf(errFailedToFindOrderDetail, orderID, err)
+// UpdateOrderDeviceStatus 更新订单中单个设备的状态
+func (s *ElasticScalingService) UpdateOrderDeviceStatus(orderID int64, deviceID int64, status string) error {
+	// 验证状态
+	validStatuses := map[string]bool{
+		StatusPending:   true,
+		StatusSuccess:   true,
+		StatusFailed:    true,
+		StatusExecuting: true,
+	}
+	if !validStatuses[status] {
+		return fmt.Errorf(errInvalidDeviceStatus, status)
 	}
 
+	// 查找订单设备关联记录
+	var orderDevice portal.OrderDevice
+	err := s.db.Where("order_id = ? AND device_id = ?", orderID, deviceID).First(&orderDevice).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf(errDeviceNotInOrder)
+		}
+		return err
+	}
+
+	// 更新状态
+	orderDevice.Status = status
+	return s.db.Save(&orderDevice).Error
+}
+
+// GetOrderDevices 获取订单中的所有设备
+func (s *ElasticScalingService) GetOrderDevices(orderID int64) ([]DeviceDTO, error) {
 	var orderDevices []portal.OrderDevice
-	if err := s.db.Where("order_detail_id = ?", detail.ID).Find(&orderDevices).Error; err != nil {
+	if err := s.db.Where("order_id = ?", orderID).Find(&orderDevices).Error; err != nil {
 		return nil, err
 	}
 
@@ -525,24 +546,25 @@ func (s *ElasticScalingService) GetOrderDevices(orderID int64) ([]DeviceDTO, err
 		return []DeviceDTO{}, nil
 	}
 
-	// 提取设备ID
 	deviceIDs := make([]int64, len(orderDevices))
-	deviceStatusMap := make(map[int64]string)
 	for i, od := range orderDevices {
 		deviceIDs[i] = od.DeviceID
-		deviceStatusMap[od.DeviceID] = od.Status
 	}
 
-	// 获取设备详情
 	var devices []portal.Device
 	if err := s.db.Where("id IN ?", deviceIDs).Find(&devices).Error; err != nil {
 		return nil, err
 	}
 
-	// 构建结果
-	result := make([]DeviceDTO, len(devices))
+	// 转换设备列表
+	deviceStatusMap := make(map[int64]string)
+	for _, od := range orderDevices {
+		deviceStatusMap[od.DeviceID] = od.Status
+	}
+
+	deviceDTOs := make([]DeviceDTO, len(devices))
 	for i, device := range devices {
-		result[i] = DeviceDTO{
+		deviceDTO := DeviceDTO{
 			ID:           device.ID,
 			CICode:       device.CICode,
 			IP:           device.IP,
@@ -555,388 +577,259 @@ func (s *ElasticScalingService) GetOrderDevices(orderID int64) ([]DeviceDTO, err
 			ClusterID:    device.ClusterID,
 			IsSpecial:    device.IsSpecial,
 			FeatureCount: device.FeatureCount,
-			OrderStatus:  deviceStatusMap[device.ID],
 		}
+		if status, ok := deviceStatusMap[device.ID]; ok {
+			deviceDTO.OrderStatus = status
+		}
+		deviceDTOs[i] = deviceDTO
 	}
 
-	return result, nil
+	return deviceDTOs, nil
 }
 
-// UpdateOrderDeviceStatus 更新订单中设备的状态
-func (s *ElasticScalingService) UpdateOrderDeviceStatus(orderID int64, deviceID int64, status string) error {
-	// 验证状态
-	validStatuses := map[string]bool{
-		StatusPending:                        true,
-		string(portal.OrderStatusProcessing): true,
-		StatusCompleted:                      true,
-		StatusFailed:                         true,
-	}
-
-	if !validStatuses[status] {
-		return fmt.Errorf(errInvalidDeviceStatus, status)
-	}
-
-	// First, find the order detail ID from the order ID
-	var detail portal.ElasticScalingOrderDetail
-	if err := s.db.Where(fieldOrderID, orderID).First(&detail).Error; err != nil {
-		return fmt.Errorf(errFailedToFindOrderDetail, orderID, err)
-	}
-
-	var orderDevice portal.OrderDevice
-	// Now use the order_detail_id
-	result := s.db.Where("order_detail_id = ? AND device_id = ?", detail.ID, deviceID).First(&orderDevice)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return errors.New(errDeviceNotInOrder)
-		}
-		return result.Error
-	}
-
-	orderDevice.Status = status
-	return s.db.Save(&orderDevice).Error
-}
-
-// generateOrderNumber 生成唯一订单号
+// generateOrderNumber 生成唯一的订单号
 func (s *ElasticScalingService) generateOrderNumber() string {
-	// 生成格式为 "ESO" + 年月日 + 6位随机数的订单号
-	now := time.Now()
-	dateStr := now.Format("20060102")
-	randomStr := fmt.Sprintf("%06d", rand.Intn(1000000))
-	return "ESO" + dateStr + randomStr
+	// 格式: ES-YYYYMMDD-HHMMSS-random
+	return fmt.Sprintf("ES-%s-%d", time.Now().Format("20060102-150405"), rand.Intn(1000))
 }
 
-// generateOrderNotificationEmail 生成订单通知邮件正文
+// generateOrderNotificationEmail 生成订单创建的邮件通知内容
 func (s *ElasticScalingService) generateOrderNotificationEmail(orderID int64, dto OrderDTO) string {
 	// 获取集群名称
 	var cluster portal.K8sCluster
-	clusterName := unknownCluster
-	if err := s.db.Select(fieldClusterName).First(&cluster, dto.ClusterID).Error; err == nil {
+	clusterName := "未知集群"
+	if err := s.db.Select("clustername").First(&cluster, dto.ClusterID).Error; err == nil {
 		clusterName = cluster.ClusterName
 	}
 
 	// 获取设备信息
-	deviceInfo := s.getDeviceInfoForEmail(dto.Devices)
+	devices := s.getDeviceInfoForEmail(dto.Devices)
 
-	// 确定变更工作类型
+	// 获取动作名称
 	actionName := s.getActionName(dto.ActionType)
 
 	// 生成邮件主题
-	subject := fmt.Sprintf(emailSubjectTemplate, actionName, fmt.Sprintf("ESO%d", orderID))
+	subject := fmt.Sprintf(emailSubjectTemplate, actionName, dto.Name)
 
-	// 生成HTML邮件正文
-	emailContent := s.buildEmailHTML(subject, actionName, clusterName, dto, deviceInfo)
-
-	return emailContent
+	// 构建邮件正文
+	return s.buildEmailHTML(subject, actionName, clusterName, dto, devices)
 }
 
-// getActionName 根据动作类型获取中文名称
+// getActionName 将动作类型转换为可读的中文名称
 func (s *ElasticScalingService) getActionName(actionType string) string {
 	switch actionType {
 	case actionTypePoolEntry:
 		return actionNamePoolEntry
 	case actionTypePoolExit:
 		return actionNamePoolExit
-	case actionTypeMaintenanceRequest:
-		return "维护申请"
-	case actionTypeMaintenanceUncordon:
-		return "维护解除"
 	default:
-		return "未知操作"
+		return actionType
 	}
 }
 
-// getDeviceInfoForEmail 获取设备信息用于邮件显示
+// getDeviceInfoForEmail 获取用于邮件通知的设备信息
 func (s *ElasticScalingService) getDeviceInfoForEmail(deviceIDs []int64) []DeviceDTO {
 	if len(deviceIDs) == 0 {
-		return []DeviceDTO{}
+		return nil
 	}
-
 	var devices []portal.Device
 	if err := s.db.Where("id IN ?", deviceIDs).Find(&devices).Error; err != nil {
 		s.logger.Error("Failed to get device info for email", zap.Error(err))
-		return []DeviceDTO{}
+		return nil
 	}
 
-	result := make([]DeviceDTO, len(devices))
-	for i, device := range devices {
-		result[i] = DeviceDTO{
-			ID:           device.ID,
-			CICode:       device.CICode,
-			IP:           device.IP,
-			ArchType:     device.ArchType,
-			CPU:          device.CPU,
-			Memory:       device.Memory,
-			Status:       device.Status,
-			Role:         device.Role,
-			Cluster:      device.Cluster,
-			ClusterID:    device.ClusterID,
-			IsSpecial:    device.IsSpecial,
-			FeatureCount: device.FeatureCount,
+	deviceDTOs := make([]DeviceDTO, len(devices))
+	for i, d := range devices {
+		deviceDTOs[i] = DeviceDTO{
+			ID:      d.ID,
+			CICode:  d.CICode,
+			IP:      d.IP,
+			CPU:     d.CPU,
+			Memory:  d.Memory,
+			Status:  d.Status,
+			Cluster: d.Cluster,
 		}
 	}
-
-	return result
+	return deviceDTOs
 }
 
-// buildEmailHTML 构建HTML格式的邮件正文
+// buildEmailHTML 构建邮件正文的HTML结构
 func (s *ElasticScalingService) buildEmailHTML(subject, actionName, clusterName string, dto OrderDTO, devices []DeviceDTO) string {
-	// 获取当前时间
-	now := time.Now()
-	currentTime := now.Format("2006-01-02 15:04:05")
+	var builder strings.Builder
 
-	// 检查是否为无设备情况
-	isNoDevicesSituation := len(devices) == 0 && dto.DeviceCount == 0
+	// 基础样式
+	builder.WriteString(`
+		<html>
+		<head>
+			<style>
+				body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+				.container { width: 80%; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+				h2 { color: #0056b3; }
+				table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+				th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+				th { background-color: #f2f2f2; }
+				.footer { margin-top: 20px; font-size: 0.9em; color: #777; }
+			</style>
+		</head>
+		<body>
+			<div class="container">
+	`)
 
-	// 构建设备信息表格
-	deviceTableRows := ""
+	// 邮件标题
+	builder.WriteString(fmt.Sprintf("<h2>%s</h2>", subject))
+
+	// 订单基本信息
+	builder.WriteString("<h3>订单详情</h3>")
+	builder.WriteString("<table>")
+	builder.WriteString(fmt.Sprintf("<tr><th>订单号</th><td>%s</td></tr>", dto.Name))
+	builder.WriteString(fmt.Sprintf("<tr><th>操作类型</th><td>%s</td></tr>", actionName))
+	builder.WriteString(fmt.Sprintf("<tr><th>目标集群</th><td>%s</td></tr>", clusterName))
+	builder.WriteString(fmt.Sprintf("<tr><th>资源池类型</th><td>%s</td></tr>", dto.ResourcePoolType))
+	builder.WriteString(fmt.Sprintf("<tr><th>设备数量</th><td>%d</td></tr>", dto.DeviceCount))
+	builder.WriteString(fmt.Sprintf("<tr><th>触发原因</th><td>%s</td></tr>", dto.Description))
+	builder.WriteString("</table>")
+
+	// 设备列表
 	if len(devices) > 0 {
-		for _, device := range devices {
-			deviceTableRows += fmt.Sprintf(`
-				<tr>
-					<td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">%s</td>
-					<td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">%s</td>
-					<td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">%s</td>
-					<td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">%.1f核</td>
-					<td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">%.1fGB</td>
-					<td style="padding: 8px; border: 1px solid #e0e0e0; text-align: center;">%s</td>
-				</tr>`,
-				device.CICode, device.IP, device.ArchType, device.CPU, device.Memory, device.Status)
+		builder.WriteString("<h3>涉及设备列表</h3>")
+		builder.WriteString("<table>")
+		builder.WriteString("<tr><th>设备ID</th><th>CI编码</th><th>IP地址</th><th>CPU</th><th>内存(GB)</th><th>当前状态</th><th>所属集群</th></tr>")
+		for _, d := range devices {
+			builder.WriteString(fmt.Sprintf(
+				"<tr><td>%d</td><td>%s</td><td>%s</td><td>%.2f</td><td>%.2f</td><td>%s</td><td>%s</td></tr>",
+				d.ID, d.CICode, d.IP, d.CPU, d.Memory/1024, d.Status, d.Cluster,
+			))
 		}
-	} else if isNoDevicesSituation {
-		// 无设备情况的特殊提醒
-		deviceTableRows = `
-			<tr>
-				<td colspan="6" style="padding: 16px; border: 1px solid #e0e0e0; text-align: center; color: #ff4d4f; font-weight: bold;">
-					⚠️ 找不到要处理的设备，请自行协调处理
-				</td>
-			</tr>`
+		builder.WriteString("</table>")
 	} else {
-		deviceTableRows = `
-			<tr>
-				<td colspan="6" style="padding: 16px; border: 1px solid #e0e0e0; text-align: center; color: #666;">
-					设备数量：%d 台（具体设备信息请查看系统详情）
-				</td>
-			</tr>`
-		deviceTableRows = fmt.Sprintf(deviceTableRows, dto.DeviceCount)
+		builder.WriteString("<p><strong>注意：</strong> 本次操作未匹配到具体设备，请相关人员关注并手动处理。</p>")
 	}
 
-	// 确定操作颜色和图标
-	actionColor := "#1890ff"
-	actionIcon := "🔄"
-	if isNoDevicesSituation {
-		// 无设备情况使用警告颜色
-		actionColor = "#ff7a45"
-		actionIcon = "⚠️"
-	} else if dto.ActionType == actionTypePoolEntry {
-		actionColor = "#52c41a"
-		actionIcon = "⬆️"
-	} else if dto.ActionType == actionTypePoolExit {
-		actionColor = "#ff7a45"
-		actionIcon = "⬇️"
-	}
+	// 结尾
+	builder.WriteString(`
+				<div class="footer">
+					<p>此邮件为系统自动发送，请勿回复。</p>
+				</div>
+			</div>
+		</body>
+		</html>
+	`)
 
-	// 构建完整的HTML邮件
-	htmlContent := fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>%s</title>
-</head>
-<body style="margin: 0; padding: 20px; font-family: 'Microsoft YaHei', Arial, sans-serif; background-color: #f5f7fa;">
-    <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <!-- 邮件头部 -->
-        <div style="background: linear-gradient(135deg, %s 0%%, %s 100%%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
-            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">
-                %s %s变更通知%s
-            </h1>
-            <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">
-                订单号：%s | 创建时间：%s
-            </p>
-        </div>`,
-		subject, actionColor, actionColor, actionIcon, actionName,
-		func() string {
-			if isNoDevicesSituation {
-				return "（设备不足）"
-			}
-			return ""
-		}(), dto.OrderNumber, currentTime)
-
-	// 构建问候语内容
-	greetingContent := ""
-	if isNoDevicesSituation {
-		greetingContent = fmt.Sprintf(`系统检测到集群资源需要进行<strong style="color: %s;">%s</strong>变更操作，但<strong style="color: #ff4d4f;">无法找到可用设备</strong>，请协调处理相关工作。`, actionColor, actionName)
-	} else {
-		greetingContent = fmt.Sprintf(`系统检测到集群资源需要进行<strong style="color: %s;">%s</strong>变更操作，请及时处理相关工作。`, actionColor, actionName)
-	}
-
-	// 继续构建邮件正文
-	htmlContent += fmt.Sprintf(`
-        <!-- 邮件正文 -->
-        <div style="padding: 32px;">
-            <!-- 问候语 -->
-            <div style="margin-bottom: 24px;">
-                <h2 style="color: #333; font-size: 18px; margin: 0 0 12px 0;">👋 值班同事，您好！</h2>
-                <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0;">
-                    %s
-                </p>
-            </div>
-
-            <!-- 变更详情 -->
-            <div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin-bottom: 24px;">
-                <h3 style="color: #333; font-size: 16px; margin: 0 0 16px 0;">📋 变更详情</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div>
-                        <span style="color: #666; font-size: 13px;">目标集群：</span>
-                        <strong style="color: #333; font-size: 14px;">%s</strong>
-                    </div>
-                    <div>
-                        <span style="color: #666; font-size: 13px;">变更类型：</span>
-                        <strong style="color: %s; font-size: 14px;">%s</strong>
-                    </div>
-                    <div>
-                        <span style="color: #666; font-size: 13px;">%s：</span>
-                        <strong style="color: %s; font-size: 14px;">%d 台</strong>
-                    </div>
-                    <div>
-                        <span style="color: #666; font-size: 13px;">创建人：</span>
-                        <strong style="color: #333; font-size: 14px;">%s</strong>
-                    </div>
-                </div>
-            </div>`,
-		greetingContent, clusterName, actionColor, actionName,
-		func() string {
-			if isNoDevicesSituation {
-				return "需要设备"
-			}
-			return "设备数量"
-		}(),
-		func() string {
-			if isNoDevicesSituation {
-				return "#ff4d4f"
-			}
-			return "#333"
-		}(),
-		func() int {
-			if isNoDevicesSituation && dto.ActionType == actionTypePoolEntry {
-				// 对于入池操作，显示策略要求的设备数量
-				return 2 // 这里应该从策略中获取，暂时硬编码
-			}
-			return dto.DeviceCount
-		}(),
-		dto.CreatedBy)
-
-	// 添加无设备情况的特殊提醒
-	if isNoDevicesSituation {
-		htmlContent += `
-            <!-- 设备不足提醒 -->
-            <div style="border-left: 4px solid #ff4d4f; background-color: #fff2f0; padding: 20px; margin-bottom: 24px;">
-                <h3 style="color: #cf1322; margin: 0 0 12px 0; font-size: 16px;">🚫 设备不足情况</h3>
-                <p style="color: #a8071a; font-size: 13px; line-height: 1.6; margin: 0;">
-                    <strong>找不到要处理的设备，请自行协调处理。</strong>建议联系设备管理团队申请新设备或调整现有设备状态。
-                </p>
-            </div>
-
-            <!-- 处理指引 -->
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; padding: 20px; margin-bottom: 24px; color: white;">
-                <h3 style="margin: 0 0 12px 0; font-size: 16px;">⚡ 处理指引</h3>
-                <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-                    <li>联系设备管理团队申请新的可用设备</li>
-                    <li>检查现有设备状态，评估是否可以调整为可用状态</li>
-                    <li>考虑从其他集群调配设备资源</li>
-                    <li>如无法及时获得设备，可选择忽略此次扩容需求</li>
-                    <li>完成设备协调后，请手动创建订单或重新触发策略评估</li>
-                </ul>
-            </div>
-
-            <!-- 重要提醒 -->
-            <div style="border-left: 4px solid #ff4d4f; background-color: #fff2f0; padding: 16px; margin-bottom: 24px;">
-                <h4 style="color: #cf1322; margin: 0 0 8px 0; font-size: 14px;">⚠️ 重要提醒</h4>
-                <p style="color: #a8071a; font-size: 13px; line-height: 1.6; margin: 0;">
-                    集群资源使用率已连续超过阈值，建议<strong>尽快协调设备资源</strong>以避免性能问题。
-                    如短期内无法获得设备，请考虑其他优化措施或临时扩容方案。
-                </p>
-            </div>`
-	} else {
-		// 正常情况下的设备信息
-		htmlContent += fmt.Sprintf(`
-            <!-- 设备信息 -->
-            <div style="margin-bottom: 24px;">
-                <h3 style="color: #333; font-size: 16px; margin: 0 0 16px 0;">🖥️ 涉及设备</h3>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%%; border-collapse: collapse; background-color: white; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <thead>
-                            <tr style="background-color: #f1f3f4;">
-                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">CI编码</th>
-                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">IP地址</th>
-                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">架构</th>
-                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">CPU</th>
-                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">内存</th>
-                                <th style="padding: 12px 8px; border: 1px solid #e0e0e0; font-size: 13px; font-weight: 600; color: #333;">状态</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            %s
-                        </tbody>
-                    </table>
-                </div>
-            </div>`, deviceTableRows)
-	}
-
-	// 添加邮件底部
-	htmlContent += `
-            <!-- 联系信息 -->
-            <div style="text-align: center; padding: 20px; background-color: #f8f9fa; border-radius: 6px;">
-                <p style="color: #666; font-size: 13px; margin: 0 0 8px 0;">
-                    如有疑问，请联系设备管理团队或系统管理员
-                </p>
-                <p style="color: #999; font-size: 12px; margin: 0;">
-                    此邮件由弹性伸缩系统自动发送，请勿直接回复
-                </p>
-            </div>
-        </div>
-
-        <!-- 邮件底部 -->
-        <div style="background-color: #f1f3f4; padding: 16px 32px; border-radius: 0 0 8px 8px; text-align: center;">
-            <p style="color: #666; font-size: 12px; margin: 0;">
-                © 2024 弹性伸缩管理系统 | 发送时间：` + currentTime + `
-            </p>
-        </div>
-    </div>
-</body>
-</html>`
-
-	return htmlContent
+	return builder.String()
 }
 
-// generateOrderName 生成订单名称
+// generateOrderName generates a descriptive name for the order.
 func (s *ElasticScalingService) generateOrderName(strategy *portal.ElasticScalingStrategy, deviceCount int) string {
-	actionName := s.getActionName(strategy.ThresholdTriggerAction)
-
-	if deviceCount == 0 {
-		return fmt.Sprintf("%s变更提醒（设备不足）", actionName)
+	actionStr := "扩容"
+	if strategy.ThresholdTriggerAction == TriggerActionPoolExit {
+		actionStr = "缩容"
 	}
-
-	return fmt.Sprintf("%s变更订单", actionName)
+	return fmt.Sprintf("弹性%s-%s-%s", actionStr, strategy.Name, time.Now().Format("20060102-1504"))
 }
 
-// generateOrderDescription 生成订单描述
-func (s *ElasticScalingService) generateOrderDescription(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType string, deviceCount int) string {
+// generateOrderDescription generates a detailed description for the order.
+func (s *ElasticScalingService) generateOrderDescription(
+	strategy *portal.ElasticScalingStrategy,
+	clusterID int64,
+	resourceType string,
+	selectedDeviceIDs []int64,
+	cpuDelta float64,
+	memDelta float64,
+	latestSnapshot *portal.ResourceSnapshot,
+) string {
 	// 获取集群名称
 	var cluster portal.K8sCluster
-	clusterName := unknownCluster
-	if err := s.db.Select(fieldClusterName).First(&cluster, clusterID).Error; err == nil {
+	clusterName := "未知集群"
+	if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
 		clusterName = cluster.ClusterName
 	}
 
 	actionName := s.getActionName(strategy.ThresholdTriggerAction)
+	baseDescription := fmt.Sprintf("策略 [%s] 为集群 [%s]（%s类型）触发%s操作。",
+		strategy.Name, clusterName, resourceType, actionName)
 
-	if deviceCount == 0 {
-		return fmt.Sprintf("策略 '%s' 触发%s操作，但无法找到可用设备。集群：%s，资源类型：%s。请协调处理设备资源。",
-			strategy.Name, actionName, clusterName, resourceType)
+	if len(selectedDeviceIDs) == 0 {
+		return baseDescription + "\n但未匹配到合适设备，请关注。"
 	}
 
-	return fmt.Sprintf("策略 '%s' 触发%s操作。集群：%s，资源类型：%s，涉及设备：%d台。",
-		strategy.Name, actionName, clusterName, resourceType, deviceCount)
+	// 如果没有快照信息，无法计算预测值，返回基础描述
+	if latestSnapshot == nil {
+		return fmt.Sprintf("%s\n匹配到 %d 台设备。", baseDescription, len(selectedDeviceIDs))
+	}
+
+	// 获取匹配到的设备的总资源
+	var devices []portal.Device
+	if err := s.db.Where("id IN ?", selectedDeviceIDs).Find(&devices).Error; err != nil {
+		s.logger.Error("Failed to fetch selected devices for description", zap.Error(err))
+		return fmt.Sprintf("%s\n匹配到 %d 台设备，但获取设备详情失败。", baseDescription, len(selectedDeviceIDs))
+	}
+
+	var totalCPU, totalMemory float64
+	for _, d := range devices {
+		totalCPU += d.CPU
+		totalMemory += d.Memory
+	}
+
+	// 计算新的分配率
+	currentCPUAllocation := safePercentage(latestSnapshot.CpuRequest, latestSnapshot.CpuCapacity)
+	currentMemAllocation := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
+	newCPUAllocationRate, newMemAllocationRate := s.calculateProjectedAllocation(latestSnapshot, totalCPU, totalMemory, strategy.ThresholdTriggerAction)
+
+	var changeVerb, direction string
+	if strategy.ThresholdTriggerAction == TriggerActionPoolEntry {
+		changeVerb = "降低"
+		direction = "至"
+	} else {
+		changeVerb = "提升"
+		direction = "至"
+	}
+
+	projectionDescription := fmt.Sprintf("\n匹配到 %d 台设备（总CPU: %.2f, 总内存: %.2f GB）。\n预计操作后：\n- CPU分配率将由 %.2f%% %s%s %.2f%%\n- 内存分配率将由 %.2f%% %s%s %.2f%%",
+		len(selectedDeviceIDs), totalCPU, totalMemory/1024,
+		currentCPUAllocation, changeVerb, direction, newCPUAllocationRate,
+		currentMemAllocation, changeVerb, direction, newMemAllocationRate)
+
+	return baseDescription + projectionDescription
+}
+
+// getCurrentResourceSnapshot 获取当前最新的资源快照
+func (s *ElasticScalingService) getCurrentResourceSnapshot(clusterID int64, resourceType string) (*portal.ResourceSnapshot, error) {
+	var snapshot portal.ResourceSnapshot
+	query := s.db.Where("cluster_id = ?", clusterID)
+
+	if resourceType != "total" {
+		query = query.Where("resource_type = ? AND resource_pool = ?", resourceType, resourceType)
+	} else {
+		query = query.Where("resource_type = ?", "total")
+	}
+
+	err := query.Order("created_at DESC").First(&snapshot).Error
+	if err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
+}
+
+// calculateProjectedAllocation calculates the projected resource allocation rates after the scaling action.
+func (s *ElasticScalingService) calculateProjectedAllocation(snapshot *portal.ResourceSnapshot, deviceTotalCPU, deviceTotalMemory float64, action string) (cpuRate float64, memRate float64) {
+	currentCPURequest := snapshot.CpuRequest
+	currentMemRequest := snapshot.MemRequest
+	currentCPUCapacity := snapshot.CpuCapacity
+	currentMemCapacity := snapshot.MemoryCapacity
+
+	var newCPUCapacity, newMemCapacity float64
+
+	if action == TriggerActionPoolEntry {
+		newCPUCapacity = currentCPUCapacity + deviceTotalCPU
+		newMemCapacity = currentMemCapacity + deviceTotalMemory
+	} else { // TriggerActionPoolExit
+		newCPUCapacity = currentCPUCapacity - deviceTotalCPU
+		newMemCapacity = currentMemCapacity - deviceTotalMemory
+	}
+
+	// 使用 safePercentage 函数安全地计算百分比
+	cpuRate = safePercentage(currentCPURequest, newCPUCapacity)
+	memRate = safePercentage(currentMemRequest, newMemCapacity)
+
+	return cpuRate, memRate
 }

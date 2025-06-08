@@ -22,6 +22,7 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 	thresholdValueStr string,
 	cpuDelta float64,
 	memDelta float64,
+	latestSnapshot *portal.ResourceSnapshot,
 ) error {
 	s.logger.Info("Starting device matching for strategy",
 		zap.Int64("strategyID", strategy.ID),
@@ -52,20 +53,35 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 	}
 
 	if len(candidateDevices) == 0 {
-		reason := fmt.Sprintf("No candidate devices found for cluster %d, resource type %s using template %d", clusterID, resourceType, queryTemplateID)
+		// 获取集群名称用于中文描述
+		var cluster portal.K8sCluster
+		clusterName := "未知集群"
+		if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
+			clusterName = cluster.ClusterName
+		}
+
+		reason := fmt.Sprintf("集群 %s（%s类型）使用模板 %d 未找到候选设备", clusterName, resourceType, queryTemplateID)
 		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
 		// 无设备时仍然生成订单，作为提醒，不记录为失败
-		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr)
+		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 	}
 
 	selectedDeviceIDs := s.filterAndSelectDevices(candidateDevices, strategy, clusterID, cpuDelta, memDelta)
 
 	if len(selectedDeviceIDs) == 0 {
-		reason := fmt.Sprintf("No suitable devices selected after filtering for action %s on cluster %d, template %d. Candidates from query: %d.",
-			strategy.ThresholdTriggerAction, clusterID, queryTemplateID, len(candidateDevices))
+		// 获取集群名称用于中文描述
+		var cluster portal.K8sCluster
+		clusterName := "未知集群"
+		if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
+			clusterName = cluster.ClusterName
+		}
+
+		actionName := s.getActionName(strategy.ThresholdTriggerAction)
+		reason := fmt.Sprintf("集群 %s 执行%s操作时，经过筛选后无合适设备，模板 %d 查询到候选设备 %d 台",
+			clusterName, actionName, queryTemplateID, len(candidateDevices))
 		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
 		// 无合适设备时仍然生成订单，作为提醒，不记录为失败
-		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr)
+		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 	}
 
 	s.logger.Info("Selected devices for strategy action",
@@ -74,7 +90,7 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 		zap.Int("numDevicesToChange", strategy.DeviceCount),
 		zap.Int("suitableCandidateCount", len(selectedDeviceIDs)))
 
-	return s.generateElasticScalingOrder(strategy, clusterID, resourceType, selectedDeviceIDs, triggeredValueStr, thresholdValueStr)
+	return s.generateElasticScalingOrder(strategy, clusterID, resourceType, selectedDeviceIDs, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 }
 
 // GetQueryTemplateIDFromStrategyPublic is a public wrapper for testing.
@@ -107,7 +123,7 @@ func (s *ElasticScalingService) fetchAndUnmarshalQueryTemplate(queryTemplateID, 
 
 	var queryTemplateModel portal.QueryTemplate
 	if err := s.db.First(&queryTemplateModel, queryTemplateID).Error; err != nil {
-		reason := fmt.Sprintf("Failed to find query template ID %d: %v", queryTemplateID, err)
+		reason := fmt.Sprintf("查询模板 ID %d 查找失败：%v", queryTemplateID, err)
 		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
 		result := StrategyExecutionResultFailureDBError
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -119,7 +135,7 @@ func (s *ElasticScalingService) fetchAndUnmarshalQueryTemplate(queryTemplateID, 
 
 	var filterGroups []FilterGroup
 	if err := json.Unmarshal([]byte(queryTemplateModel.Groups), &filterGroups); err != nil {
-		reason := fmt.Sprintf("Failed to unmarshal filter groups from query template ID %d: %v", queryTemplateID, err)
+		reason := fmt.Sprintf("查询模板 ID %d 的过滤组解析失败：%v", queryTemplateID, err)
 		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
 		s.recordStrategyExecution(strategyID, clusterID, resourceType, StrategyExecutionResultFailureTemplateUnmarshal, nil, reason, triggeredValueStr, thresholdValueStr, currentTime)
 		return nil, err
@@ -142,7 +158,7 @@ func (s *ElasticScalingService) findCandidateDevices(queryTemplateID int64, filt
 
 	candidateDevicesResponse, err := deviceQuerySvc.QueryDevices(context.Background(), deviceRequest)
 	if err != nil {
-		reason := fmt.Sprintf("Error querying devices for template ID %d: %v", queryTemplateID, err)
+		reason := fmt.Sprintf("使用模板 ID %d 查询设备失败：%v", queryTemplateID, err)
 		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
 		s.recordStrategyExecution(strategyID, clusterID, resourceType, StrategyExecutionResultFailureDeviceQuery, nil, reason, triggeredValueStr, thresholdValueStr, currentTime)
 		return nil, err
@@ -263,6 +279,9 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 	selectedDeviceIDs []int64,
 	triggeredValueStr string,
 	thresholdValueStr string,
+	cpuDelta float64,
+	memDelta float64,
+	latestSnapshot *portal.ResourceSnapshot,
 ) error {
 	s.logger.Info("Generating elastic scaling order",
 		zap.Int64("strategyID", strategy.ID),
@@ -274,7 +293,7 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 	orderName := s.generateOrderName(strategy, len(selectedDeviceIDs))
 
 	// 生成订单描述
-	orderDescription := s.generateOrderDescription(strategy, clusterID, resourceType, len(selectedDeviceIDs))
+	orderDescription := s.generateOrderDescription(strategy, clusterID, resourceType, selectedDeviceIDs, cpuDelta, memDelta, latestSnapshot)
 
 	orderDTO := OrderDTO{
 		Name:                   orderName,
@@ -299,7 +318,14 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 			zap.Int64("clusterID", clusterID),
 			zap.Error(err))
 
-		reason := fmt.Sprintf("Failed to create order for cluster %d, resource type %s: %v", clusterID, resourceType, err)
+		// 获取集群名称用于中文描述
+		var cluster portal.K8sCluster
+		clusterName := "未知集群"
+		if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
+			clusterName = cluster.ClusterName
+		}
+
+		reason := fmt.Sprintf("为集群 %s（%s类型）创建订单失败：%v", clusterName, resourceType, err)
 		s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultOrderFailed, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
 		return err
 	}
@@ -313,15 +339,25 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 	// 根据设备数量记录不同的执行结果
 	var executionResult string
 	var reason string
+
+	// 获取集群名称用于中文描述
+	var cluster portal.K8sCluster
+	clusterName := "未知集群"
+	if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
+		clusterName = cluster.ClusterName
+	}
+
+	actionName := s.getActionName(strategy.ThresholdTriggerAction)
+
 	if len(selectedDeviceIDs) == 0 {
 		executionResult = StrategyExecutionResultOrderCreatedNoDevices
-		reason = fmt.Sprintf("Created reminder order %d for cluster %d, resource type %s with no devices available", orderID, clusterID, resourceType)
+		reason = fmt.Sprintf("已为集群 %s（%s类型）创建%s提醒订单 %d，但无可用设备匹配", clusterName, resourceType, actionName, orderID)
 	} else if len(selectedDeviceIDs) < strategy.DeviceCount {
 		executionResult = StrategyExecutionResultOrderCreatedPartial
-		reason = fmt.Sprintf("Created partial order %d for cluster %d, resource type %s with %d devices (required: %d)", orderID, clusterID, resourceType, len(selectedDeviceIDs), strategy.DeviceCount)
+		reason = fmt.Sprintf("已为集群 %s（%s类型）创建部分%s订单 %d，匹配设备 %d 台（需要 %d 台）", clusterName, resourceType, actionName, orderID, len(selectedDeviceIDs), strategy.DeviceCount)
 	} else {
 		executionResult = StrategyExecutionResultOrderCreated
-		reason = fmt.Sprintf("Successfully created order %d for cluster %d, resource type %s with %d devices", orderID, clusterID, resourceType, len(selectedDeviceIDs))
+		reason = fmt.Sprintf("已为集群 %s（%s类型）成功创建%s订单 %d，涉及设备 %d 台", clusterName, resourceType, actionName, orderID, len(selectedDeviceIDs))
 	}
 
 	s.recordStrategyExecution(strategy.ID, clusterID, resourceType, executionResult, &orderID, reason, triggeredValueStr, thresholdValueStr, &currentTime)

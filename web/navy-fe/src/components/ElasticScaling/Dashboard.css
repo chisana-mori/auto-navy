@@ -152,11 +152,13 @@
 
 .order-card-title {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 48px;
+  line-height: 1.4;
 }
 
 .order-card-body {
@@ -165,25 +167,21 @@
 
 .order-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 16px;
   width: 100%;
-  justify-content: space-between;
-  align-items: flex-start;
 }
 
 .order-meta-item {
-  flex: 1;
-  min-width: 140px;
-  max-width: 200px;
+  width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  text-align: center;
-  padding: 12px 16px;
+  text-align: left;
+  padding: 8px 16px;
   background: rgba(24, 144, 255, 0.04);
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid rgba(24, 144, 255, 0.1);
   transition: all 0.3s ease;
 }
@@ -198,14 +196,14 @@
 .order-meta-label {
   color: rgba(0, 0, 0, 0.65);
   font-size: 12px;
-  margin-bottom: 8px;
+  margin-right: 12px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 4px;
+  min-width: 80px;
 }
 
 .order-meta-label::before {
@@ -220,12 +218,12 @@
 .order-meta-value {
   color: rgba(0, 0, 0, 0.88);
   font-weight: 700;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.4;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 4px;
+  flex: 1;
 }
 
 .order-meta-value .anticon {
@@ -386,27 +384,65 @@
 }
 
 /* 策略详情抽屉 */
+.detail-drawer {
+  z-index: 1001 !important;
+}
+
+.detail-drawer .ant-drawer-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-bottom: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.detail-drawer .ant-drawer-header .ant-drawer-title {
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.detail-drawer .ant-drawer-close {
+  color: #fff;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.detail-drawer .ant-drawer-close:hover {
+  opacity: 1;
+}
+
 .detail-drawer .ant-drawer-body {
   padding: 0;
-  background-color: #f9fbfd;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 .detail-drawer-header {
   padding: 24px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #fff;
+  margin: 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .detail-drawer-content {
-  padding: 24px;
-  background-color: #f9fbfd;
+  padding: 0 24px 24px 24px;
+  background: transparent;
 }
 
 .detail-section {
   margin-bottom: 24px;
   background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.detail-section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
 }
 
 .detail-section .ant-descriptions {
@@ -414,29 +450,92 @@
 }
 
 .detail-section .ant-descriptions-bordered .ant-descriptions-item-label {
-  background-color: #f5f7fa;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   font-weight: 500;
+  color: rgba(0, 0, 0, 0.75);
+  border-right: 1px solid #e8f4fd;
+}
+
+.detail-section .ant-descriptions-bordered .ant-descriptions-item-content {
+  background-color: #fff;
+  padding: 12px 16px;
+}
+
+.detail-section .ant-descriptions-bordered .ant-descriptions-row {
+  border-bottom: 1px solid #f0f5ff;
+}
+
+.detail-section .ant-descriptions-bordered .ant-descriptions-row:last-child {
+  border-bottom: none;
 }
 
 .detail-section-title {
   font-weight: 600;
   margin-bottom: 16px;
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
-  background-color: #f5f7fa;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e8f4fd;
+  background: linear-gradient(135deg, #f8fafc 0%, #e8f4fd 100%);
   color: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
+  font-size: 15px;
 }
 
 .detail-section-title::before {
   content: '';
   display: inline-block;
   width: 4px;
-  height: 16px;
-  background-color: #1890ff;
-  margin-right: 8px;
-  border-radius: 2px;
+  height: 18px;
+  background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+  margin-right: 12px;
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.3);
+}
+
+/* 策略执行历史抽屉样式 */
+.ant-drawer .ant-drawer-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-bottom: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ant-drawer .ant-drawer-header .ant-drawer-title {
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.ant-drawer .ant-drawer-close {
+  color: #fff;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.ant-drawer .ant-drawer-close:hover {
+  opacity: 1;
+}
+
+.ant-drawer .ant-drawer-body {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 24px;
+}
+
+.ant-drawer .ant-table-wrapper {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.ant-drawer .ant-table-thead > tr > th {
+  background: linear-gradient(135deg, #f8fafc 0%, #e8f4fd 100%);
+  border-bottom: 1px solid #e8f4fd;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.ant-drawer .ant-table-tbody > tr:hover > td {
+  background-color: #f0f9ff;
 }
 
 /* 加载状态样式 */
@@ -636,11 +735,37 @@
 
 .order-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 16px;
   max-height: 400px;
   overflow-y: auto;
   padding-right: 8px;
+}
+
+/* 响应式调整：确保在不同屏幕尺寸下都能合理显示 */
+@media (min-width: 1400px) {
+  .order-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .order-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .order-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .order-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 .order-status-summary {
@@ -764,9 +889,11 @@
 
 .resource-info-card .resource-header {
   margin-bottom: 8px;
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 12px;
   display: flex;
   align-items: center;
+  color: rgba(0, 0, 0, 0.65);
 }
 
 .resource-info-card .resource-grid {
@@ -783,6 +910,35 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
+}
+
+.resource-info-card .resource-item-header span:first-child {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.65);
+  font-weight: 500;
+}
+
+.resource-info-card .resource-item-header span:last-child {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 资源信息卡片中的进度条样式调整 */
+.resource-info-card .ant-progress {
+  margin-bottom: 0;
+}
+
+.resource-info-card .ant-progress-line {
+  font-size: 10px;
+}
+
+.resource-info-card .ant-progress-bg {
+  height: 6px !important;
+}
+
+.resource-info-card .ant-progress-success-bg,
+.resource-info-card .ant-progress-bg {
+  height: 6px !important;
 }
 
 .chart-container {
@@ -1144,7 +1300,7 @@
     border-radius: 6px;
     margin-bottom: 20px;
     border: 1px solid;
-    font-size: 12px;
+    font-size: 10px;
     padding: 8px 12px;
 
     &.ant-alert-info {
@@ -1153,21 +1309,59 @@
     }
   }
 
-  /* 订单卡片中的Alert样式调整 */
+  /* 订单卡片中的Alert样式调整 - 资源池状态信息作为辅助信息 */
   .order-card .ant-alert {
-    font-size: 11px;
-    padding: 6px 10px;
-    margin-top: 8px;
+    font-size: 9px; /* 更小的字体 */
+    padding: 2px 6px; /* 更小的内边距 */
+    margin-top: 6px; /* 调整外边距 */
     margin-bottom: 0;
+    border-radius: 3px; /* 更小的圆角 */
+    opacity: 0.65; /* 更低的透明度 */
+    border-width: 1px;
+    border-style: solid;
   }
 
   .order-card .ant-alert .ant-alert-message {
-    font-size: 11px;
-    line-height: 1.4;
+    font-size: 9px; /* 更小的字体 */
+    line-height: 1.2;
+    color: rgba(0, 0, 0, 0.5); /* 更浅的文字颜色 */
+    font-weight: 300; /* 更细的字重 */
   }
 
   .order-card .ant-alert .anticon {
-    font-size: 12px;
+    font-size: 9px; /* 更小的图标 */
+    opacity: 0.7; /* 更低的透明度 */
+    margin-right: 4px; /* 图标与文字间距 */
+  }
+
+  /* 资源池Alert的不同状态颜色调整 - 使用更柔和的颜色 */
+  .order-card .ant-alert.ant-alert-success {
+    background-color: #f0fff0; /* 淡绿色背景 */
+    border-color: #d6f5d6; /* 淡绿色边框 */
+    color: #237804; /* 深绿色文字 */
+  }
+
+  .order-card .ant-alert.ant-alert-warning {
+    background-color: #fffbe6; /* 淡黄色背景 */
+    border-color: #ffeeba; /* 淡黄色边框 */
+    color: #ad8b00; /* 深黄色文字 */
+  }
+
+  .order-card .ant-alert.ant-alert-error {
+    background-color: #fff1f0; /* 淡红色背景 */
+    border-color: #ffccc7; /* 淡红色边框 */
+    color: #cf1322; /* 深红色文字 */
+  }
+
+  .order-card .ant-alert.ant-alert-info {
+    background-color: #e6f7ff; /* 淡蓝色背景 */
+    border-color: #bae7ff; /* 淡蓝色边框 */
+    color: #0050b3; /* 深蓝色文字 */
+  }
+
+  .order-card .ant-alert.ant-alert-info {
+    background-color: rgba(240, 249, 255, 0.8);
+    border-color: rgba(186, 231, 255, 0.6);
   }
 
   .ant-form-item {
@@ -1286,12 +1480,47 @@
 }
 
 /* 统一调整订单状态流程步骤的样式 */
+.order-status-flow {
+  width: 100% !important;
+  max-width: 800px !important;
+  margin: 0 auto !important;
+}
+
 .order-status-flow .ant-steps-item-container {
   display: flex !important;
   align-items: center !important;
   min-height: 80px;
+  padding: 0 20px !important;
+}
+
+.order-status-flow .ant-steps-item {
+  flex: 1 !important;
+  min-width: 120px !important;
 }
 
 .order-status-flow .ant-steps-item:first-child .ant-steps-item-container {
-  padding-left: 8px;
+  padding-left: 24px !important;
+}
+
+.order-status-flow .ant-steps-item:last-child .ant-steps-item-container {
+  padding-right: 24px !important;
+}
+
+.order-status-flow .ant-steps-item-tail {
+  padding: 0 16px !important;
+}
+
+.order-status-flow .ant-steps-item-title {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  margin-top: 8px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.order-status-flow .ant-steps-item-icon {
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  margin: 0 auto !important;
 }

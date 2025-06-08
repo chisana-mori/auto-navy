@@ -32,7 +32,7 @@ func (s *ElasticScalingService) GetDashboardStats() (*DashboardStatsDTO, error) 
 	var triggeredStrategyIDs []int64
 	if err := s.db.Model(&portal.StrategyExecutionHistory{}).
 		Select("DISTINCT strategy_id").
-		Where("execution_time between ? and ? AND result = ?", now.BeginningOfDay(), now.EndOfDay(), "order_created").
+		Where("execution_time between ? and ?", now.BeginningOfDay(), now.EndOfDay()).
 		Pluck("strategy_id", &triggeredStrategyIDs).Error; err != nil {
 		return nil, err
 	}
