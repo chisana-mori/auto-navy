@@ -1,4 +1,4 @@
-package service_test
+package es_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"navy-ng/models/portal"
 	"navy-ng/server/portal/internal/service"
+	. "navy-ng/server/portal/internal/service"
+	"navy-ng/server/portal/internal/service/es"
 	"os"
 	"time"
 
@@ -19,7 +21,7 @@ import (
 var _ = Describe("ElasticScalingDeviceMatching", func() {
 	var (
 		db              *gorm.DB
-		ess             *service.ElasticScalingService
+		ess             *es.ElasticScalingService
 		dbPath          string
 		logger, _       = zap.NewDevelopment()
 		mockRedis       *MockRedisHandler
@@ -48,7 +50,7 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 
 		mockRedis = &MockRedisHandler{}
 		mockDeviceCache = &MockDeviceCache{}
-		ess = service.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache)
+		ess = es.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache)
 	})
 
 	AfterEach(func() {
@@ -70,12 +72,12 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 			BeforeEach(func() {
 				strategy = &portal.ElasticScalingStrategy{
 					BaseModel:              portal.BaseModel{ID: 1},
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 				}
 			})
 
 			It("should prioritize unassigned devices", func() {
-				candidates := []service.DeviceResponse{
+				candidates := []DeviceResponse{
 					{ID: 1, ClusterID: 0, Cluster: ""},
 					{ID: 2, ClusterID: 2, Cluster: "other-cluster"},
 					{ID: 3, ClusterID: 0, Cluster: ""},
@@ -87,7 +89,7 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 			})
 
 			It("should select assigned devices if no unassigned are available", func() {
-				candidates := []service.DeviceResponse{
+				candidates := []DeviceResponse{
 					{ID: 1, ClusterID: 2, Cluster: "other-cluster"},
 					{ID: 2, ClusterID: 3, Cluster: "another-cluster"},
 				}
@@ -117,12 +119,12 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 			BeforeEach(func() {
 				strategy = &portal.ElasticScalingStrategy{
 					BaseModel:              portal.BaseModel{ID: 1},
-					ThresholdTriggerAction: service.TriggerActionPoolExit,
+					ThresholdTriggerAction: es.TriggerActionPoolExit,
 				}
 			})
 
 			It("should only select devices from the current cluster", func() {
-				candidates := []service.DeviceResponse{
+				candidates := []DeviceResponse{
 					{ID: 1, ClusterID: 1, Cluster: "current-cluster"},
 					{ID: 2, ClusterID: 2, Cluster: "other-cluster"},
 					{ID: 3, ClusterID: 1, Cluster: "current-cluster"},
@@ -135,7 +137,7 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 			})
 
 			It("should select nothing if no devices are in the current cluster", func() {
-				candidates := []service.DeviceResponse{
+				candidates := []DeviceResponse{
 					{ID: 2, ClusterID: 2, Cluster: "other-cluster"},
 					{ID: 4, ClusterID: 0, Cluster: ""},
 				}
@@ -148,9 +150,9 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 			It("should default to 1 device when no resource delta is provided", func() {
 				strategy = &portal.ElasticScalingStrategy{
 					BaseModel:              portal.BaseModel{ID: 1},
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 				}
-				candidates := []service.DeviceResponse{
+				candidates := []DeviceResponse{
 					{ID: 1, ClusterID: 0, Cluster: ""},
 					{ID: 2, ClusterID: 0, Cluster: ""},
 				}
@@ -164,24 +166,24 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 	Describe("greedySelectDevices", func() {
 		Context("for pool entry (scale-out)", func() {
 			It("should select devices to meet CPU and Memory demand", func() {
-				devices := []service.DeviceResponse{
+				devices := []DeviceResponse{
 					{ID: 1, CPU: 32, Memory: 128},
 					{ID: 2, CPU: 64, Memory: 256},
 					{ID: 3, CPU: 16, Memory: 64},
 				}
 				// Demand: 80 CPU, 300 Memory
-				selectedIDs := ess.GreedySelectDevicesPublic(devices, 80, 300, service.TriggerActionPoolEntry)
+				selectedIDs := ess.GreedySelectDevicesPublic(devices, 80, 300, es.TriggerActionPoolEntry)
 				Expect(selectedIDs).To(HaveLen(2))
 				Expect(selectedIDs).To(ConsistOf(int64(2), int64(1))) // 64+32=96 CPU, 256+128=384 Mem
 			})
 
 			It("should select all devices if demand is not met", func() {
-				devices := []service.DeviceResponse{
+				devices := []DeviceResponse{
 					{ID: 1, CPU: 16, Memory: 64},
 					{ID: 2, CPU: 16, Memory: 64},
 				}
 				// Demand: 40 CPU
-				selectedIDs := ess.GreedySelectDevicesPublic(devices, 40, 0, service.TriggerActionPoolEntry)
+				selectedIDs := ess.GreedySelectDevicesPublic(devices, 40, 0, es.TriggerActionPoolEntry)
 				Expect(selectedIDs).To(HaveLen(2))
 				Expect(selectedIDs).To(ConsistOf(int64(1), int64(2)))
 			})
@@ -189,13 +191,13 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 
 		Context("for pool exit (scale-in)", func() {
 			It("should select smallest devices to meet negative demand", func() {
-				devices := []service.DeviceResponse{
+				devices := []DeviceResponse{
 					{ID: 1, CPU: 32, Memory: 128},
 					{ID: 2, CPU: 64, Memory: 256},
 					{ID: 3, CPU: 16, Memory: 64},
 				}
 				// Demand: remove 40 CPU, 150 Memory (represented by negative numbers)
-				selectedIDs := ess.GreedySelectDevicesPublic(devices, -40, -150, service.TriggerActionPoolExit)
+				selectedIDs := ess.GreedySelectDevicesPublic(devices, -40, -150, es.TriggerActionPoolExit)
 				Expect(selectedIDs).To(HaveLen(2))
 				Expect(selectedIDs).To(ConsistOf(int64(3), int64(1))) // 16+32=48 CPU, 64+128=192 Mem
 			})
@@ -204,7 +206,7 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 
 	Describe("getDeviceMatchingPolicies", func() {
 		It("should return error when no policies exist", func() {
-			policies, err := ess.GetDeviceMatchingPoliciesPublic("compute", service.TriggerActionPoolEntry)
+			policies, err := ess.GetDeviceMatchingPoliciesPublic("compute", es.TriggerActionPoolEntry)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no enabled device matching policy found"))
 			Expect(policies).To(BeNil())

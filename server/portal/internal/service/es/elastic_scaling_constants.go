@@ -1,4 +1,4 @@
-package service
+package es
 
 // 资源类型常量
 const (
@@ -56,4 +56,9 @@ const (
 	TriggerActionPoolEntry = "pool_entry"
 	TriggerActionPoolExit  = "pool_exit"
 	// 其他常量...
+)
+
+const (
+	preloadElasticScalingDetail = "ElasticScalingDetail"
+	preloadDevices              = "Devices"
 )

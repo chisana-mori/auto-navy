@@ -1,4 +1,4 @@
-package service
+package es
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"navy-ng/models/portal"
 	"sort"
 	"time"
+
+	. "navy-ng/server/portal/internal/service"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"

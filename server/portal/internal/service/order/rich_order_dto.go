@@ -1,4 +1,4 @@
-package service
+package order
 
 import (
 	"time"
@@ -7,6 +7,78 @@ import (
 
 	"gorm.io/gorm"
 )
+
+// DeviceDTO 设备DTO
+type DeviceDTO struct {
+	ID           int64   `json:"id"`
+	CICode       string  `json:"ciCode"`
+	IP           string  `json:"ip"`
+	ArchType     string  `json:"archType"`
+	CPU          float64 `json:"cpu"`
+	Memory       float64 `json:"memory"`
+	Status       string  `json:"status"`
+	Role         string  `json:"role"`
+	Cluster      string  `json:"cluster"`
+	ClusterID    int     `json:"clusterId"`
+	IsSpecial    bool    `json:"isSpecial"`
+	FeatureCount int     `json:"featureCount"`
+	OrderStatus  string  `json:"orderStatus,omitempty"` // 在订单中的状态
+}
+
+// OrderDTO 弹性伸缩订单DTO
+type OrderDTO struct {
+	ID               int64  `json:"id,omitempty"`
+	OrderNumber      string `json:"orderNumber"`
+	Name             string `json:"name"`        // 订单名称
+	Description      string `json:"description"` // 订单描述
+	ClusterID        int64  `json:"clusterId"`
+	ClusterName      string `json:"clusterName,omitempty"`
+	StrategyID       *int64 `json:"strategyId"`
+	StrategyName     string `json:"strategyName,omitempty"`
+	ActionType       string `json:"actionType"`       // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
+	ResourcePoolType string `json:"resourcePoolType"` // 资源池类型
+	Status           string `json:"status"`
+	DeviceCount      int    `json:"deviceCount"`
+	// DeviceID字段已移除，使用Devices列表和OrderDevice关联表
+	DeviceInfo             *DeviceDTO             `json:"deviceInfo,omitempty"`
+	Executor               string                 `json:"executor"`
+	ExecutionTime          *time.Time             `json:"executionTime"`
+	CreatedBy              string                 `json:"createdBy"`
+	CreatedAt              time.Time              `json:"createdAt"`
+	CompletionTime         *time.Time             `json:"completionTime"`
+	FailureReason          string                 `json:"failureReason"`
+	MaintenanceStartTime   *time.Time             `json:"maintenanceStartTime,omitempty"`
+	MaintenanceEndTime     *time.Time             `json:"maintenanceEndTime,omitempty"`
+	ExternalTicketID       string                 `json:"externalTicketId,omitempty"`
+	Devices                []int64                `json:"devices,omitempty"`   // 设备ID列表
+	ExtraInfo              map[string]interface{} `json:"extraInfo,omitempty"` // 额外信息，用于存储维护原因等
+	StrategyTriggeredValue string                 `json:"strategyTriggeredValue,omitempty"`
+	StrategyThresholdValue string                 `json:"strategyThresholdValue,omitempty"`
+}
+
+// OrderListItemDTO 订单列表项
+type OrderListItemDTO struct {
+	ID               int64     `json:"id"`
+	OrderNumber      string    `json:"orderNumber"`
+	Name             string    `json:"name"`        // 订单名称
+	Description      string    `json:"description"` // 订单描述
+	ClusterID        int64     `json:"clusterId"`
+	ClusterName      string    `json:"clusterName"`
+	StrategyID       *int64    `json:"strategyId"`
+	StrategyName     string    `json:"strategyName"`
+	ActionType       string    `json:"actionType"`
+	ResourcePoolType string    `json:"resourcePoolType"` // 资源池类型
+	Status           string    `json:"status"`
+	DeviceCount      int       `json:"deviceCount"`
+	CreatedBy        string    `json:"createdBy"`
+	CreatedAt        time.Time `json:"createdAt"`
+}
+
+// OrderDetailDTO 订单详情
+type OrderDetailDTO struct {
+	OrderDTO
+	Devices []DeviceDTO `json:"devices"` // 涉及设备的详细信息
+}
 
 // RichOrderDTO 丰富的订单DTO，包含完整的关联信息
 type RichOrderDTO struct {

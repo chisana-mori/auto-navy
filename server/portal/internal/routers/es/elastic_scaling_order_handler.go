@@ -1,4 +1,4 @@
-package routers
+package es
 
 import (
 	"net/http"
@@ -6,7 +6,9 @@ import (
 
 	"navy-ng/pkg/middleware/render"
 	"navy-ng/pkg/redis"
+	. "navy-ng/server/portal/internal/routers"
 	"navy-ng/server/portal/internal/service"
+	"navy-ng/server/portal/internal/service/es"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -17,7 +19,7 @@ import (
 
 // ElasticScalingOrderHandler 处理弹性伸缩订单的 Handler
 type ElasticScalingOrderHandler struct {
-	service *service.ElasticScalingService
+	service *es.ElasticScalingService
 }
 
 // NewElasticScalingOrderHandler 创建弹性伸缩订单处理器实例
@@ -28,7 +30,7 @@ func NewElasticScalingOrderHandler(db *gorm.DB) *ElasticScalingOrderHandler {
 	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)
 
 	return &ElasticScalingOrderHandler{
-		service: service.NewElasticScalingService(db, redisHandler, logger, deviceCache),
+		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache),
 	}
 }
 
@@ -106,7 +108,7 @@ func (h *ElasticScalingOrderHandler) ListOrders(c *gin.Context) {
 // @Failure 500 {object} render.ErrorResponse
 // @Router /fe-v1/elastic-scaling/orders [post]
 func (h *ElasticScalingOrderHandler) CreateOrder(c *gin.Context) {
-	var dto service.OrderDTO
+	var dto es.OrderDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
 		render.BadRequest(c, "参数解析失败: "+err.Error())
 		return

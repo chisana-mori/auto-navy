@@ -79,10 +79,9 @@ INSERT INTO k8s_cluster_resource_snapshot (
 -- 2天前：CPU 20%
 (1, 'total', 'total', 20.0, 40.0, 200.0, 1000.0, 4000.0, 10000.0, datetime('now', '-2 days'), datetime('now', '-2 days')),
 -- 1天前：CPU 28%
-(1, 'total', 'total', 28.0, 42.0, 280.0, 1000.0, 4200.0, 10000.0, datetime('now', '-1 days'), datetime('now', '-1 days'));
+(1, 'total', 'total', 28.0, 42.0, 280.0, 1000.0, 4200.0, 10000.0, datetime('now', '-1 days'), datetime('now', '-1 days')),
 -- 1天前：CPU 28%
-(1, 'total', 'total', 28.0, 42.0, 280.0, 1000.0, 4200.0, 10000.0, datetime('now'), datetime('now'));
-
+(1, 'total', 'total', 10, 86.0, 280.0, 1000.0, 6600.0, 10000.0, datetime('now'), datetime('now'));
 -- 模拟系统自动生成的订单数据
 -- 创建基础订单
 INSERT INTO ng_orders (id, order_number, name, description, type, status, created_by, created_at, updated_at) VALUES

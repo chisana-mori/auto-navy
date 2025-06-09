@@ -1,10 +1,11 @@
-package service_test
+package es_test
 
 import (
 	"errors"
 	"fmt"
 	"navy-ng/models/portal"
 	"navy-ng/server/portal/internal/service"
+	"navy-ng/server/portal/internal/service/es"
 	"os"
 	"time"
 
@@ -86,7 +87,7 @@ func (m *MockDeviceCache) SetDeviceList(listType string, devices *service.Device
 var _ = Describe("ElasticScalingEvaluation", func() {
 	var (
 		db              *gorm.DB
-		ess             *service.ElasticScalingService
+		ess             *es.ElasticScalingService
 		dbPath          string
 		logger, _       = zap.NewDevelopment()
 		mockRedis       *MockRedisHandler
@@ -126,7 +127,7 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 		mockDeviceCache = &MockDeviceCache{}
 
 		// 初始化服务
-		ess = service.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache)
+		ess = es.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache)
 	})
 
 	// 在每个测试结束后，清理环境
@@ -146,9 +147,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 		Context("for pool entry (scale-out) strategies", func() {
 			It("should trigger when CPU usage is consistently above threshold", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					CPUThresholdType:       service.ThresholdTypeUsage,
+					CPUThresholdType:       es.ThresholdTypeUsage,
 					CPUThresholdValue:      80,
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 					DurationMinutes:        3, // 需要连续3天
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -164,9 +165,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 
 			It("should not trigger if usage drops below threshold", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					CPUThresholdType:       service.ThresholdTypeUsage,
+					CPUThresholdType:       es.ThresholdTypeUsage,
 					CPUThresholdValue:      80,
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 					DurationMinutes:        3,
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -182,12 +183,12 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 
 			It("should trigger with AND logic if both CPU and Memory are above threshold", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					CPUThresholdType:       service.ThresholdTypeUsage,
+					CPUThresholdType:       es.ThresholdTypeUsage,
 					CPUThresholdValue:      80,
-					MemoryThresholdType:    service.ThresholdTypeUsage,
+					MemoryThresholdType:    es.ThresholdTypeUsage,
 					MemoryThresholdValue:   70,
-					ConditionLogic:         service.ConditionLogicAnd,
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ConditionLogic:         es.ConditionLogicAnd,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 					DurationMinutes:        2,
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -202,12 +203,12 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 
 			It("should trigger with OR logic if either CPU or Memory is above threshold", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					CPUThresholdType:       service.ThresholdTypeUsage,
+					CPUThresholdType:       es.ThresholdTypeUsage,
 					CPUThresholdValue:      80,
-					MemoryThresholdType:    service.ThresholdTypeUsage,
+					MemoryThresholdType:    es.ThresholdTypeUsage,
 					MemoryThresholdValue:   70,
-					ConditionLogic:         service.ConditionLogicOr,
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ConditionLogic:         es.ConditionLogicOr,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 					DurationMinutes:        2,
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -224,9 +225,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 		Context("for pool exit (scale-in) strategies", func() {
 			It("should trigger when allocated memory is consistently below threshold", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					MemoryThresholdType:    service.ThresholdTypeAllocated,
+					MemoryThresholdType:    es.ThresholdTypeAllocated,
 					MemoryThresholdValue:   20,
-					ThresholdTriggerAction: service.TriggerActionPoolExit,
+					ThresholdTriggerAction: es.TriggerActionPoolExit,
 					DurationMinutes:        2,
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -241,9 +242,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 
 			It("should not trigger if allocated memory rises above threshold", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					MemoryThresholdType:    service.ThresholdTypeAllocated,
+					MemoryThresholdType:    es.ThresholdTypeAllocated,
 					MemoryThresholdValue:   20,
-					ThresholdTriggerAction: service.TriggerActionPoolExit,
+					ThresholdTriggerAction: es.TriggerActionPoolExit,
 					DurationMinutes:        2,
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -260,9 +261,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 		Context("general behavior", func() {
 			It("should return correct consecutive days when breach happens at the start", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					CPUThresholdType:       service.ThresholdTypeUsage,
+					CPUThresholdType:       es.ThresholdTypeUsage,
 					CPUThresholdValue:      80,
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 					DurationMinutes:        2,
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -279,9 +280,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 
 			It("should return zero consecutive days if no breach occurs", func() {
 				strategy := &portal.ElasticScalingStrategy{
-					CPUThresholdType:       service.ThresholdTypeUsage,
+					CPUThresholdType:       es.ThresholdTypeUsage,
 					CPUThresholdValue:      80,
-					ThresholdTriggerAction: service.TriggerActionPoolEntry,
+					ThresholdTriggerAction: es.TriggerActionPoolEntry,
 					DurationMinutes:        2,
 				}
 				snapshots := []portal.ResourceSnapshot{
@@ -356,9 +357,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 				}
 				db.Create(&snapshot)
 
-				strategy.CPUThresholdType = service.ThresholdTypeUsage
+				strategy.CPUThresholdType = es.ThresholdTypeUsage
 				strategy.CPUThresholdValue = 80
-				strategy.ThresholdTriggerAction = service.TriggerActionPoolEntry
+				strategy.ThresholdTriggerAction = es.TriggerActionPoolEntry
 				strategy.DurationMinutes = 1
 				db.Save(strategy)
 
@@ -370,7 +371,7 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 				var history portal.StrategyExecutionHistory
 				err = db.First(&history).Error
 				Expect(err).NotTo(HaveOccurred())
-				Expect(history.Result).To(Equal(service.StrategyExecutionResultFailureThresholdNotMet))
+				Expect(history.Result).To(Equal(es.StrategyExecutionResultFailureThresholdNotMet))
 				Expect(history.StrategyID).To(Equal(strategy.ID))
 			})
 		})
@@ -389,7 +390,7 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 				var history portal.StrategyExecutionHistory
 				err = db.First(&history).Error
 				Expect(err).NotTo(HaveOccurred())
-				Expect(history.Result).To(Equal(service.StrategyExecutionResultFailureNoSnapshots))
+				Expect(history.Result).To(Equal(es.StrategyExecutionResultFailureNoSnapshots))
 				Expect(history.StrategyID).To(Equal(strategy.ID))
 			})
 		})
@@ -397,9 +398,9 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 		Context("when threshold is consistently breached", func() {
 			It("should fail when no device matching policies exist", func() {
 				// Arrange - 设置策略但不创建ResourcePoolDeviceMatchingPolicy
-				strategy.CPUThresholdType = service.ThresholdTypeUsage
+				strategy.CPUThresholdType = es.ThresholdTypeUsage
 				strategy.CPUThresholdValue = 80
-				strategy.ThresholdTriggerAction = service.TriggerActionPoolEntry
+				strategy.ThresholdTriggerAction = es.TriggerActionPoolEntry
 				strategy.DurationMinutes = 2 // Require 2 days
 				strategy.ResourceTypes = "compute"
 				db.Save(strategy)
@@ -422,7 +423,7 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 				var history portal.StrategyExecutionHistory
 				err = db.Where("strategy_id = ?", strategy.ID).First(&history).Error
 				Expect(err).NotTo(HaveOccurred())
-				Expect(history.Result).To(Equal(service.StrategyExecutionResultFailureInvalidTemplateID))
+				Expect(history.Result).To(Equal(es.StrategyExecutionResultFailureInvalidTemplateID))
 				Expect(history.Reason).To(ContainSubstring("获取设备匹配策略失败"))
 			})
 

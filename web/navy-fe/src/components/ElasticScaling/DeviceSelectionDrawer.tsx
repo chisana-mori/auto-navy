@@ -10,7 +10,6 @@ import {
   Typography,
   Tag,
   Input,
-  Card,
 } from 'antd';
 import {
   SelectOutlined,
@@ -111,6 +110,9 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
           page,
           size: pageSize,
         });
+        
+        // 调试：检查返回的数据
+        console.log('queryDevices API 返回的数据:', response);
       } else {
         // 高级模式：使用传入的筛选条件
         if (!filterGroups || filterGroups.length === 0) {
@@ -298,68 +300,80 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
       title: '设备编码',
       dataIndex: 'ciCode',
       key: 'ciCode',
-      width: 150,
+      width: 140,
+      ellipsis: true,
+      render: (text) => (
+        <Text style={{ fontSize: '13px', fontFamily: 'Monaco, monospace' }}>
+          {text || '-'}
+        </Text>
+      ),
     },
     {
       title: 'IP地址',
       dataIndex: 'ip',
       key: 'ip',
-      width: 120,
+      width: 130,
+      render: (text) => (
+        <Text style={{ fontSize: '13px', fontFamily: 'Monaco, monospace', color: '#1890ff' }}>
+          {text || '-'}
+        </Text>
+      ),
     },
     {
       title: '机器用途',
       dataIndex: 'group',
       key: 'group',
       width: 120,
-      render: (text) => {
-        if (!text) return '-';
-        // 如果文本超过10个字符，显示渐变效果
-        if (text.length > 10) {
-          return (
-            <div className="truncated-text" style={{
-              maxWidth: '100px',
-              overflow: 'hidden',
-              position: 'relative',
-              whiteSpace: 'nowrap'
-            }}>
-              <span>{text}</span>
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                right: 0,
-                width: '30px',
-                height: '100%',
-                background: 'linear-gradient(to right, transparent, #fff)'
-              }}></div>
-            </div>
-          );
-        }
-        return text;
-      },
+      ellipsis: true,
+      render: (text) => (
+        <Text style={{ fontSize: '13px' }}>
+          {text || '-'}
+        </Text>
+      ),
     },
     {
       title: '所属集群',
       dataIndex: 'cluster',
       key: 'cluster',
       width: 120,
-      render: (text) => text || '-',
+      ellipsis: true,
+      render: (text) => (
+        <Text style={{ fontSize: '13px' }}>
+          {text || '-'}
+        </Text>
+      ),
     },
     {
       title: '集群角色',
       dataIndex: 'role',
       key: 'role',
       width: 100,
-      render: (text) => text || '-',
+      ellipsis: true,
+      render: (text) => (
+        <Text style={{ fontSize: '13px' }}>
+          {text || '-'}
+        </Text>
+      ),
     },
     {
-      title: '是否国产化',
+      title: '国产化',
       dataIndex: 'isLocalization',
       key: 'isLocalization',
-      width: 100,
+      width: 80,
+      align: 'center',
       render: (isLocalization) => (
-        isLocalization ?
-          <Tag color="green">是</Tag> :
-          <Tag color="orange">否</Tag>
+        <Tag 
+          color={isLocalization ? 'success' : 'default'} 
+          style={{ 
+            fontSize: '12px', 
+            borderRadius: '4px',
+            margin: 0,
+            minWidth: '32px',
+            textAlign: 'center'
+          }}
+        >
+          {isLocalization ? '是' : '否'}
+        </Tag>
       ),
     },
     {
@@ -367,15 +381,38 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
       dataIndex: 'status',
       key: 'status',
       width: 80,
+      align: 'center',
       render: (status) => {
+        let color = 'default';
+        let text = '未知';
+        
         if (status === 'active' || status === 'normal') {
-          return <Tag color="success">正常</Tag>;
+          color = 'success';
+          text = '正常';
         } else if (status === 'maintenance') {
-          return <Tag color="warning">维护中</Tag>;
+          color = 'warning';
+          text = '维护';
         } else if (status === 'offline') {
-          return <Tag color="error">离线</Tag>;
+          color = 'error';
+          text = '离线';
+        } else if (status) {
+          text = status;
         }
-        return <Tag>{status || '未知'}</Tag>;
+        
+        return (
+          <Tag 
+            color={color} 
+            style={{ 
+              fontSize: '12px', 
+              borderRadius: '4px',
+              margin: 0,
+              minWidth: '40px',
+              textAlign: 'center'
+            }}
+          >
+            {text}
+          </Tag>
+        );
       },
     },
   ];
@@ -385,36 +422,43 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
       title={
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <SelectOutlined style={{ marginRight: 8, color: '#1890ff' }} />
-          <span>选择设备</span>
+          <span style={{ fontSize: '16px', fontWeight: 500 }}>选择设备</span>
           {localSelectedDevices.length > 0 && (
             <Badge
               count={localSelectedDevices.length}
-              style={{ marginLeft: 8, backgroundColor: '#52c41a' }}
+              style={{ marginLeft: 12, backgroundColor: '#52c41a' }}
             />
           )}
         </div>
       }
-      width={900}
+      width={1000}
       placement="right"
       onClose={onClose}
       open={visible}
       mask={true}
       maskClosable={true}
-      maskStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
-      style={{ boxShadow: '0 0 20px rgba(0, 0, 0, 0.2)' }}
+      maskStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+      style={{ 
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.15)'
+      }}
       bodyStyle={{ 
-        padding: '20px', 
-        backgroundColor: '#f5f7fa' 
+        padding: 0,
+        backgroundColor: '#fafafa',
+        height: 'calc(100vh - 108px)',
+        display: 'flex',
+        flexDirection: 'column'
       }}
       headerStyle={{ 
         backgroundColor: '#fff',
-        borderBottom: '1px solid #f0f0f0',
-        padding: '16px 24px'
+        borderBottom: '1px solid #e8e8e8',
+        padding: '16px 24px',
+        boxShadow: '0 1px 4px rgba(0, 0, 0, 0.04)'
       }}
       footerStyle={{
         backgroundColor: '#fff',
-        borderTop: '1px solid #f0f0f0',
-        padding: '12px 24px'
+        borderTop: '1px solid #e8e8e8',
+        padding: '16px 24px',
+        boxShadow: '0 -1px 4px rgba(0, 0, 0, 0.04)'
       }}
       zIndex={1001}
       extra={
@@ -446,98 +490,122 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
         </div>
       }
     >
-      <div style={{ padding: '0' }}>
-        <Spin spinning={loading || externalLoading}>
-          <div style={{ marginBottom: 16 }}>
+      <div style={{ 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
+        <Spin spinning={loading || externalLoading} style={{ height: '100%' }}>
+          {/* 搜索区域 */}
+          <div style={{ 
+            padding: '20px 24px 16px',
+            backgroundColor: '#fff',
+            borderBottom: '1px solid #f0f0f0',
+            flexShrink: 0
+          }}>
             <Input.TextArea
-              rows={3}
+              rows={2}
               placeholder="输入关键字进行前端模糊搜索（多行输入，每行一个关键字）..."
               value={clientSearchText}
               onChange={handleClientSearchChange}
               allowClear
-              style={{ backgroundColor: '#fff', border: '1px solid #d9d9d9', borderRadius: '6px' }}
+              style={{ 
+                backgroundColor: '#fafafa', 
+                border: '1px solid #e8e8e8', 
+                borderRadius: '8px',
+                fontSize: '14px'
+              }}
             />
           </div>
+          {/* 简单模式搜索 */}
           {simpleMode && (
-            <Card 
-              size="small" 
-              style={{ 
-                marginBottom: 16, 
-                borderRadius: '8px',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-              }}
-              bodyStyle={{ padding: '16px' }}
-            >
-              <Text strong>简单设备搜索</Text>
+            <div style={{ 
+              padding: '16px 24px',
+              backgroundColor: '#fff',
+              borderBottom: '1px solid #f0f0f0',
+              flexShrink: 0
+            }}>
               <div style={{ marginBottom: 16 }}>
-                <Input.Search
-                  placeholder="输入关键字搜索设备（如IP、设备编码等）"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  onSearch={() => fetchDevices(1, pagination.pageSize)}
-                  enterButton
-                  style={{ width: '100%' }}
-                  allowClear
-                />
+                <Text strong style={{ fontSize: '14px', color: '#262626' }}>设备搜索</Text>
+                <div style={{ marginTop: 8 }}>
+                  <Input.Search
+                    placeholder="输入关键字搜索设备（如IP、设备编码等）"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    onSearch={() => fetchDevices(1, pagination.pageSize)}
+                    enterButton="搜索"
+                    style={{ width: '100%' }}
+                    allowClear
+                  />
+                </div>
               </div>
 
               <div>
                 <div style={{ marginBottom: 8 }}>
-                  <Text>多行批量查询（每行一个关键字）：</Text>
+                  <Text style={{ fontSize: '14px', color: '#595959' }}>批量查询（每行一个关键字）：</Text>
                 </div>
                 <Input.TextArea
                   placeholder="请输入多行关键字，每行一个，如IP地址列表"
                   value={multilineKeywords}
                   onChange={(e) => setMultilineKeywords(e.target.value)}
-                  rows={4}
-                  style={{ marginBottom: 8, backgroundColor: '#fff', border: '1px solid #d9d9d9' }}
+                  rows={3}
+                  style={{ 
+                    marginBottom: 12, 
+                    backgroundColor: '#fafafa', 
+                    border: '1px solid #e8e8e8',
+                    borderRadius: '6px'
+                  }}
                 />
                 <Button
                   type="primary"
                   icon={<SearchOutlined />}
                   onClick={handleMultilineSearch}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', borderRadius: '6px' }}
                 >
                   批量查询
                 </Button>
               </div>
-            </Card>
+            </div>
           )}
 
+          {/* 筛选条件区域 */}
           <div style={{
-            marginBottom: 16,
+            padding: '16px 24px',
             backgroundColor: '#fff',
-            padding: '12px 16px',
-            borderRadius: '6px',
-            border: '1px solid #f0f0f0'
+            borderBottom: '1px solid #f0f0f0',
+            flexShrink: 0
           }}>
             {appliedFilters && appliedFilters.length > 0 && (
               <div style={{ marginBottom: '12px' }}>
-                <Text strong style={{ marginRight: '8px' }}>当前筛选条件:</Text>
-                {appliedFilters.map((filterGroup: any, groupIndex: number) => (
-                  <React.Fragment key={`group-${groupIndex}`}>
-                    {filterGroup.blocks?.map((filter: any, filterIndex: number) => {
-                      return (
-                         <Tag key={`filter-${groupIndex}-${filterIndex}`} color="blue" style={{ margin: '2px' }}>
-                           {filter.label}
-                         </Tag>
-                       );
-                    })}
-                  </React.Fragment>
-                ))}
+                <Text strong style={{ marginRight: '8px', fontSize: '14px', color: '#262626' }}>当前筛选条件:</Text>
+                <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {appliedFilters.map((filterGroup: any, groupIndex: number) => (
+                    <React.Fragment key={`group-${groupIndex}`}>
+                      {filterGroup.blocks?.map((filter: any, filterIndex: number) => {
+                        return (
+                          <Tag key={`filter-${groupIndex}-${filterIndex}`} color="blue" style={{ margin: 0, borderRadius: '4px' }}>
+                            {filter.label}
+                          </Tag>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text strong>根据筛选条件找到的设备列表，请选择需要添加到订单的设备：</Text>
-              <Text type="secondary">共 {pagination.total} 条记录</Text>
+              <Text strong style={{ fontSize: '14px', color: '#262626' }}>请选择需要添加到订单的设备：</Text>
+              <Text type="secondary" style={{ fontSize: '13px' }}>共 {pagination.total} 条记录</Text>
             </div>
           </div>
 
+          {/* 表格区域 - 使用flex-grow让表格区域填充剩余空间 */}
           <div style={{ 
-            backgroundColor: '#fff', 
-            borderRadius: '8px',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-            padding: '1px'
+            flex: 1,
+            overflow: 'auto',
+            padding: '0 24px 16px',
+            backgroundColor: '#fff'
           }}>
             <Table
               rowKey="id"
@@ -548,7 +616,8 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
                 showTotal: (total) => `共 ${total} 条记录`,
                 showSizeChanger: true,
                 pageSizeOptions: ['10', '20', '50', '100'],
-                showQuickJumper: true
+                showQuickJumper: true,
+                size: 'small'
               }}
               loading={loading}
               rowSelection={{
@@ -560,17 +629,34 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
                   Table.SELECTION_INVERT,
                   Table.SELECTION_NONE,
                 ],
+                columnWidth: 40
               }}
               onChange={handleTableChange}
-              scroll={{ y: 500 }}
-              size="middle"
+              scroll={{ y: 'calc(100vh - 400px)' }} // 动态计算表格高度
+              size="small"
+              bordered={false}
+              style={{ marginTop: '12px' }}
               onRow={(record) => {
                 // 根据条件决定背景色
                 let bgColor = '';
+                
+                // 调试信息
+                if (record.ciCode === 'DEV001') {
+                  console.log('DEV001 设备信息:', {
+                    isSpecial: record.isSpecial,
+                    group: record.group,
+                    featureCount: record.featureCount,
+                    cluster: record.cluster,
+                    appName: record.appName,
+                    full_record: record
+                  });
+                }
+                
                 // 特殊设备（有机器用途或其他特殊标记）使用浅黄色背景
                 if (record.isSpecial ||
                     (record.group && record.group.trim() !== '') ||
-                    (record.featureCount && record.featureCount > 0)) {
+                    (record.featureCount && record.featureCount > 0) ||
+                    (record.appName && record.appName.trim() !== '')) {
                   // 浅黄色背景 - 特殊设备
                   bgColor = '#fffbe6';
                 }

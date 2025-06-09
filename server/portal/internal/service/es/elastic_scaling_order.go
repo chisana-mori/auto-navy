@@ -1,4 +1,4 @@
-package service
+package es
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"navy-ng/models/portal"
+	. "navy-ng/server/portal/internal/service"
 	"strings"
 	"time"
 

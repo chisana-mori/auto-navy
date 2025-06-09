@@ -1440,14 +1440,14 @@ const Dashboard: React.FC = () => {
           <Card className="stat-card success">
             <div className="stat-value">{`${stats.triggeredTodayCount}/${stats.enabledStrategyCount}`}</div>
             <div className="stat-label">今日已巡检/总策略</div>
-            <Progress percent={(stats.enabledStrategyCount > 0 ? (stats.triggeredTodayCount / stats.enabledStrategyCount) * 100 : 0)} size="small" />
+            <Progress percent={parseFloat((stats.enabledStrategyCount > 0 ? (stats.triggeredTodayCount / stats.enabledStrategyCount) * 100 : 0).toFixed(1))} size="small" />
           </Card>
         </Col>
         <Col xs={24} sm={6} md={6}>
           <Card className="stat-card info">
             <div className="stat-value">{`${stats.inspectedResourcePoolCount || 0}/${stats.targetResourcePoolCount || 0}`}</div>
             <div className="stat-label">今日已巡检/目标资源池数</div>
-            <Progress percent={(stats.targetResourcePoolCount && stats.targetResourcePoolCount > 0 ? ((stats.inspectedResourcePoolCount || 0) / stats.targetResourcePoolCount!) * 100 : 0)} size="small" />
+            <Progress percent={parseFloat((stats.targetResourcePoolCount && stats.targetResourcePoolCount > 0 ? ((stats.inspectedResourcePoolCount || 0) / stats.targetResourcePoolCount!) * 100 : 0).toFixed(1))} size="small" />
           </Card>
         </Col>
         <Col xs={24} sm={6} md={6}>
@@ -1557,7 +1557,7 @@ const Dashboard: React.FC = () => {
                     </span>
                   </div>
                   <Progress
-                    percent={getCpuValue(order)}
+                    percent={parseFloat(getCpuValue(order).toFixed(1))}
                     size="small"
                     status={order.hasAllocationData === false ? "normal" : (getCpuValue(order) >= 80 ? "exception" : "normal")}
                     strokeColor={getCpuColor(order)}
@@ -1582,7 +1582,7 @@ const Dashboard: React.FC = () => {
                     </span>
                   </div>
                   <Progress
-                    percent={getMemValue(order)}
+                    percent={parseFloat(getMemValue(order).toFixed(1))}
                     size="small"
                     status={order.hasAllocationData === false ? "normal" : (getMemValue(order) >= 80 ? "exception" : "normal")}
                     strokeColor={getMemColor(order)}
@@ -2218,7 +2218,7 @@ const Dashboard: React.FC = () => {
     if (order.hasAllocationData === false) {
       return '暂无数据';
     }
-    return `${getCpuValue(order)}%`;
+    return `${getCpuValue(order).toFixed(1)}%`;
   };
 
   // 获取CPU分配率颜色
@@ -2249,7 +2249,7 @@ const Dashboard: React.FC = () => {
     if (order.hasAllocationData === false) {
       return '暂无数据';
     }
-    return `${getMemValue(order)}%`;
+    return `${getMemValue(order).toFixed(1)}%`;
   };
 
   // 获取内存分配率颜色
@@ -2948,7 +2948,6 @@ const Dashboard: React.FC = () => {
 
               {/* 订单状态流转图 */}
               <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fafafa', borderRadius: '6px', border: '1px solid #f0f0f0' }}>
-                <div style={{ marginBottom: '8px', fontWeight: 500, color: '#262626', fontSize: '14px' }}>订单状态流转</div>
                 <OrderStatusFlow 
                   actionType={selectedOrder.actionType} 
                   currentStatus={selectedOrder.status} 

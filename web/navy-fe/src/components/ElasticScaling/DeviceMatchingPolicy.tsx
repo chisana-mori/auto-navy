@@ -420,9 +420,8 @@ const DeviceMatchingPolicy: React.FC = () => {
   // 处理预览模板
   const handlePreviewTemplate = (templateId: number) => {
     // 打开新标签页跳转到设备中心的高级查询页面，并携带模板ID参数
-    // 添加时间戳参数确保每次都是新的请求，避免浏览器缓存
-    const timestamp = new Date().getTime();
-    window.open(`/device?tab=advanced&templateId=${templateId}&_t=${timestamp}`, '_blank');
+    // 移除时间戳参数，避免导致页面重新加载产生无限请求
+    window.open(`/device?tab=advanced&templateId=${templateId}`, '_blank');
   };
 
   // 处理删除策略

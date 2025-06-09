@@ -1,9 +1,11 @@
-package service
+package order
 
 import (
 	"context"
 	"fmt"
 	"time"
+
+	. "navy-ng/server/portal/internal/service"
 
 	"navy-ng/models/portal"
 

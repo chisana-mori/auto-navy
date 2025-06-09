@@ -1,10 +1,12 @@
-package routers
+package es
 
 import (
 	"fmt"
 	"navy-ng/pkg/middleware/render"
 	"navy-ng/pkg/redis" // Import redis package
-	"navy-ng/server/portal/internal/service"
+	routersconstants "navy-ng/server/portal/internal/routers"
+	baseservice "navy-ng/server/portal/internal/service" // Alias for base service if still needed for DeviceCache
+	"navy-ng/server/portal/internal/service/es"
 	"net/http"
 	"strconv"
 
@@ -17,21 +19,21 @@ import (
 
 // ElasticScalingHandler 弹性伸缩处理器
 type ElasticScalingHandler struct {
-	service *service.ElasticScalingService
+	service *es.ElasticScalingService
 }
 
 // NewElasticScalingHandler 创建弹性伸缩处理器
 // NewElasticScalingHandler 创建弹性伸缩处理器
 // 接受数据库连接和 Redis 处理器作为参数
 func NewElasticScalingHandler(db *gorm.DB) *ElasticScalingHandler {
-	redisHandler := redis.NewRedisHandler(RedisDefault)
+	redisHandler := redis.NewRedisHandler(routersconstants.RedisDefault)
 	// Create a logger for the service
 	logger, _ := zap.NewProduction()
 	// 创建设备缓存
-	deviceCache := service.NewDeviceCache(redisHandler, redis.NewKeyBuilder(RedisNamespace, RedisVersion))
+	deviceCache := baseservice.NewDeviceCache(redisHandler, redis.NewKeyBuilder(routersconstants.RedisNamespace, routersconstants.RedisVersion))
 
 	return &ElasticScalingHandler{
-		service: service.NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
+		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
 	}
 }
 
@@ -89,7 +91,7 @@ func (h *ElasticScalingHandler) ListStrategies(c *gin.Context) {
 	query.PageSize = 10
 
 	if err := c.ShouldBindQuery(&query); err != nil {
-		render.BadRequest(c, fmt.Sprintf(MsgInvalidParams, err.Error()))
+		render.BadRequest(c, fmt.Sprintf(routersconstants.MsgInvalidParams, err.Error()))
 		return
 	}
 
@@ -125,14 +127,14 @@ func (h *ElasticScalingHandler) ListStrategies(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies [post]
 func (h *ElasticScalingHandler) CreateStrategy(c *gin.Context) {
-	var dto service.StrategyDTO
+	var dto es.StrategyDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
 		render.BadRequest(c, err.Error())
 		return
 	}
 
 	// 设置创建者
-	dto.CreatedBy = DefaultExecutor // 实际环境中应该从认证信息获取
+	dto.CreatedBy = routersconstants.DefaultExecutor // 实际环境中应该从认证信息获取
 
 	id, err := h.service.CreateStrategy(dto)
 	if err != nil {
@@ -153,9 +155,9 @@ func (h *ElasticScalingHandler) CreateStrategy(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id} [get]
 func (h *ElasticScalingHandler) GetStrategy(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
+	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
 	if err != nil {
-		render.BadRequest(c, MsgInvalidStrategyID)
+		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
@@ -179,13 +181,13 @@ func (h *ElasticScalingHandler) GetStrategy(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id} [put]
 func (h *ElasticScalingHandler) UpdateStrategy(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
+	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
 	if err != nil {
-		render.BadRequest(c, MsgInvalidStrategyID)
+		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
-	var dto service.StrategyDTO
+	var dto es.StrategyDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
 		render.BadRequest(c, err.Error())
 		return
@@ -209,9 +211,9 @@ func (h *ElasticScalingHandler) UpdateStrategy(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id} [delete]
 func (h *ElasticScalingHandler) DeleteStrategy(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
+	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
 	if err != nil {
-		render.BadRequest(c, MsgInvalidStrategyID)
+		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
@@ -234,9 +236,9 @@ func (h *ElasticScalingHandler) DeleteStrategy(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id}/status [put]
 func (h *ElasticScalingHandler) UpdateStrategyStatus(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
+	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
 	if err != nil {
-		render.BadRequest(c, MsgInvalidStrategyID)
+		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
@@ -249,8 +251,8 @@ func (h *ElasticScalingHandler) UpdateStrategyStatus(c *gin.Context) {
 		return
 	}
 
-	if reqBody.Status != StatusEnabled && reqBody.Status != StatusDisabled {
-		render.BadRequest(c, MsgInvalidStatus)
+	if reqBody.Status != routersconstants.StatusEnabled && reqBody.Status != routersconstants.StatusDisabled {
+		render.BadRequest(c, routersconstants.MsgInvalidStatus)
 		return
 	}
 
@@ -276,14 +278,14 @@ func (h *ElasticScalingHandler) UpdateStrategyStatus(c *gin.Context) {
 // @Router /fe-v1/elastic-scaling/strategies/{id}/execution-history [get]
 func (h *ElasticScalingHandler) GetStrategyExecutionHistory(c *gin.Context) {
 	// 解析策略ID
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
+	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
 	if err != nil {
-		render.BadRequest(c, MsgInvalidStrategyID)
+		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
 	// 解析分页参数
-	var pagination service.PaginationRequest
+	var pagination baseservice.PaginationRequest
 	if err = c.ShouldBindQuery(&pagination); err != nil {
 		render.BadRequest(c, "分页参数错误")
 		return
@@ -300,7 +302,7 @@ func (h *ElasticScalingHandler) GetStrategyExecutionHistory(c *gin.Context) {
 		return
 	}
 
-	render.Success(c, service.ToPaginationResponseWithData(&pagination, total, histories))
+	render.Success(c, baseservice.ToPaginationResponseWithData(&pagination, total, histories))
 }
 
 // GetDashboardStats 获取工作台统计数据
@@ -345,7 +347,7 @@ func (h *ElasticScalingHandler) GetResourceAllocationTrend(c *gin.Context) {
 	query.ResourceTypes = "total"
 
 	if err := c.ShouldBindQuery(&query); err != nil {
-		render.BadRequest(c, fmt.Sprintf(MsgInvalidParams, err.Error()))
+		render.BadRequest(c, fmt.Sprintf(routersconstants.MsgInvalidParams, err.Error()))
 		return
 	}
 
@@ -368,7 +370,7 @@ func (h *ElasticScalingHandler) GetResourceAllocationTrend(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/stats/orders [get]
 func (h *ElasticScalingHandler) GetOrderStats(c *gin.Context) {
-	timeRange := c.DefaultQuery(ParamTimeRange, "30d")
+	timeRange := c.DefaultQuery(routersconstants.ParamTimeRange, "30d")
 
 	stats, err := h.service.GetOrderStats(timeRange)
 	if err != nil {

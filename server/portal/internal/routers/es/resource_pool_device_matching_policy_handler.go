@@ -1,4 +1,4 @@
-package routers
+package es
 
 import (
 	"context"
@@ -6,17 +6,20 @@ import (
 	"strconv"
 	"time"
 
+	. "navy-ng/server/portal/internal/routers"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"navy-ng/pkg/middleware/render"
 	"navy-ng/pkg/redis"
 	"navy-ng/server/portal/internal/service"
+	"navy-ng/server/portal/internal/service/es"
 )
 
 // ResourcePoolDeviceMatchingPolicyHandler 资源池设备匹配策略处理器
 type ResourcePoolDeviceMatchingPolicyHandler struct {
-	policyService *service.ResourcePoolDeviceMatchingPolicyService
+	policyService *es.ResourcePoolDeviceMatchingPolicyService
 }
 
 // NewResourcePoolDeviceMatchingPolicyHandler 创建资源池设备匹配策略处理器
@@ -29,7 +32,7 @@ func NewResourcePoolDeviceMatchingPolicyHandler(db *gorm.DB) *ResourcePoolDevice
 	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)
 
 	// 创建资源池设备匹配策略服务
-	policyService := service.NewResourcePoolDeviceMatchingPolicyService(db, deviceCache)
+	policyService := es.NewResourcePoolDeviceMatchingPolicyService(db, deviceCache)
 
 	return &ResourcePoolDeviceMatchingPolicyHandler{
 		policyService: policyService,

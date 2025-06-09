@@ -1,9 +1,11 @@
-package service
+package es
 
 import (
 	"fmt"
 	"navy-ng/pkg/redis"
 	"time"
+
+	. "navy-ng/server/portal/internal/service"
 
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap" // Added zap import
@@ -34,7 +36,7 @@ type MonitorConfig struct {
 // DefaultMonitorConfig 默认监控配置
 func DefaultMonitorConfig() MonitorConfig {
 	return MonitorConfig{
-		MonitorCron:        "* * * * *",        // 每分钟运行一次
+		MonitorCron:        "* * * * *",      // 每分钟运行一次
 		EvaluationInterval: 10 * time.Minute, // 每10分钟评估一次策略
 		LockTimeout:        30 * time.Second, // 锁超时时间30秒
 		LockRetryInterval:  1 * time.Second,  // 锁重试间隔1秒

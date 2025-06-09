@@ -1,9 +1,12 @@
-package service
+package es
 
 import (
 	"fmt"
 	"navy-ng/models/portal"
 	"time"
+
+	. "navy-ng/server/portal/internal/service"
+	"navy-ng/server/portal/internal/service/order"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -11,8 +14,6 @@ import (
 
 // Constants for Strategy Execution Results
 const (
-
-	// Strategy Execution Results (add more as needed from previous/future steps)
 	StrategyExecutionResultOrderCreated               = "order_created"
 	StrategyExecutionResultOrderCreatedNoDevices      = "order_created_no_devices" // 无设备时创建提醒订单
 	StrategyExecutionResultOrderCreatedPartial        = "order_created_partial"    // 部分设备匹配时创建订单
@@ -20,6 +21,7 @@ const (
 	StrategyExecutionResultBreachedPendingDeviceMatch = "breached_pending_device_match" // From previous step
 	StrategyExecutionResultFailureNoSnapshots         = "failure_no_snapshots_for_duration"
 	StrategyExecutionResultFailureThresholdNotMet     = "failure_threshold_not_met"
+	StrategyExecutionResultSkippedCooldown            = "skipped_cooldown"           // 冷却期内跳过评估
 	StrategyExecutionResultFailureInvalidTemplateID   = "failure_invalid_query_template_id"
 	StrategyExecutionResultFailureTemplateNotFound    = "failure_query_template_not_found"
 	StrategyExecutionResultFailureTemplateUnmarshal   = "failure_query_template_unmarshal_error"
@@ -38,34 +40,13 @@ const (
 	SystemAutoCreator = "system/auto"
 )
 
-// DeviceCacheInterface defines the interface for a device cache.
-type DeviceCacheInterface interface {
-	GetDeviceList(queryHash string) (*DeviceListResponse, error)
-	SetDeviceList(queryHash string, response *DeviceListResponse) error
-	InvalidateDeviceLists() error
-	GetDevice(deviceID int64) (*DeviceResponse, error)
-	SetDevice(deviceID int64, device *DeviceResponse) error
-	GetDeviceFieldValues(field string) ([]string, error)
-	SetDeviceFieldValues(field string, values []string, isLabelField bool) error
-}
-
-// RedisHandlerInterface 定义 ElasticScalingService 所需的 Redis 方法
-type RedisHandlerInterface interface {
-	AcquireLock(key string, value string, expiry time.Duration) (isSuccess bool, err error)
-	Delete(key string)
-	Expire(expiration time.Duration)
-	Get(key string) string
-	SetWithExpireTime(key string, value string, expiration time.Duration)
-	ScanKeys(pattern string) ([]string, error)
-}
-
 // ElasticScalingService 弹性伸缩服务
 type ElasticScalingService struct {
 	db                          *gorm.DB
 	redisHandler                RedisHandlerInterface // Use RedisHandlerInterface
 	logger                      *zap.Logger           // Added logger
 	cache                       DeviceCacheInterface  // Changed to DeviceCacheInterface
-	orderService                OrderService          // 通用订单服务
+	orderService                order.OrderService    // 通用订单服务
 	matchDevicesForStrategyFunc func(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error
 }
 
@@ -166,7 +147,7 @@ func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strate
 // NewElasticScalingService 创建弹性伸缩服务实例
 // 接受数据库连接、RedisHandlerInterface 实例、logger 和 cache 作为参数
 func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, logger *zap.Logger, cache DeviceCacheInterface) *ElasticScalingService {
-	orderService := NewOrderService(db)
+	orderService := order.NewOrderService(db)
 	s := &ElasticScalingService{
 		db:           db,
 		redisHandler: redisHandler,

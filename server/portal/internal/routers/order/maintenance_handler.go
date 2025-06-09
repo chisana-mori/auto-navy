@@ -1,8 +1,9 @@
-package routers
+package order
 
 import (
 	"navy-ng/pkg/middleware/render"
-	"navy-ng/server/portal/internal/service"
+	. "navy-ng/server/portal/internal/routers"
+	"navy-ng/server/portal/internal/service/order"
 	"net/http"
 	"strconv"
 
@@ -13,7 +14,7 @@ import (
 
 // MaintenanceHandler 设备维护处理器
 type MaintenanceHandler struct {
-	service *service.MaintenanceServiceV2
+	service *order.MaintenanceServiceV2
 }
 
 // NewMaintenanceHandler 创建设备维护处理器
@@ -21,7 +22,7 @@ func NewMaintenanceHandler(db *gorm.DB) *MaintenanceHandler {
 	logger, _ := zap.NewProduction()
 
 	return &MaintenanceHandler{
-		service: service.NewMaintenanceServiceV2(db, logger),
+		service: order.NewMaintenanceServiceV2(db, logger),
 	}
 }
 
@@ -53,7 +54,7 @@ func (h *MaintenanceHandler) RegisterRoutes(api *gin.RouterGroup) {
 // @Failure 500 {object} render.Response
 // @Router /fe-v1/device-maintenance/request [post]
 func (h *MaintenanceHandler) RequestMaintenance(c *gin.Context) {
-	var request service.MaintenanceRequestDTO
+	var request order.MaintenanceRequestDTO
 	if err := c.ShouldBindJSON(&request); err != nil {
 		render.BadRequest(c, MsgInvalidMaintenanceRequest+err.Error())
 		return
@@ -94,7 +95,7 @@ func (h *MaintenanceHandler) RequestMaintenance(c *gin.Context) {
 // @Failure 500 {object} render.Response
 // @Router /fe-v1/device-maintenance/callback [post]
 func (h *MaintenanceHandler) MaintenanceCallback(c *gin.Context) {
-	var callback service.MaintenanceCallbackDTO
+	var callback order.MaintenanceCallbackDTO
 	if err := c.ShouldBindJSON(&callback); err != nil {
 		render.BadRequest(c, "无效的回调格式: "+err.Error())
 		return

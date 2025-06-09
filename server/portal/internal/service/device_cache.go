@@ -38,6 +38,17 @@ type CacheStats struct {
 	StartTime int64 `json:"startTime"` // 统计开始时间
 }
 
+// DeviceCacheInterface defines the interface for a device cache.
+type DeviceCacheInterface interface {
+	GetDeviceList(queryHash string) (*DeviceListResponse, error)
+	SetDeviceList(queryHash string, response *DeviceListResponse) error
+	InvalidateDeviceLists() error
+	GetDevice(deviceID int64) (*DeviceResponse, error)
+	SetDevice(deviceID int64, device *DeviceResponse) error
+	GetDeviceFieldValues(field string) ([]string, error)
+	SetDeviceFieldValues(field string, values []string, isLabelField bool) error
+}
+
 // DeviceCache 设备缓存服务
 type DeviceCache struct {
 	handler    RedisHandlerInterface
@@ -54,6 +65,16 @@ func NewDeviceCache(handler RedisHandlerInterface, keyBuilder *redis.KeyBuilder)
 			StartTime: time.Now().Unix(),
 		},
 	}
+}
+
+// RedisHandlerInterface 定义 ElasticScalingService 所需的 Redis 方法
+type RedisHandlerInterface interface {
+	AcquireLock(key string, value string, expiry time.Duration) (isSuccess bool, err error)
+	Delete(key string)
+	Expire(expiration time.Duration)
+	Get(key string) string
+	SetWithExpireTime(key string, value string, expiration time.Duration)
+	ScanKeys(pattern string) ([]string, error)
 }
 
 // SetDeviceList 缓存设备列表

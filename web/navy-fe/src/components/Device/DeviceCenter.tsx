@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, Card, Table, Button, message, Space, Tooltip, Modal, Form, Input, Tag, Typography, Select, Spin, Pagination } from 'antd';
 // import type { SelectProps } from 'antd/es/select';
@@ -140,7 +140,11 @@ const DeviceCenter: React.FC = () => {
   const [roleForm] = Form.useForm();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
+  // 防重复请求的引用
+  const isExecutingQuery = useRef(false);
+
   // 加载模板列表
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadTemplates = useCallback(async () => {
     try {
       const { current, pageSize } = templatePagination;
@@ -163,7 +167,7 @@ const DeviceCenter: React.FC = () => {
       console.error('加载模板列表失败:', error);
       message.error('加载模板列表失败');
     }
-  }, [templatePagination]);
+  }, [templatePagination.current, templatePagination.pageSize]); // 只依赖必要的分页参数
 
   // 处理模板搜索
   const handleTemplateSearch = (value: string) => {
@@ -173,11 +177,6 @@ const DeviceCenter: React.FC = () => {
       ...prev,
       current: 1,
     }));
-
-    // 延迟加载以确保状态更新
-    setTimeout(() => {
-      loadTemplates();
-    }, 0);
   };
 
   // 处理模板分页变化
@@ -188,23 +187,50 @@ const DeviceCenter: React.FC = () => {
       current: page,
       pageSize: pageSize || prev.pageSize,
     }));
-
-    // 当分页参数变化时，重新加载数据
-    // 使用setTimeout避免状态更新顺序问题
-    setTimeout(() => {
-      loadTemplates();
-    }, 0);
   };
 
-  // 加载模板列表和初始设备数据
+  // 当模板分页状态改变时加载数据
   useEffect(() => {
+    // 如果尚未完成初始加载，不执行模板重新加载
+    if (!initialLoadComplete) {
+      return;
+    }
+    
+    loadTemplates();
+  }, [loadTemplates, initialLoadComplete]);
+
+  // 加载模板列表和初始设备数据
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // 如果已经完成初始加载，不再重复执行
+    if (initialLoadComplete) {
+      return;
+    }
+
     const loadInitialData = async () => {
       try {
         // 获取URL参数 - 使用已经在组件初始化时获取的参数
         const { tab, templateId } = initialParams;
 
-        // 并行加载模板列表 - 不等待它完成
-        const templatesPromise = loadTemplates();
+        // 直接调用模板API而不是依赖loadTemplates，避免循环依赖
+        const templatesPromise = (async () => {
+          try {
+            const templatesResponse = await getQueryTemplates({
+              page: 1,
+              size: 8
+            });
+            setTemplates(templatesResponse.list);
+            setTemplatePagination(prev => ({
+              ...prev,
+              total: templatesResponse.total,
+              current: templatesResponse.page || prev.current,
+              pageSize: templatesResponse.size || prev.pageSize
+            }));
+          } catch (error) {
+            console.error('加载模板列表失败:', error);
+            message.error('加载模板列表失败');
+          }
+        })();
 
         // 如果URL中有templateId参数且是高级查询模式，优先加载模板并执行查询
         if (templateId && (tab === 'advanced' || tab === null)) {
@@ -236,55 +262,64 @@ const DeviceCenter: React.FC = () => {
 
               console.log('处理后的查询组:', processedGroups);
 
-              // 立即执行查询，不等待状态更新
-              console.log('直接执行模板查询');
-              const queryResponse = await queryDevices({
-                groups: processedGroups,
-                page: 1,
-                size: 10,
-              });
-
-              console.log('模板查询响应:', queryResponse);
-
-              // 一次性更新所有状态，减少重渲染
-              if (queryResponse) {
-                setQueryState(prev => ({
-                  ...prev,
-                  mode: 'advanced',
-                  advancedParams: {
-                    ...prev.advancedParams,
+              // 立即执行查询，不等待状态更新，并防止重复执行
+              if (!isExecutingQuery.current) {
+                console.log('直接执行模板查询');
+                isExecutingQuery.current = true;
+                
+                try {
+                  const queryResponse = await queryDevices({
                     groups: processedGroups,
-                    sourceTemplateId: templateId,
-                    sourceTemplateName: template.name,
-                    results: {
-                      devices: queryResponse.list || [],
-                      pagination: {
-                        current: 1,
-                        pageSize: 10,
-                        total: queryResponse.total || 0,
-                      },
-                      loading: false,
-                      lastUpdated: new Date(),
-                    }
+                    page: 1,
+                    size: 10,
+                  });
+
+                  console.log('模板查询响应:', queryResponse);
+
+                  // 一次性更新所有状态，减少重渲染
+                  if (queryResponse) {
+                    setQueryState(prev => ({
+                      ...prev,
+                      mode: 'advanced',
+                      advancedParams: {
+                        ...prev.advancedParams,
+                        groups: processedGroups,
+                        sourceTemplateId: templateId,
+                        sourceTemplateName: template.name,
+                        results: {
+                          devices: queryResponse.list || [],
+                          pagination: {
+                            current: 1,
+                            pageSize: 10,
+                            total: queryResponse.total || 0,
+                          },
+                          loading: false,
+                          lastUpdated: new Date(),
+                        }
+                      }
+                    }));
+
+                    // 等待DOM更新后显示成功消息
+                    setTimeout(() => {
+                      message.success('查询成功');
+                    }, 100);
+
+                    // 标记初始加载完成
+                    setInitialLoadComplete(true);
+
+                    // 等待模板列表加载完成
+                    await templatesPromise;
+                    return;
                   }
-                }));
-
-                // 等待DOM更新后显示成功消息
-                setTimeout(() => {
-                  message.success('查询成功');
-                }, 100);
-
-                // 标记初始加载完成
-                setInitialLoadComplete(true);
-
-                // 等待模板列表加载完成
-                await templatesPromise;
-                return;
+                } finally {
+                  isExecutingQuery.current = false;
+                }
               }
             }
           } catch (error) {
             console.error('模板加载或查询失败:', error);
             message.error('加载模板失败');
+            isExecutingQuery.current = false;
 
             // 重置加载状态
             setQueryState(prev => ({
@@ -362,7 +397,7 @@ const DeviceCenter: React.FC = () => {
     };
 
     loadInitialData();
-  }, [initialParams, loadTemplates]);
+  }, [initialParams]);
 
   // 处理多行查询关键字
   const processMultilineKeyword = (keyword: string): string => {
@@ -386,54 +421,28 @@ const DeviceCenter: React.FC = () => {
     return keyword;
   };
 
-  // 执行查询的通用函数
-  const executeQuery = useCallback(async () => {
-    const { mode, simpleParams, advancedParams, templateParams } = queryState;
+  // 执行查询的通用函数 - 改为普通函数避免依赖项问题
+  const executeQuery = async (mode?: 'simple' | 'advanced' | 'template') => {
+    // 防止重复请求
+    if (isExecutingQuery.current) {
+      console.log('查询正在执行中，跳过重复请求');
+      return;
+    }
+
+    const currentMode = mode || queryState.mode;
+    const { simpleParams, advancedParams, templateParams } = queryState;
 
     // 获取当前标签页的分页信息
     let currentPagination;
-    switch (mode) {
+    switch (currentMode) {
       case 'simple':
         currentPagination = simpleParams.results.pagination;
-        // 设置加载状态
-        setQueryState(prev => ({
-          ...prev,
-          simpleParams: {
-            ...prev.simpleParams,
-            results: {
-              ...prev.simpleParams.results,
-              loading: true,
-            }
-          }
-        }));
         break;
       case 'advanced':
         currentPagination = advancedParams.results.pagination;
-        // 设置加载状态
-        setQueryState(prev => ({
-          ...prev,
-          advancedParams: {
-            ...prev.advancedParams,
-            results: {
-              ...prev.advancedParams.results,
-              loading: true,
-            }
-          }
-        }));
         break;
       case 'template':
         currentPagination = templateParams.results.pagination;
-        // 设置加载状态
-        setQueryState(prev => ({
-          ...prev,
-          templateParams: {
-            ...prev.templateParams,
-            results: {
-              ...prev.templateParams.results,
-              loading: true,
-            }
-          }
-        }));
         break;
       default:
         currentPagination = simpleParams.results.pagination;
@@ -441,9 +450,46 @@ const DeviceCenter: React.FC = () => {
     }
 
     try {
+      isExecutingQuery.current = true;
+
+      // 设置加载状态
+      setQueryState(prev => {
+        const newState = { ...prev };
+        switch (currentMode) {
+          case 'simple':
+            newState.simpleParams = {
+              ...prev.simpleParams,
+              results: {
+                ...prev.simpleParams.results,
+                loading: true,
+              }
+            };
+            break;
+          case 'advanced':
+            newState.advancedParams = {
+              ...prev.advancedParams,
+              results: {
+                ...prev.advancedParams.results,
+                loading: true,
+              }
+            };
+            break;
+          case 'template':
+            newState.templateParams = {
+              ...prev.templateParams,
+              results: {
+                ...prev.templateParams.results,
+                loading: true,
+              }
+            };
+            break;
+        }
+        return newState;
+      });
+
       let response: DeviceListResponse | undefined;
 
-      switch (mode) {
+      switch (currentMode) {
         case 'simple':
           // 处理多行查询
           const processedKeyword = processMultilineKeyword(simpleParams.keyword);
@@ -483,11 +529,11 @@ const DeviceCenter: React.FC = () => {
         const safeResponse = response as DeviceListResponse;
 
         // 根据当前标签页更新结果
-        switch (mode) {
-          case 'simple':
-            setQueryState(prev => ({
-              ...prev,
-              simpleParams: {
+        setQueryState(prev => {
+          const newState = { ...prev };
+          switch (currentMode) {
+            case 'simple':
+              newState.simpleParams = {
                 ...prev.simpleParams,
                 results: {
                   devices: safeResponse.list || [],
@@ -498,13 +544,10 @@ const DeviceCenter: React.FC = () => {
                   loading: false,
                   lastUpdated: new Date(),
                 }
-              }
-            }));
-            break;
-          case 'advanced':
-            setQueryState(prev => ({
-              ...prev,
-              advancedParams: {
+              };
+              break;
+            case 'advanced':
+              newState.advancedParams = {
                 ...prev.advancedParams,
                 results: {
                   devices: safeResponse.list || [],
@@ -515,13 +558,10 @@ const DeviceCenter: React.FC = () => {
                   loading: false,
                   lastUpdated: new Date(),
                 }
-              }
-            }));
-            break;
-          case 'template':
-            setQueryState(prev => ({
-              ...prev,
-              templateParams: {
+              };
+              break;
+            case 'template':
+              newState.templateParams = {
                 ...prev.templateParams,
                 results: {
                   devices: safeResponse.list || [],
@@ -532,10 +572,11 @@ const DeviceCenter: React.FC = () => {
                   loading: false,
                   lastUpdated: new Date(),
                 }
-              }
-            }));
-            break;
-        }
+              };
+              break;
+          }
+          return newState;
+        });
 
         message.success('查询成功');
       }
@@ -544,46 +585,48 @@ const DeviceCenter: React.FC = () => {
       message.error('查询失败');
 
       // 根据当前标签页重置加载状态
-      switch (mode) {
-        case 'simple':
-          setQueryState(prev => ({
-            ...prev,
-            simpleParams: {
+      setQueryState(prev => {
+        const newState = { ...prev };
+        switch (currentMode) {
+          case 'simple':
+            newState.simpleParams = {
               ...prev.simpleParams,
               results: {
                 ...prev.simpleParams.results,
                 loading: false,
               }
-            }
-          }));
-          break;
-        case 'advanced':
-          setQueryState(prev => ({
-            ...prev,
-            advancedParams: {
+            };
+            break;
+          case 'advanced':
+            newState.advancedParams = {
               ...prev.advancedParams,
               results: {
                 ...prev.advancedParams.results,
                 loading: false,
               }
-            }
-          }));
-          break;
-        case 'template':
-          setQueryState(prev => ({
-            ...prev,
-            templateParams: {
+            };
+            break;
+          case 'template':
+            newState.templateParams = {
               ...prev.templateParams,
               results: {
                 ...prev.templateParams.results,
                 loading: false,
               }
-            }
-          }));
-          break;
-      }
+            };
+            break;
+        }
+        return newState;
+      });
+    } finally {
+      isExecutingQuery.current = false;
     }
-  }, [queryState]);
+  };
+
+  // 处理刷新按钮点击
+  const handleRefresh = () => {
+    executeQuery();
+  };
 
   // 当前活动标签页的结果
   const getCurrentResults = () => {
@@ -1467,7 +1510,7 @@ const DeviceCenter: React.FC = () => {
                 <Tooltip title="刷新数据">
                   <Button
                     icon={<ReloadOutlined />}
-                    onClick={executeQuery}
+                    onClick={handleRefresh}
                     loading={loading}
                   >
                     刷新

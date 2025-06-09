@@ -1,4 +1,4 @@
-package service
+package es
 
 import (
 	"errors"
@@ -203,9 +203,9 @@ func (s *ElasticScalingService) GetStrategy(id int64) (*StrategyDetailDTO, error
 	// 获取相关订单（使用新的订单模型）
 	var orders []portal.Order
 	if err := s.db.Preload("ElasticScalingDetail").
-		Joins("JOIN ng_elastic_scaling_order_details ON orders.id = ng_elastic_scaling_order_details.order_id").
+		Joins("JOIN ng_elastic_scaling_order_details ON ng_orders.id = ng_elastic_scaling_order_details.order_id").
 		Where("ng_elastic_scaling_order_details.strategy_id = ?", id).
-		Order("orders.created_at DESC").Limit(10).Find(&orders).Error; err != nil {
+		Order("ng_orders.created_at DESC").Limit(10).Find(&orders).Error; err != nil {
 		return nil, err
 	}
 
@@ -426,9 +426,9 @@ func (s *ElasticScalingService) UpdateStrategyStatus(id int64, status string) er
 func (s *ElasticScalingService) DeleteStrategy(id int64) error {
 	// 检查是否有关联的执行中订单（使用新的订单模型）
 	var count int64
-	if err := s.db.Table("orders").
-		Joins("JOIN ng_elastic_scaling_order_details ON orders.id = ng_elastic_scaling_order_details.order_id").
-		Where("ng_elastic_scaling_order_details.strategy_id = ? AND orders.status IN ('pending', 'processing')", id).
+	if err := s.db.Table("ng_orders").
+		Joins("JOIN ng_elastic_scaling_order_details ON ng_orders.id = ng_elastic_scaling_order_details.order_id").
+		Where("ng_elastic_scaling_order_details.strategy_id = ? AND ng_orders.status IN ('pending', 'processing')", id).
 		Count(&count).Error; err != nil {
 		return err
 	}

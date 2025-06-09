@@ -1,4 +1,4 @@
-package routers
+package order
 
 import (
 	"fmt"
@@ -6,7 +6,9 @@ import (
 
 	"navy-ng/models/portal"
 	"navy-ng/pkg/middleware/render"
-	"navy-ng/server/portal/internal/service"
+	"navy-ng/server/portal/internal/routers"
+	. "navy-ng/server/portal/internal/routers"
+	"navy-ng/server/portal/internal/service/order"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -30,12 +32,12 @@ func NewUnifiedOrderHandler(db *gorm.DB) *UnifiedOrderHandler {
 // InitServices 初始化并注册所有订单服务
 func (h *UnifiedOrderHandler) InitServices(logger *zap.Logger) {
 	// 注册 GeneralOrderService
-	generalOrderService := service.NewGeneralOrderService(h.db)
-	service.RegisterOrderService("general", generalOrderService)
+	generalOrderService := order.NewGeneralOrderService(h.db)
+	order.RegisterOrderService("general", generalOrderService)
 
 	// 注册维护订单服务
-	maintenanceService := service.NewMaintenanceOrderService(h.db, logger)
-	service.RegisterOrderService(string(portal.OrderTypeMaintenance), maintenanceService)
+	maintenanceService := order.NewMaintenanceOrderService(h.db, logger)
+	order.RegisterOrderService(string(portal.OrderTypeMaintenance), maintenanceService)
 
 	// 未来新的订单服务可以在这里继续注册
 	// e.g. elasticScalingService := service.NewElasticScalingService(db, redisHandler, logger, deviceCache)
@@ -45,7 +47,7 @@ func (h *UnifiedOrderHandler) InitServices(logger *zap.Logger) {
 // RegisterRoutes 注册通用订单路由
 // 路由设计为 /orders/{orderType}/... 的格式
 func (h *UnifiedOrderHandler) RegisterRoutes(router *gin.RouterGroup) {
-	orderGroup := router.Group("/orders/:" + ParamOrderType)
+	orderGroup := router.Group("/orders/:" + routers.ParamOrderType)
 	{
 		orderGroup.POST("", h.CreateOrder)
 		orderGroup.GET("", h.ListOrders)
@@ -85,7 +87,7 @@ func (h *UnifiedOrderHandler) GetOrder(c *gin.Context) {
 		return
 	}
 
-	serviceInstance, found := service.GetOrderService(req.OrderType)
+	serviceInstance, found := order.GetOrderService(req.OrderType)
 	if !found {
 		render.BadRequest(c, fmt.Sprintf(MsgInvalidOrderType, req.OrderType))
 		return
@@ -93,16 +95,16 @@ func (h *UnifiedOrderHandler) GetOrder(c *gin.Context) {
 
 	switch req.OrderType {
 	case OrderTypeGeneral:
-		handleGetOrder[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO](c, serviceInstance, req.ID)
+		handleGetOrder[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO](c, serviceInstance, req.ID)
 	default:
 		render.BadRequest(c, fmt.Sprintf(MsgUnsupportedOrderType, req.OrderType))
 	}
 }
 
 // handleGetOrder 是一个泛型辅助函数，用于处理获取订单的通用逻辑
-func handleGetOrder[T service.RichOrder, C any](c *gin.Context, serviceInstance any, id int64) {
+func handleGetOrder[T order.RichOrder, C any](c *gin.Context, serviceInstance any, id int64) {
 	// 类型断言，确保服务实例实现了正确的泛型接口
-	s, ok := serviceInstance.(service.UnifiedOrderService[T, C])
+	s, ok := serviceInstance.(order.UnifiedOrderService[T, C])
 	if !ok {
 		render.Fail(c, http.StatusInternalServerError, MsgServiceTypeMismatch)
 		return
@@ -145,7 +147,7 @@ func (h *UnifiedOrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	serviceInstance, found := service.GetOrderService(req.OrderType)
+	serviceInstance, found := order.GetOrderService(req.OrderType)
 	if !found {
 		render.BadRequest(c, fmt.Sprintf(MsgInvalidOrderType, req.OrderType))
 		return
@@ -153,15 +155,15 @@ func (h *UnifiedOrderHandler) CreateOrder(c *gin.Context) {
 
 	switch req.OrderType {
 	case OrderTypeGeneral:
-		handleCreateOrder[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO](c, serviceInstance)
+		handleCreateOrder[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO](c, serviceInstance)
 	default:
 		render.BadRequest(c, fmt.Sprintf(MsgUnsupportedOrderType, req.OrderType))
 	}
 }
 
 // handleCreateOrder 是一个泛型辅助函数，用于处理创建订单的通用逻辑
-func handleCreateOrder[T service.RichOrder, C any](c *gin.Context, serviceInstance any) {
-	s, ok := serviceInstance.(service.UnifiedOrderService[T, C])
+func handleCreateOrder[T order.RichOrder, C any](c *gin.Context, serviceInstance any) {
+	s, ok := serviceInstance.(order.UnifiedOrderService[T, C])
 	if !ok {
 		render.Fail(c, http.StatusInternalServerError, MsgServiceTypeMismatch)
 		return
@@ -212,7 +214,7 @@ func (h *UnifiedOrderHandler) ListOrders(c *gin.Context) {
 		return
 	}
 
-	serviceInstance, found := service.GetOrderService(req.OrderType)
+	serviceInstance, found := order.GetOrderService(req.OrderType)
 	if !found {
 		render.BadRequest(c, fmt.Sprintf(MsgInvalidOrderType, req.OrderType))
 		return
@@ -220,15 +222,15 @@ func (h *UnifiedOrderHandler) ListOrders(c *gin.Context) {
 
 	switch req.OrderType {
 	case OrderTypeGeneral:
-		handleListOrders[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO](c, serviceInstance)
+		handleListOrders[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO](c, serviceInstance)
 	default:
 		render.BadRequest(c, fmt.Sprintf(MsgUnsupportedOrderType, req.OrderType))
 	}
 }
 
 // handleListOrders 是一个泛型辅助函数，用于处理获取订单列表的通用逻辑
-func handleListOrders[T service.RichOrder, C any](c *gin.Context, serviceInstance any) {
-	s, ok := serviceInstance.(service.UnifiedOrderService[T, C])
+func handleListOrders[T order.RichOrder, C any](c *gin.Context, serviceInstance any) {
+	s, ok := serviceInstance.(order.UnifiedOrderService[T, C])
 	if !ok {
 		render.Fail(c, http.StatusInternalServerError, MsgServiceTypeMismatch)
 		return
@@ -284,7 +286,7 @@ func (h *UnifiedOrderHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
-	serviceInstance, found := service.GetOrderService(uriReq.OrderType)
+	serviceInstance, found := order.GetOrderService(uriReq.OrderType)
 	if !found {
 		render.BadRequest(c, fmt.Sprintf(MsgInvalidOrderType, uriReq.OrderType))
 		return
@@ -292,15 +294,15 @@ func (h *UnifiedOrderHandler) UpdateOrderStatus(c *gin.Context) {
 
 	switch uriReq.OrderType {
 	case OrderTypeGeneral:
-		handleUpdateOrderStatus[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO](c, serviceInstance, uriReq.ID, bodyReq.Status, bodyReq.Reason)
+		handleUpdateOrderStatus[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO](c, serviceInstance, uriReq.ID, bodyReq.Status, bodyReq.Reason)
 	default:
 		render.BadRequest(c, fmt.Sprintf(MsgUnsupportedOrderType, uriReq.OrderType))
 	}
 }
 
 // handleUpdateOrderStatus 是一个泛型辅助函数，用于处理更新订单状态的通用逻辑
-func handleUpdateOrderStatus[T service.RichOrder, C any](c *gin.Context, serviceInstance any, id int64, status, reason string) {
-	s, ok := serviceInstance.(service.UnifiedOrderService[T, C])
+func handleUpdateOrderStatus[T order.RichOrder, C any](c *gin.Context, serviceInstance any, id int64, status, reason string) {
+	s, ok := serviceInstance.(order.UnifiedOrderService[T, C])
 	if !ok {
 		render.Fail(c, http.StatusInternalServerError, MsgServiceTypeMismatch)
 		return
@@ -341,7 +343,7 @@ type FailRequest struct {
 // @Success 200 {object} render.Response "成功"
 // @Router /fe-v1/orders/{orderType}/{id}/process [post]
 func (h *UnifiedOrderHandler) ProcessOrder(c *gin.Context) {
-	h.handleSimpleLifecycleAction(c, func(srv service.UnifiedOrderService[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO], id int64, executor string) error {
+	h.handleSimpleLifecycleAction(c, func(srv order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO], id int64, executor string) error {
 		return srv.ProcessOrder(c.Request.Context(), id, executor)
 	})
 }
@@ -358,7 +360,7 @@ func (h *UnifiedOrderHandler) ProcessOrder(c *gin.Context) {
 // @Success 200 {object} render.Response "成功"
 // @Router /fe-v1/orders/{orderType}/{id}/complete [post]
 func (h *UnifiedOrderHandler) CompleteOrder(c *gin.Context) {
-	h.handleSimpleLifecycleAction(c, func(srv service.UnifiedOrderService[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO], id int64, executor string) error {
+	h.handleSimpleLifecycleAction(c, func(srv order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO], id int64, executor string) error {
 		return srv.CompleteOrder(c.Request.Context(), id, executor)
 	})
 }
@@ -386,7 +388,7 @@ func (h *UnifiedOrderHandler) FailOrder(c *gin.Context) {
 		return
 	}
 
-	serviceInstance, found := service.GetOrderService(uriReq.OrderType)
+	serviceInstance, found := order.GetOrderService(uriReq.OrderType)
 	if !found {
 		render.BadRequest(c, "不支持的订单类型")
 		return
@@ -394,7 +396,7 @@ func (h *UnifiedOrderHandler) FailOrder(c *gin.Context) {
 
 	switch uriReq.OrderType {
 	case "general":
-		s, _ := serviceInstance.(service.UnifiedOrderService[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO])
+		s, _ := serviceInstance.(order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO])
 		err := s.FailOrder(c.Request.Context(), uriReq.ID, bodyReq.Executor, bodyReq.Reason)
 		if err != nil {
 			render.Fail(c, http.StatusInternalServerError, err.Error())
@@ -418,13 +420,13 @@ func (h *UnifiedOrderHandler) FailOrder(c *gin.Context) {
 // @Success 200 {object} render.Response "成功"
 // @Router /fe-v1/orders/{orderType}/{id}/cancel [post]
 func (h *UnifiedOrderHandler) CancelOrder(c *gin.Context) {
-	h.handleSimpleLifecycleAction(c, func(srv service.UnifiedOrderService[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO], id int64, executor string) error {
+	h.handleSimpleLifecycleAction(c, func(srv order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO], id int64, executor string) error {
 		return srv.CancelOrder(c.Request.Context(), id, executor)
 	})
 }
 
 // handleSimpleLifecycleAction 是一个高阶函数，用于处理只需要 executor 的简单生命周期操作
-func (h *UnifiedOrderHandler) handleSimpleLifecycleAction(c *gin.Context, actionFunc func(srv service.UnifiedOrderService[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO], id int64, executor string) error) {
+func (h *UnifiedOrderHandler) handleSimpleLifecycleAction(c *gin.Context, actionFunc func(srv order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO], id int64, executor string) error) {
 	var uriReq UpdateOrderStatusURIRequest
 	if err := c.ShouldBindUri(&uriReq); err != nil {
 		render.BadRequest(c, err.Error())
@@ -436,7 +438,7 @@ func (h *UnifiedOrderHandler) handleSimpleLifecycleAction(c *gin.Context, action
 		return
 	}
 
-	serviceInstance, found := service.GetOrderService(uriReq.OrderType)
+	serviceInstance, found := order.GetOrderService(uriReq.OrderType)
 	if !found {
 		render.BadRequest(c, "不支持的订单类型")
 		return
@@ -444,7 +446,7 @@ func (h *UnifiedOrderHandler) handleSimpleLifecycleAction(c *gin.Context, action
 
 	switch uriReq.OrderType {
 	case "general":
-		srv, ok := serviceInstance.(service.UnifiedOrderService[*service.GeneralOrderDTO, service.GeneralOrderCreateDTO])
+		srv, ok := serviceInstance.(order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO])
 		if !ok {
 			render.Fail(c, http.StatusInternalServerError, "服务接口类型不匹配")
 			return

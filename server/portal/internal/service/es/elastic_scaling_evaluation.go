@@ -1,11 +1,13 @@
-package service
+package es
 
 import (
 	"fmt"
 	"navy-ng/models/portal"
+	. "navy-ng/server/portal/internal/service"
 	"sort"
 	"strings"
 	"time"
+	"errors"
 
 	"github.com/jinzhu/now"
 	"go.uber.org/zap"
@@ -70,7 +72,7 @@ func (s *ElasticScalingService) EvaluateStrategies() error {
 }
 
 // evaluateStrategy 评估单个策略的完整流程。
-// 它负责锁、冷却期检查、数据获取和触发评估。
+// 它负责锁、数据获取和触发评估。冷却期检查已移至资源池级别。
 func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScalingStrategy) error {
 	s.logger.Info("Starting single strategy evaluation", zap.Int64("strategyID", strategy.ID), zap.String("strategyName", strategy.Name))
 
@@ -87,17 +89,7 @@ func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScaling
 	}
 	defer s.redisHandler.Delete(lockKey)
 
-	// 2. 检查冷却期
-	inCooldown, err := s.isStrategyInCooldown(strategy)
-	if err != nil {
-		return fmt.Errorf(errFailedToCheckCooldown, strategy.ID, err)
-	}
-	if inCooldown {
-		s.logger.Info(logStrategyInCooldown, zap.Int64(zapKeyStrategyID, strategy.ID))
-		return nil
-	}
-
-	// 3. 获取关联集群
+	// 2. 获取关联集群
 	associations, err := s.getStrategyClusterAssociations(strategy.ID)
 	if err != nil {
 		return fmt.Errorf(errFailedToGetAssociations, strategy.ID, err)
@@ -107,7 +99,7 @@ func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScaling
 		return nil
 	}
 
-	// 4. 循环评估每个关联
+	// 3. 循环评估每个关联
 	for _, assoc := range associations {
 		s.evaluateAssociation(strategy, assoc.ClusterID)
 	}
@@ -125,8 +117,39 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 			zap.Int64("clusterID", clusterID),
 			zap.String("resourceType", resourceType))
 
+		// 检查该集群+资源池是否在冷却期内
+		inCooldown, err := s.isClusterResourcePoolInCooldown(strategy, clusterID, resourceType)
+		if err != nil {
+			s.logger.Error("Failed to check cooldown for cluster resource pool", 
+				zap.Error(err), 
+				zap.Int64("strategyID", strategy.ID),
+				zap.Int64("clusterID", clusterID),
+				zap.String("resourceType", resourceType))
+			continue
+		}
+		if inCooldown {
+			// 获取集群名称用于中文描述
+			var cluster portal.K8sCluster
+			clusterName := "未知集群"
+			if err := s.db.Select("clustername").First(&cluster, clusterID).Error; err == nil {
+				clusterName = cluster.ClusterName
+			}
+
+			reason := fmt.Sprintf("集群 %s（%s类型）处于冷却期内，跳过本次评估", clusterName, resourceType)
+			s.logger.Info(reason, 
+				zap.Int64("strategyID", strategy.ID),
+				zap.Int64("clusterID", clusterID),
+				zap.String("resourceType", resourceType))
+
+			// 记录冷却期执行历史
+			currentTime := portal.NavyTime(time.Now())
+			s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultSkippedCooldown, nil, reason, "", "", &currentTime)
+			continue
+		}
+
 		// 获取每日快照
-		daysToCheck := 7 // 默认检查7天
+		requiredDays := getRequiredConsecutiveDays(strategy)
+		daysToCheck := requiredDays + 3 // 多查询几天以确保有足够的历史数据进行判断
 		snapshots, err := s.getOrderedDailySnapshots(clusterID, resourceType, daysToCheck)
 		if err != nil {
 			s.logger.Error("Failed to get daily snapshots", zap.Error(err), zap.Int64("clusterID", clusterID))
@@ -152,7 +175,6 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 		breached, consecutiveDays, triggeredValue, thresholdValue := s.EvaluateSnapshots(snapshots, strategy)
 
 		// 根据评估结果执行操作
-		requiredDays := getRequiredConsecutiveDays(strategy)
 		currentTime := portal.NavyTime(time.Now())
 		if breached {
 			s.logger.Info("Threshold consistently breached for strategy",
@@ -195,25 +217,34 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 	}
 }
 
-// isStrategyInCooldown 检查策略是否处于冷却期。
-func (s *ElasticScalingService) isStrategyInCooldown(strategy *portal.ElasticScalingStrategy) (bool, error) {
-	var latestHistory portal.StrategyExecutionHistory
-	err := s.db.Where(queryStrategyIDAndResult, strategy.ID, resultOrderCreated).
-		Order(orderByExecutionTimeDesc).
-		First(&latestHistory).Error
-
-	if err != nil {
-		// 如果没有找到记录，则不在冷却期
-		if isGormRecordNotFoundError(err) {
-			return false, nil
-		}
-		return false, err
+// isClusterResourcePoolInCooldown 检查指定集群+资源池是否在冷却期内
+// 冷却期基于订单：如果该集群+资源池生成了非取消状态的订单，
+// 则该资源池在冷却期内不会重复生成订单
+func (s *ElasticScalingService) isClusterResourcePoolInCooldown(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType string) (bool, error) {
+	if strategy.CooldownMinutes <= 0 {
+		return false, nil
 	}
 
-	var cooldownEndTime time.Time
-	latestHistory.ExecutionTime.Scan(&cooldownEndTime)
-	cooldownEndTime = cooldownEndTime.Add(time.Duration(strategy.CooldownMinutes) * time.Minute)
+	// 查询该集群+资源池类型的最近一次非取消状态订单
+	var latestOrder portal.ElasticScalingOrderDetail
+	err := s.db.Table("ng_orders o").
+		Select("o.created_at").
+		Joins("JOIN elastic_scaling_order_details esd ON o.id = esd.order_id").
+		Where("esd.strategy_id = ? AND esd.cluster_id = ? AND esd.resource_type = ? AND o.status != ?",
+			strategy.ID, clusterID, resourceType, portal.OrderStatusCancelled).
+		Order("o.created_at DESC").
+		First(&latestOrder).Error
 
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 没有找到订单，不在冷却期
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to query latest order for cluster %d resource %s: %w", clusterID, resourceType, err)
+	}
+
+	// 计算冷却期结束时间
+	cooldownEndTime := time.Time(latestOrder.CreatedAt).Add(time.Duration(strategy.CooldownMinutes) * time.Minute)
 	return time.Now().Before(cooldownEndTime), nil
 }
 
@@ -228,8 +259,9 @@ func (s *ElasticScalingService) getStrategyClusterAssociations(strategyID int64)
 
 // getOrderedDailySnapshots 获取并处理每日资源快照。
 func (s *ElasticScalingService) getOrderedDailySnapshots(clusterID int64, resourceType string, days int) ([]portal.ResourceSnapshot, error) {
-	startDate := now.BeginningOfDay()
 	endDate := now.EndOfDay()
+	startDate := endDate.AddDate(0, 0, -days+1) // 包含今天在内的过去N天
+
 	query := s.db.Where("cluster_id = ? AND created_at between ? and ?", clusterID, startDate, endDate)
 
 	if resourceType != resourceTypeTotal {
