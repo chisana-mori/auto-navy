@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jinzhu/now"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -42,7 +43,7 @@ const (
 	resourceTypeTotal = "total"
 
 	// 日期格式
-	dateFormat = "2006-01-02"
+	dateFormat = time.DateOnly
 )
 
 // EvaluateStrategies 评估所有启用的策略，并可能创建订单。
@@ -227,8 +228,9 @@ func (s *ElasticScalingService) getStrategyClusterAssociations(strategyID int64)
 
 // getOrderedDailySnapshots 获取并处理每日资源快照。
 func (s *ElasticScalingService) getOrderedDailySnapshots(clusterID int64, resourceType string, days int) ([]portal.ResourceSnapshot, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
-	query := s.db.Where("cluster_id = ? AND created_at >= ?", clusterID, startDate)
+	startDate := now.BeginningOfDay()
+	endDate := now.EndOfDay()
+	query := s.db.Where("cluster_id = ? AND created_at between ? and ?", clusterID, startDate, endDate)
 
 	if resourceType != resourceTypeTotal {
 		query = query.Where(queryResourceTypeAndPool, resourceType, resourceType)
@@ -308,25 +310,17 @@ func (s *ElasticScalingService) checkSingleSnapshotBreach(snapshot portal.Resour
 	var cpuMet, memMet bool
 	var cpuVal, memVal float64 = -1.0, -1.0
 
-	// CPU检查
+	// CPU检查 - 统一使用分配率计算（cpuRequest/cpuCapacity）
 	if strategy.CPUThresholdValue > 0 {
-		if strategy.CPUThresholdType == ThresholdTypeUsage {
-			cpuVal = snapshot.MaxCpuUsageRatio
-		} else {
-			cpuVal = safePercentage(snapshot.CpuRequest, snapshot.CpuCapacity)
-		}
+		cpuVal = safePercentage(snapshot.CpuRequest, snapshot.CpuCapacity)
 		cpuMet = compare(cpuVal, float64(strategy.CPUThresholdValue), strategy.ThresholdTriggerAction)
 	} else {
 		cpuMet = true // 没有定义CPU阈值，则默认满足
 	}
 
-	// 内存检查
+	// 内存检查 - 统一使用分配率计算（memRequest/memoryCapacity）
 	if strategy.MemoryThresholdValue > 0 {
-		if strategy.MemoryThresholdType == ThresholdTypeUsage {
-			memVal = snapshot.MaxMemoryUsageRatio
-		} else {
-			memVal = safePercentage(snapshot.MemRequest, snapshot.MemoryCapacity)
-		}
+		memVal = safePercentage(snapshot.MemRequest, snapshot.MemoryCapacity)
 		memMet = compare(memVal, float64(strategy.MemoryThresholdValue), strategy.ThresholdTriggerAction)
 	} else {
 		memMet = true // 没有定义内存阈值，则默认满足
@@ -355,50 +349,49 @@ func (s *ElasticScalingService) checkSingleSnapshotBreach(snapshot portal.Resour
 
 // calculateResourceDelta 计算需要调整的资源量
 func (s *ElasticScalingService) calculateResourceDelta(latestSnapshot portal.ResourceSnapshot, strategy *portal.ElasticScalingStrategy) (cpuDelta float64, memDelta float64) {
-	// 目标是降低到阈值水平，所以我们需要计算超出的部分
-	// 入池：需要增加的资源 = (当前值 - 阈值) * 总容量 / 阈值
-	// 出池：需要减少的资源 = (阈值 - 当前值) * 总容量 / 阈值
-	// 注意：这里的计算是简化的，实际场景可能更复杂
+	// 目标是调整资源容量使分配率达到阈值水平
+	// 入池：当分配率超过阈值时，需要增加容量以降低分配率
+	// 出池：当分配率低于阈值时，需要减少容量以提高分配率
+	// 计算基于分配率：Request/Capacity
 
 	if strategy.ThresholdTriggerAction == TriggerActionPoolEntry {
 		if strategy.CPUThresholdValue > 0 {
-			currentCPUUsage := safePercentage(latestSnapshot.CpuRequest, latestSnapshot.CpuCapacity)
-			if currentCPUUsage > strategy.CPUThresholdValue {
-				// 我们希望将利用率降至目标值，例如阈值本身
-				targetCPUUsage := strategy.CPUThresholdValue
-				// (currentUsage/total - targetUsage/total) * total = (currentUsage - targetUsage)
+			currentCPUAllocation := safePercentage(latestSnapshot.CpuRequest, latestSnapshot.CpuCapacity)
+			if currentCPUAllocation > strategy.CPUThresholdValue {
+				// 我们希望将分配率降至目标值，例如阈值本身
+				targetCPUAllocation := strategy.CPUThresholdValue
 				// (currentRequest/currentCapacity - targetRequest/newCapacity)
 				// 假设 targetRequest = currentRequest, 求解 newCapacity
-				// currentRequest / targetCPUUsage = newCapacity
-				newCapacity := latestSnapshot.CpuRequest / (targetCPUUsage / 100)
+				// currentRequest / targetCPUAllocation = newCapacity
+				newCapacity := latestSnapshot.CpuRequest / (targetCPUAllocation / 100)
 				cpuDelta = newCapacity - latestSnapshot.CpuCapacity
 			}
 		}
 		if strategy.MemoryThresholdValue > 0 {
-			currentMemUsage := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
-			if currentMemUsage > strategy.MemoryThresholdValue {
-				targetMemUsage := strategy.MemoryThresholdValue
-				newCapacity := latestSnapshot.MemRequest / (targetMemUsage / 100)
+			currentMemAllocation := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
+			if currentMemAllocation > strategy.MemoryThresholdValue {
+				targetMemAllocation := strategy.MemoryThresholdValue
+				newCapacity := latestSnapshot.MemRequest / (targetMemAllocation / 100)
 				memDelta = newCapacity - latestSnapshot.MemoryCapacity
 			}
 		}
 	} else if strategy.ThresholdTriggerAction == TriggerActionPoolExit {
 		if strategy.CPUThresholdValue > 0 {
-			currentCPUUsage := safePercentage(latestSnapshot.CpuRequest, latestSnapshot.CpuCapacity)
-			if currentCPUUsage < strategy.CPUThresholdValue {
-				// 我们希望将利用率提升至目标值
-				targetCPUUsage := strategy.CPUThresholdValue
+			currentCPUAllocation := safePercentage(latestSnapshot.CpuRequest, latestSnapshot.CpuCapacity)
+			if currentCPUAllocation < strategy.CPUThresholdValue {
+				// 我们希望将分配率提升至目标值
+				targetCPUAllocation := strategy.CPUThresholdValue
 				// 假设 targetRequest = currentRequest, 求解 newCapacity
-				// currentRequest / targetCPUUsage = newCapacity
-				newCapacity := latestSnapshot.CpuRequest / (targetCPUUsage / 100)
+				// currentRequest / targetCPUAllocation = newCapacity
+				newCapacity := latestSnapshot.CpuRequest / (targetCPUAllocation / 100)
 				cpuDelta = newCapacity - latestSnapshot.CpuCapacity // Delta will be negative
 			}
 		}
 		if strategy.MemoryThresholdValue > 0 {
-			currentMemUsage := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
-			if currentMemUsage < strategy.MemoryThresholdValue {
-				targetMemUsage := strategy.MemoryThresholdValue
-				newCapacity := latestSnapshot.MemRequest / (targetMemUsage / 100)
+			currentMemAllocation := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
+			if currentMemAllocation < strategy.MemoryThresholdValue {
+				targetMemAllocation := strategy.MemoryThresholdValue
+				newCapacity := latestSnapshot.MemRequest / (targetMemAllocation / 100)
 				memDelta = newCapacity - latestSnapshot.MemoryCapacity // Delta will be negative
 			}
 		}
@@ -450,10 +443,10 @@ func (s *ElasticScalingService) buildThresholdString(strategy *portal.ElasticSca
 	}
 
 	if strategy.CPUThresholdValue > 0 {
-		parts = append(parts, fmt.Sprintf("CPU %s %s %.2f%%", strategy.CPUThresholdType, actionStr, strategy.CPUThresholdValue))
+		parts = append(parts, fmt.Sprintf("CPU 分配率 %s %.2f%%", actionStr, strategy.CPUThresholdValue))
 	}
 	if strategy.MemoryThresholdValue > 0 {
-		parts = append(parts, fmt.Sprintf("Memory %s %s %.2f%%", strategy.MemoryThresholdType, actionStr, strategy.MemoryThresholdValue))
+		parts = append(parts, fmt.Sprintf("Memory 分配率 %s %.2f%%", actionStr, strategy.MemoryThresholdValue))
 	}
 
 	logic := " "
@@ -469,17 +462,17 @@ func (s *ElasticScalingService) buildTriggeredValueString(cpuValue, memValue flo
 	var parts []string
 	if strategy.CPUThresholdValue > 0 {
 		if cpuValue >= 0 {
-			parts = append(parts, fmt.Sprintf("CPU %s: %.2f%%", strategy.CPUThresholdType, cpuValue))
+			parts = append(parts, fmt.Sprintf("CPU 分配率: %.2f%%", cpuValue))
 		} else {
-			parts = append(parts, fmt.Sprintf("CPU %s: N/A", strategy.CPUThresholdType))
+			parts = append(parts, fmt.Sprintf("CPU 分配率: N/A"))
 		}
 	}
 
 	if strategy.MemoryThresholdValue > 0 {
 		if memValue >= 0 {
-			parts = append(parts, fmt.Sprintf("Memory %s: %.2f%%", strategy.MemoryThresholdType, memValue))
+			parts = append(parts, fmt.Sprintf("Memory 分配率: %.2f%%", memValue))
 		} else {
-			parts = append(parts, fmt.Sprintf("Memory %s: N/A", strategy.MemoryThresholdType))
+			parts = append(parts, fmt.Sprintf("Memory 分配率: N/A"))
 		}
 	}
 

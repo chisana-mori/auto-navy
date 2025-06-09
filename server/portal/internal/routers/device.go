@@ -147,7 +147,7 @@ func (h *DeviceHandler) exportDevices(c *gin.Context) {
 // @Tags 设备管理
 // @Accept json
 // @Produce json
-// @Param request body service.UpdateDeviceGroupRequest true "更新分组请求"
+// @Param request body service.DeviceGroupUpdateRequest true "更新分组请求"
 // @Success 200 {object} render.Response
 // @Failure 400 {object} render.ErrorResponse
 // @Failure 500 {object} render.ErrorResponse

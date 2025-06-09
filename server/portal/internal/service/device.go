@@ -570,11 +570,11 @@ func (s *DeviceService) ExportDevices(ctx context.Context) ([]byte, error) {
 		buffer.WriteString(",")
 
 		// 创建时间
-		buffer.WriteString(time.Time(device.CreatedAt).Format("2006-01-02"))
+		buffer.WriteString(time.Time(device.CreatedAt).Format(time.DateOnly))
 		buffer.WriteString(",")
 
 		// 更新时间
-		buffer.WriteString(time.Time(device.UpdatedAt).Format("2006-01-02"))
+		buffer.WriteString(time.Time(device.UpdatedAt).Format(time.DateOnly))
 
 		buffer.WriteString("\n")
 	}

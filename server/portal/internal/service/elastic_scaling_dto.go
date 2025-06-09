@@ -8,27 +8,26 @@ import (
 
 // StrategyDTO 弹性伸缩策略DTO
 type StrategyDTO struct {
-	ID                     int64     `json:"id,omitempty"`
-	Name                   string    `json:"name"`
-	Description            string    `json:"description"`
-	ThresholdTriggerAction string    `json:"thresholdTriggerAction"` // pool_entry 或 pool_exit
-	CPUThresholdValue      *float64  `json:"cpuThresholdValue"`
-	CPUThresholdType       *string   `json:"cpuThresholdType"` // usage 或 allocated
-	CPUTargetValue         *float64  `json:"cpuTargetValue"`   // 动作执行后CPU目标使用率
-	MemoryThresholdValue   *float64  `json:"memoryThresholdValue"`
-	MemoryThresholdType    *string   `json:"memoryThresholdType"` // usage 或 allocated
-	MemoryTargetValue      *float64  `json:"memoryTargetValue"`   // 动作执行后内存目标使用率
-	ConditionLogic         string    `json:"conditionLogic"`      // AND 或 OR
-	DurationMinutes        int       `json:"durationMinutes"`
-	CooldownMinutes        int       `json:"cooldownMinutes"`
-	DeviceCount            int       `json:"deviceCount"`
-	NodeSelector           string    `json:"nodeSelector"`
-	ResourceTypes          string    `json:"resourceTypes"` // 资源类型列表，逗号分隔
-	Status                 string    `json:"status"`        // enabled 或 disabled
-	CreatedBy              string    `json:"createdBy"`
-	CreatedAt              time.Time `json:"createdAt,omitempty"`
-	UpdatedAt              time.Time `json:"updatedAt,omitempty"`
-	ClusterIDs             []int64   `json:"clusterIds"` // 关联的集群ID列表
+	ID                     int64    `json:"id,omitempty"`
+	Name                   string   `json:"name"`
+	Description            string   `json:"description"`
+	ThresholdTriggerAction string   `json:"thresholdTriggerAction"` // pool_entry 或 pool_exit
+	CPUThresholdValue      *float64 `json:"cpuThresholdValue"`
+	CPUThresholdType       *string  `json:"cpuThresholdType"` // usage 或 allocated
+	CPUTargetValue         *float64 `json:"cpuTargetValue"`   // 动作执行后CPU目标使用率
+	MemoryThresholdValue   *float64 `json:"memoryThresholdValue"`
+	MemoryThresholdType    *string  `json:"memoryThresholdType"` // usage 或 allocated
+	MemoryTargetValue      *float64 `json:"memoryTargetValue"`   // 动作执行后内存目标使用率
+	ConditionLogic         string   `json:"conditionLogic"`      // AND 或 OR
+	DurationMinutes        int      `json:"durationMinutes"`
+	CooldownMinutes        int      `json:"cooldownMinutes"`
+
+	ResourceTypes string    `json:"resourceTypes"` // 资源类型列表，逗号分隔
+	Status        string    `json:"status"`        // enabled 或 disabled
+	CreatedBy     string    `json:"createdBy"`
+	CreatedAt     time.Time `json:"createdAt,omitempty"`
+	UpdatedAt     time.Time `json:"updatedAt,omitempty"`
+	ClusterIDs    []int64   `json:"clusterIds"` // 关联的集群ID列表
 }
 
 // StrategyListItemDTO 策略列表项
@@ -44,7 +43,6 @@ type StrategyListItemDTO struct {
 	MemoryThresholdType    *string   `json:"memoryThresholdType"`
 	MemoryTargetValue      *float64  `json:"memoryTargetValue"`
 	ConditionLogic         string    `json:"conditionLogic"`
-	DeviceCount            int       `json:"deviceCount"`
 	ResourceTypes          string    `json:"resourceTypes"`
 	DurationMinutes        int       `json:"durationMinutes"` // 持续时间（分钟）
 	CooldownMinutes        int       `json:"cooldownMinutes"`

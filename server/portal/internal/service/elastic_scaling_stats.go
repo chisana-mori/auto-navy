@@ -48,7 +48,7 @@ func (s *ElasticScalingService) GetDashboardStats() (*DashboardStatsDTO, error) 
 	// 获取生成待处理状态的扩缩容订单的集群个数，按集群名去重
 	var abnormalClusterCount int64
 	if err := s.db.Table("orders o").
-		Joins("JOIN elastic_scaling_order_details esd ON o.id = esd.order_id").
+		Joins("JOIN ng_elastic_scaling_order_details esd ON o.id = esd.order_id").
 		Joins("JOIN k8s_cluster c ON esd.cluster_id = c.id").
 		Where("o.type = ? AND o.status = ?", portal.OrderTypeElasticScaling, portal.OrderStatusPending).
 		Distinct("c.clustername").

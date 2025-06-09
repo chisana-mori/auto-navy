@@ -736,7 +736,7 @@ func (s *DeviceQueryService) GetFilterOptions(ctx context.Context) (map[string]a
 			Where(fmt.Sprintf("%s != ''", dbColumnIdentifier))
 
 		// Pluck using the full DbColumn identifier
-		if err := query.Order(dbColumnIdentifier).Limit(100).Pluck(dbColumnIdentifier, &values).Error; err != nil {
+		if err := query.Order(dbColumnIdentifier).Pluck(dbColumnIdentifier, &values).Error; err != nil {
 			fmt.Printf("Warning: failed to get device field values for %s (column: %s): %v\n", field.Label, dbColumnIdentifier, err)
 			continue
 		}
@@ -1566,6 +1566,21 @@ func (s *DeviceQueryService) DeleteQueryTemplate(ctx context.Context, id int64) 
 
 	if count == 0 {
 		return fmt.Errorf("template not found: %d", id)
+	}
+
+	// 检查是否有设备匹配策略引用此查询模板
+	var policies []portal.ResourcePoolDeviceMatchingPolicy
+	if err := s.db.WithContext(ctx).Where("query_template_id = ?", id).Find(&policies).Error; err != nil {
+		return fmt.Errorf("failed to check policy references: %w", err)
+	}
+
+	if len(policies) > 0 {
+		// 收集引用此模板的策略名称
+		policyNames := make([]string, len(policies))
+		for i, policy := range policies {
+			policyNames[i] = policy.Name
+		}
+		return fmt.Errorf("无法删除查询模板，该模板正在被以下设备匹配策略引用：%s。请先在弹性扩容管理的设备管理策略中解绑该查询模板", strings.Join(policyNames, "、"))
 	}
 
 	// 删除模板

@@ -10,7 +10,7 @@ import (
 type NavyTime time.Time
 
 const (
-	timeFormat = "2006-01-02"
+	timeFormat = time.DateOnly
 )
 
 // MarshalJSON 实现json序列化接口.

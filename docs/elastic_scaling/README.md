@@ -1,223 +1,81 @@
-# 弹性伸缩系统测试文档
+# 弹性伸缩 (Elastic Scaling) 模块说明
 
-## 📁 目录结构
+## 1. 模块概述
 
-本目录包含弹性伸缩系统的所有测试相关文档和脚本。
+弹性伸缩系统是一个自动化的资源管理解决方案，能够根据预设策略自动调整集群资源，支持设备的入池和退池操作。系统通过监控资源使用情况，在满足触发条件时自动生成相应的操作订单，以实现资源的动态平衡和成本优化。
 
-```
-docs/elastic_scaling/
-├── README.md                                           # 本文件，总览文档
-├── README_frontend_tests.md                           # 前端测试文档总览
-├── frontend_test_cases.md                             # 详细测试用例说明
-├── quick_test_guide.md                                # 快速测试指南
-├── run_frontend_tests.sh                              # 自动化测试执行脚本
-├── test_data_scenario1_pool_entry.sql                 # 场景1：入池订单生成数据
-├── test_data_scenario2_pool_exit.sql                  # 场景2：退池订单生成数据
-├── test_data_scenario3_threshold_not_met.sql          # 场景3：不满足条件数据
-├── test_data_scenario4_pool_entry_no_devices.sql      # 场景4：入池无法匹配到设备
-├── test_data_scenario5_pool_exit_no_devices.sql       # 场景5：退池无法匹配到设备
-├── test_data_scenario6_pool_entry_partial_devices.sql # 场景6：入池只能匹配部分设备
-├── test_data_scenario7_pool_exit_partial_devices.sql  # 场景7：退池只能匹配部分设备
-├── email_notification_example.html                    # 邮件通知效果预览（正常情况）
-├── email_notification_no_devices_example.html         # 邮件通知效果预览（无设备情况）
-├── email_notification_feature.md                      # 邮件通知功能说明
-├── elastic_scaling_design.md                          # 弹性伸缩设计文档
-└── elastic_scaling_design_updated.md                  # 弹性伸缩设计文档（更新版）
-```
+## 2. 核心功能
 
-## 🎯 测试覆盖范围
+- **策略驱动的自动伸缩**: 支持基于CPU、内存等资源的阈值，配置自动化的入池/退池策略。
+- **灵活的设备匹配**: 可通过查询模板自定义复杂的设备筛选逻辑，确保精确选择目标设备。
+- **订单化管理**: 所有伸缩操作均生成订单，便于追踪和审计。
+- **异常情况处理**: 对无可用设备、部分匹配等情况有明确的处理逻辑，生成提醒订单通知人工介入。
+- **邮件通知系统**: 在订单生成或状态变更时，自动发送内容详尽的HTML邮件通知。
 
-### 核心功能测试
-- ✅ **策略评估逻辑**：验证不同条件下的策略评估结果
-- ✅ **订单生成功能**：验证入池和退池订单的正确生成
-- ✅ **设备匹配算法**：验证设备匹配的各种场景
-- ✅ **邮件通知功能**：验证邮件正文生成和格式
+## 3. 快速开始
 
-### 边界条件测试
-- ✅ **阈值连续性检查**：验证阈值未连续满足的处理
-- ✅ **设备不足处理**：验证无可用设备时的错误处理
-- ✅ **部分匹配处理**：验证只能匹配部分设备时的逻辑
-- ✅ **失败原因记录**：验证各种失败场景的原因记录
+### 环境准备
 
-### 前端页面测试
-- ✅ **策略管理页面**：策略配置、状态管理、执行历史
-- ✅ **资源监控页面**：资源趋势图、阈值显示、告警状态
-- ✅ **订单管理页面**：订单列表、详情查看、状态更新
-- ✅ **设备管理页面**：设备状态、匹配结果、分配情况
-
-## 🚀 快速开始
-
-### 1. 环境准备
 ```bash
 # 启动后端服务
-cd server/portal && go run main.go
+cd server/portal
+go run main.go
 
 # 启动前端服务（新终端）
-cd web/navy-fe && npm run dev
+cd web/navy-fe
+npm run dev
 ```
 
-### 2. 运行测试
+### 运行测试
+
+使用自动化脚本可以快速初始化特定场景的测试数据。
+
 ```bash
-# 基础场景测试
-./docs/elastic_scaling/run_frontend_tests.sh 1    # 入池订单生成
-./docs/elastic_scaling/run_frontend_tests.sh 2    # 退池订单生成
-./docs/elastic_scaling/run_frontend_tests.sh 3    # 不满足条件
-
-# 边界场景测试
-./docs/elastic_scaling/run_frontend_tests.sh 4    # 入池无法匹配到设备
-./docs/elastic_scaling/run_frontend_tests.sh 5    # 退池无法匹配到设备
-./docs/elastic_scaling/run_frontend_tests.sh 6    # 入池只能匹配部分设备
-./docs/elastic_scaling/run_frontend_tests.sh 7    # 退池只能匹配部分设备
-
-# 运行所有场景
-./docs/elastic_scaling/run_frontend_tests.sh all
+# 在项目根目录执行
+./docs/elastic_scaling/run_frontend_tests.sh 1    # 场景1：正常入池
+./docs/elastic_scaling/run_frontend_tests.sh 4    # 场景4：入池无设备
+./docs/elastic_scaling/run_frontend_tests.sh all  # 运行所有7个场景
 ```
 
-## 📋 测试场景矩阵
+## 4. 文档导航
 
-| 场景 | 类型 | 阈值满足 | 设备情况 | 预期结果 | 验证重点 |
-|------|------|----------|----------|----------|----------|
-| 1 | 入池 | ✅ 连续3天 | 充足可用设备 | 生成完整订单 | 正常流程 |
-| 2 | 退池 | ✅ 连续2天 | 充足在池设备 | 生成完整订单 | 正常流程 |
-| 3 | 入池 | ❌ 第2天中断 | 充足可用设备 | 不生成订单 | 连续性检查 |
-| 4 | 入池 | ✅ 连续3天 | 无可用设备 | 生成提醒订单 | 设备申请提醒 |
-| 5 | 退池 | ✅ 连续2天 | 无在池设备 | 生成提醒订单 | 协调处理提醒 |
-| 6 | 入池 | ✅ 连续3天 | 部分可用设备 | 生成部分订单 | 部分匹配处理 |
-| 7 | 退池 | ✅ 连续2天 | 部分在池设备 | 生成部分订单 | 部分匹配处理 |
+本模块的详细文档分布在以下文件中，请根据需要查阅：
 
-## 📊 测试数据特点
+### 📖 设计与实现
+- **[系统设计文档](./elastic_scaling_design.md)**: 深入了解系统架构、数据模型、核心工作流和API设计。
+- **[邮件通知功能](./email_notification_feature.md)**: 查看邮件通知的实现细节、模板和集成方式。
+    - [入池邮件示例](./email_pool_entry_example.html)
+    - [退池邮件示例](./email_pool_exit_example.html)
+    - [无设备邮件示例](./email_no_devices_example.html)
 
-### 数据设计原则
-- **真实性**：模拟真实的集群资源使用情况
-- **时序性**：使用相对时间确保测试的时效性
-- **完整性**：包含集群、设备、策略、资源快照等完整数据链
-- **一致性**：确保外键关系和数据约束正确
+### 👨‍💻 使用与操作
+- **[用户手册](./user_manual.md)**: 学习如何配置监控策略、手动创建订单以及理解订单的流转状态。
+- **[快速测试指南](./quick_test_guide.md)**: 提供开箱即用的测试步骤和关键验证点。
 
-### 数据量统计
-- **集群数量**：7个（每个场景1个）
-- **设备数量**：30台（每个场景2-6台）
-- **策略数量**：7个（每个场景1个）
-- **资源快照**：21条（每个场景3-4天历史数据）
+### 🧪 测试用例与数据
+- **[前端测试总览](./README_frontend_tests.md)**: 前端测试的总体说明。
+- **[详细测试用例](./frontend_test_cases.md)**: 包含所有7个核心场景的详细测试步骤和预期结果。
+- **[测试场景概览](./test_scenarios_overview.md)**: 对7个测试场景SQL数据文件的关键特征说明。
+- **测试数据脚本**:
+    - `test_data_scenario*.sql`: 各场景的SQL数据脚本。
+    - `create_test_schema.sql`: 用于创建测试的数据库表结构。
+- **测试工具**:
+    - `run_frontend_tests.sh`: 自动化测试执行脚本。
+    - `validate_test_data.sh`: 测试数据验证脚本。
 
-## 🔍 验证检查清单
+### 🔄 变更记录
+- **[更新日志 (CHANGELOG)](./CHANGELOG.md)**: 查看模块的版本迭代和重要变更历史。
 
-### 功能验证
-- [ ] 策略配置正确显示
-- [ ] 资源趋势图准确展示
-- [ ] 阈值线和告警状态正确
-- [ ] 订单生成逻辑正确
-- [ ] 设备分配算法正确
-- [ ] 执行历史记录完整
-- [ ] 邮件通知内容正确
+## 5. 系统架构概览
 
-### 界面验证
-- [ ] 页面加载正常
-- [ ] 数据刷新及时
-- [ ] 交互操作流畅
-- [ ] 错误提示友好
-- [ ] 响应式布局适配
+系统采用前后端分离架构，核心组件包括：
 
-### 数据验证
-- [ ] 前后端数据一致
-- [ ] 计算结果准确
-- [ ] 时间处理正确
-- [ ] 状态更新及时
+- **策略引擎**: 负责策略的定义、存储和执行。
+- **设备匹配器**: 根据策略要求匹配合适的设备。
+- **订单生成器**: 创建弹性伸缩操作订单。
+- **监控模块**: 定时任务，负责触发策略评估。
+- **通知系统**: 自动发送邮件通知相关人员。
 
-## 📖 文档说明
+### 数据模型
 
-### 核心文档
-- **[README_frontend_tests.md](./README_frontend_tests.md)**：前端测试详细说明
-- **[frontend_test_cases.md](./frontend_test_cases.md)**：完整测试用例文档
-- **[quick_test_guide.md](./quick_test_guide.md)**：快速测试指南
-- **[user_manual.md](./user_manual.md)**：弹性伸缩系统用户手册
-
-### 功能文档
-- **[email_notification_feature.md](./email_notification_feature.md)**：邮件通知功能说明
-- **[elastic_scaling_design.md](./elastic_scaling_design.md)**：系统设计文档
-
-### 工具脚本
-- **[run_frontend_tests.sh](./run_frontend_tests.sh)**：自动化测试执行脚本
-
-## 🛠️ 工具使用
-
-### 自动化脚本
-```bash
-# 查看帮助
-./docs/elastic_scaling/run_frontend_tests.sh
-
-# 运行特定场景
-./docs/elastic_scaling/run_frontend_tests.sh 1
-
-# 清理测试数据
-./docs/elastic_scaling/run_frontend_tests.sh clean
-```
-
-### 手动执行
-```bash
-# 连接数据库
-sqlite3 ./data/navy.db
-
-# 执行SQL脚本
-.read docs/elastic_scaling/test_data_scenario1_pool_entry.sql
-```
-
-### API测试
-```bash
-# 手动触发策略评估
-curl -X POST http://localhost:8080/api/v1/elastic-scaling/strategies/1/evaluate
-
-# 查看策略列表
-curl http://localhost:8080/api/v1/elastic-scaling/strategies
-
-# 查看订单列表
-curl http://localhost:8080/api/v1/elastic-scaling/orders
-```
-
-## 🐛 故障排除
-
-### 常见问题
-1. **数据库文件不存在**：先启动后端服务创建数据库
-2. **SQL执行失败**：检查数据库连接和SQL语法
-3. **前端页面无数据**：检查后端API是否正常
-4. **策略不触发**：使用手动触发API测试
-
-### 调试方法
-```bash
-# 检查数据库内容
-sqlite3 ./data/navy.db "SELECT * FROM elastic_scaling_strategies;"
-
-# 查看后端日志
-tail -f logs/app.log
-
-# 检查前端控制台
-# 打开浏览器开发者工具查看Network和Console
-```
-
-## 📈 扩展测试
-
-### 性能测试
-- 大量数据下的页面响应时间
-- 并发策略评估的处理能力
-- 长时间运行的稳定性
-
-### 集成测试
-- 与其他模块的交互
-- 权限控制的验证
-- 数据迁移的兼容性
-
-### 压力测试
-- 高频策略评估的系统负载
-- 大量订单生成的处理能力
-- 并发用户访问的响应性能
-
-## 📞 技术支持
-
-如果在测试过程中遇到问题，可以：
-1. 查看详细的测试用例文档
-2. 参考单元测试的实现逻辑
-3. 检查后端日志和前端控制台
-4. 联系开发团队获取支持
-
----
-
-**注意**：测试完成后请及时清理测试数据，避免影响其他功能的测试和开发。
+核心数据表包括 `elastic_scaling_strategies` (策略), `elastic_scaling_executions` (执行历史), 和 `resource_pool_device_matching_policies` (设备匹配策略)。详细表结构请参考[系统设计文档](./elastic_scaling_design.md)。

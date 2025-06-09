@@ -20,7 +20,7 @@ import (
 // S3 路径常量
 const (
 	S3PathPrefix = "safeconf-check/"
-	DateFormat   = "2006-01-02"
+	DateFormat   = time.DateOnly
 )
 
 // 集群状态常量

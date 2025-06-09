@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// matchDevicesForStrategy finds suitable devices based on the strategy and query template.
+// matchDevicesForStrategy 根据策略匹配设备并生成订单
 func (s *ElasticScalingService) matchDevicesForStrategy(
 	strategy *portal.ElasticScalingStrategy,
 	clusterID int64,
@@ -32,27 +32,47 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 
 	currentTime := portal.NavyTime(time.Now())
 
-	queryTemplateID, err := s.getQueryTemplateIDFromStrategy(strategy)
+	// 步骤1: 根据资源类型和动作类型获取设备匹配策略
+	policies, err := s.getDeviceMatchingPolicies(resourceType, strategy.ThresholdTriggerAction)
 	if err != nil {
-		reason := err.Error()
+		reason := fmt.Sprintf("获取设备匹配策略失败: %s", err.Error())
 		s.logger.Error(reason, zap.Int64("strategyID", strategy.ID))
 		s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultFailureInvalidTemplateID, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
 		return err
 	}
 
-	filterGroups, err := s.fetchAndUnmarshalQueryTemplate(queryTemplateID, strategy.ID, clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
-	if err != nil {
-		// Error logging and recording are handled within the function
-		return err
+	var allSelectedDeviceIDs []int64
+	var totalCandidateCount int
+
+	// 步骤2: 遍历所有匹配策略，执行设备查询和选择
+	for _, policy := range policies {
+		// 组装查询参数
+		filterGroups, err := s.assembleQueryParameters(policy, strategy.ID, clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
+		if err != nil {
+			continue // 继续尝试下一个策略
+		}
+
+		// 查询候选设备
+		candidateDevices, err := s.findCandidateDevices(policy.QueryTemplateID, filterGroups, strategy.ID, clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
+		if err != nil {
+			continue // 继续尝试下一个策略
+		}
+
+		totalCandidateCount += len(candidateDevices)
+
+		// 筛选和选择设备
+		selectedDeviceIDs := s.filterAndSelectDevices(candidateDevices, strategy, clusterID, cpuDelta, memDelta)
+		allSelectedDeviceIDs = append(allSelectedDeviceIDs, selectedDeviceIDs...)
+
+		s.logger.Info("Processed device matching policy",
+			zap.Int64("policyID", policy.ID),
+			zap.String("policyName", policy.Name),
+			zap.Int("candidateCount", len(candidateDevices)),
+			zap.Int("selectedCount", len(selectedDeviceIDs)))
 	}
 
-	candidateDevices, err := s.findCandidateDevices(queryTemplateID, filterGroups, strategy.ID, clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
-	if err != nil {
-		// Error logging and recording are handled within the function
-		return err
-	}
-
-	if len(candidateDevices) == 0 {
+	// 步骤3: 处理结果
+	if totalCandidateCount == 0 {
 		// 获取集群名称用于中文描述
 		var cluster portal.K8sCluster
 		clusterName := "未知集群"
@@ -60,15 +80,13 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 			clusterName = cluster.ClusterName
 		}
 
-		reason := fmt.Sprintf("集群 %s（%s类型）使用模板 %d 未找到候选设备", clusterName, resourceType, queryTemplateID)
+		reason := fmt.Sprintf("集群 %s（%s类型）未找到候选设备", clusterName, resourceType)
 		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
 		// 无设备时仍然生成订单，作为提醒，不记录为失败
 		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 	}
 
-	selectedDeviceIDs := s.filterAndSelectDevices(candidateDevices, strategy, clusterID, cpuDelta, memDelta)
-
-	if len(selectedDeviceIDs) == 0 {
+	if len(allSelectedDeviceIDs) == 0 {
 		// 获取集群名称用于中文描述
 		var cluster portal.K8sCluster
 		clusterName := "未知集群"
@@ -77,40 +95,102 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 		}
 
 		actionName := s.getActionName(strategy.ThresholdTriggerAction)
-		reason := fmt.Sprintf("集群 %s 执行%s操作时，经过筛选后无合适设备，模板 %d 查询到候选设备 %d 台",
-			clusterName, actionName, queryTemplateID, len(candidateDevices))
+		reason := fmt.Sprintf("集群 %s 执行%s操作时，经过筛选后无合适设备，查询到候选设备 %d 台",
+			clusterName, actionName, totalCandidateCount)
 		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
 		// 无合适设备时仍然生成订单，作为提醒，不记录为失败
 		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 	}
 
+	// 去重选中的设备ID
+	uniqueDeviceIDs := s.deduplicateDeviceIDs(allSelectedDeviceIDs)
+
 	s.logger.Info("Selected devices for strategy action",
 		zap.Int64("strategyID", strategy.ID),
-		zap.Int64s("selectedDeviceIDs", selectedDeviceIDs),
-		zap.Int("numDevicesToChange", strategy.DeviceCount),
-		zap.Int("suitableCandidateCount", len(selectedDeviceIDs)))
+		zap.Int64s("selectedDeviceIDs", uniqueDeviceIDs),
+		zap.Int("totalCandidateCount", totalCandidateCount),
+		zap.Int("finalSelectedCount", len(uniqueDeviceIDs)))
 
-	return s.generateElasticScalingOrder(strategy, clusterID, resourceType, selectedDeviceIDs, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
+	return s.generateElasticScalingOrder(strategy, clusterID, resourceType, uniqueDeviceIDs, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 }
 
-// GetQueryTemplateIDFromStrategyPublic is a public wrapper for testing.
-func (s *ElasticScalingService) GetQueryTemplateIDFromStrategyPublic(strategy *portal.ElasticScalingStrategy) (int64, error) {
-	return s.getQueryTemplateIDFromStrategy(strategy)
+// GetDeviceMatchingPoliciesPublic is a public wrapper for testing.
+func (s *ElasticScalingService) GetDeviceMatchingPoliciesPublic(resourceType, actionType string) ([]ResourcePoolDeviceMatchingPolicy, error) {
+	return s.getDeviceMatchingPolicies(resourceType, actionType)
 }
 
-func (s *ElasticScalingService) getQueryTemplateIDFromStrategy(strategy *portal.ElasticScalingStrategy) (int64, error) {
-	var queryTemplateID int64
-	switch strategy.ThresholdTriggerAction {
-	case TriggerActionPoolEntry:
-		queryTemplateID = strategy.EntryQueryTemplateID
-	case TriggerActionPoolExit:
-		queryTemplateID = strategy.ExitQueryTemplateID
+// getDeviceMatchingPolicies 根据资源类型和动作类型获取设备匹配策略
+func (s *ElasticScalingService) getDeviceMatchingPolicies(resourceType, actionType string) ([]ResourcePoolDeviceMatchingPolicy, error) {
+	// 创建资源池设备匹配策略服务
+	// 注意：这里需要类型断言，因为接口类型不能直接传递
+	var deviceCache *DeviceCache
+	if s.cache != nil {
+		if dc, ok := s.cache.(*DeviceCache); ok {
+			deviceCache = dc
+		}
+	}
+	policyService := NewResourcePoolDeviceMatchingPolicyService(s.db, deviceCache)
+
+	// 根据资源类型和动作类型获取匹配策略
+	policies, err := policyService.GetResourcePoolDeviceMatchingPoliciesByType(
+		context.Background(),
+		resourceType,
+		actionType,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get device matching policies for resourceType=%s, actionType=%s: %w", resourceType, actionType, err)
 	}
 
-	if queryTemplateID == 0 {
-		return 0, fmt.Errorf("query template ID is not set for action type %s on strategy ID %d", strategy.ThresholdTriggerAction, strategy.ID)
+	if len(policies) == 0 {
+		return nil, fmt.Errorf("no enabled device matching policy found for resourceType=%s, actionType=%s", resourceType, actionType)
 	}
-	return queryTemplateID, nil
+
+	return policies, nil
+}
+
+// assembleQueryParameters 组装查询参数，包含查询模板和额外动态条件
+func (s *ElasticScalingService) assembleQueryParameters(
+	policy ResourcePoolDeviceMatchingPolicy,
+	strategyID, clusterID int64,
+	resourceType, triggeredValueStr, thresholdValueStr string,
+	currentTime *portal.NavyTime,
+) ([]FilterGroup, error) {
+	s.logger.Info("Assembling query parameters",
+		zap.Int64("policyID", policy.ID),
+		zap.Int64("templateID", policy.QueryTemplateID),
+		zap.Strings("additionConds", policy.AdditionConds))
+
+	// 获取基础查询模板
+	var queryTemplateModel portal.QueryTemplate
+	if err := s.db.First(&queryTemplateModel, policy.QueryTemplateID).Error; err != nil {
+		reason := fmt.Sprintf("查询模板 ID %d 查找失败：%v", policy.QueryTemplateID, err)
+		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
+		result := StrategyExecutionResultFailureDBError
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			result = StrategyExecutionResultFailureTemplateNotFound
+		}
+		s.recordStrategyExecution(strategyID, clusterID, resourceType, result, nil, reason, triggeredValueStr, thresholdValueStr, currentTime)
+		return nil, err
+	}
+
+	// 解析基础查询条件组
+	var filterGroups []FilterGroup
+	if err := json.Unmarshal([]byte(queryTemplateModel.Groups), &filterGroups); err != nil {
+		reason := fmt.Sprintf("查询模板 ID %d 的过滤组解析失败：%v", policy.QueryTemplateID, err)
+		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
+		s.recordStrategyExecution(strategyID, clusterID, resourceType, StrategyExecutionResultFailureTemplateUnmarshal, nil, reason, triggeredValueStr, thresholdValueStr, currentTime)
+		return nil, err
+	}
+
+	// 组装额外动态条件（如果有）
+	if len(policy.AdditionConds) > 0 {
+		// TODO: 实现额外动态条件的组装逻辑
+		// 这里可以根据policy.AdditionConds中的条件，动态添加到filterGroups中
+		s.logger.Info("Additional conditions found, but not implemented yet",
+			zap.Strings("conditions", policy.AdditionConds))
+	}
+
+	return filterGroups, nil
 }
 
 // FetchAndUnmarshalQueryTemplatePublic is a public wrapper for testing.
@@ -144,7 +224,12 @@ func (s *ElasticScalingService) fetchAndUnmarshalQueryTemplate(queryTemplateID, 
 }
 
 func (s *ElasticScalingService) findCandidateDevices(queryTemplateID int64, filterGroups []FilterGroup, strategyID, clusterID int64, resourceType, triggeredValueStr, thresholdValueStr string, currentTime *portal.NavyTime) ([]DeviceResponse, error) {
-	deviceQuerySvc := NewDeviceQueryService(s.db, s.cache)
+	// 创建设备查询服务
+	var deviceCache DeviceCacheInterface
+	if s.cache != nil {
+		deviceCache = s.cache
+	}
+	deviceQuerySvc := NewDeviceQueryService(s.db, deviceCache)
 	deviceRequest := &DeviceQueryRequest{
 		Groups: filterGroups,
 		Page:   1,
@@ -206,11 +291,13 @@ func (s *ElasticScalingService) filterAndSelectDevices(candidates []DeviceRespon
 		return s.greedySelectDevices(suitableCandidates, cpuDelta, memDelta, strategy.ThresholdTriggerAction)
 	}
 
-	// 否则，回退到基于固定数量的旧逻辑
-	numDevicesToChange := strategy.DeviceCount
+	// 否则，使用动态计算的设备数量
+	numDevicesToChange := s.calculateRequiredDeviceCount(cpuDelta, memDelta, suitableCandidates)
 	if numDevicesToChange <= 0 {
 		numDevicesToChange = 1
-		s.logger.Warn("Strategy DeviceCount is not positive, defaulting to 1", zap.Int64("strategyID", strategy.ID), zap.Int("originalDeviceCount", strategy.DeviceCount))
+		s.logger.Warn("Calculated device count is not positive, defaulting to 1",
+			zap.Int64("strategyID", strategy.ID),
+			zap.Int("calculatedDeviceCount", numDevicesToChange))
 	}
 
 	var selectedDeviceIDs []int64
@@ -221,6 +308,68 @@ func (s *ElasticScalingService) filterAndSelectDevices(candidates []DeviceRespon
 	return selectedDeviceIDs
 }
 
+// calculateRequiredDeviceCount 根据资源需求动态计算所需设备数量
+func (s *ElasticScalingService) calculateRequiredDeviceCount(cpuDelta, memDelta float64, candidateDevices []DeviceResponse) int {
+	if len(candidateDevices) == 0 {
+		return 0
+	}
+
+	// 如果有明确的资源增量，使用贪婪算法计算
+	if cpuDelta != 0 || memDelta != 0 {
+		// 计算平均设备资源
+		var avgCPU, avgMemory float64
+		for _, device := range candidateDevices {
+			avgCPU += device.CPU
+			avgMemory += device.Memory
+		}
+		avgCPU /= float64(len(candidateDevices))
+		avgMemory /= float64(len(candidateDevices))
+
+		// 根据资源缺口计算所需设备数量
+		cpuDeviceCount := int(cpuDelta / avgCPU)
+		memDeviceCount := int(memDelta / avgMemory)
+
+		// 取较大值，确保能满足资源需求
+		deviceCount := cpuDeviceCount
+		if memDeviceCount > deviceCount {
+			deviceCount = memDeviceCount
+		}
+
+		// 至少需要1台设备
+		if deviceCount <= 0 {
+			deviceCount = 1
+		}
+
+		s.logger.Info("Calculated device count based on resource demand",
+			zap.Float64("cpuDelta", cpuDelta),
+			zap.Float64("memDelta", memDelta),
+			zap.Float64("avgCPU", avgCPU),
+			zap.Float64("avgMemory", avgMemory),
+			zap.Int("calculatedCount", deviceCount))
+
+		return deviceCount
+	}
+
+	// 如果没有明确资源增量，默认返回1台设备
+	return 1
+}
+
+// deduplicateDeviceIDs 去重设备ID列表
+func (s *ElasticScalingService) deduplicateDeviceIDs(deviceIDs []int64) []int64 {
+	seen := make(map[int64]bool)
+	var unique []int64
+
+	for _, id := range deviceIDs {
+		if !seen[id] {
+			seen[id] = true
+			unique = append(unique, id)
+		}
+	}
+
+	return unique
+}
+
+// greedySelectDevices 贪婪算法选择设备
 func (s *ElasticScalingService) greedySelectDevices(devices []DeviceResponse, cpuDemand, memDemand float64, action string) []int64 {
 	var selectedDeviceIDs []int64
 	var cpuFulfilled, memFulfilled float64
@@ -293,7 +442,7 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 	orderName := s.generateOrderName(strategy, len(selectedDeviceIDs))
 
 	// 生成订单描述
-	orderDescription := s.generateOrderDescription(strategy, clusterID, resourceType, selectedDeviceIDs, cpuDelta, memDelta, latestSnapshot)
+	orderDescription := s.generateOrderDescription(strategy, clusterID, resourceType, selectedDeviceIDs, latestSnapshot)
 
 	orderDTO := OrderDTO{
 		Name:                   orderName,
@@ -352,10 +501,8 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 	if len(selectedDeviceIDs) == 0 {
 		executionResult = StrategyExecutionResultOrderCreatedNoDevices
 		reason = fmt.Sprintf("已为集群 %s（%s类型）创建%s提醒订单 %d，但无可用设备匹配", clusterName, resourceType, actionName, orderID)
-	} else if len(selectedDeviceIDs) < strategy.DeviceCount {
-		executionResult = StrategyExecutionResultOrderCreatedPartial
-		reason = fmt.Sprintf("已为集群 %s（%s类型）创建部分%s订单 %d，匹配设备 %d 台（需要 %d 台）", clusterName, resourceType, actionName, orderID, len(selectedDeviceIDs), strategy.DeviceCount)
 	} else {
+		// 移除对固定设备数量的检查，都记录为成功创建
 		executionResult = StrategyExecutionResultOrderCreated
 		reason = fmt.Sprintf("已为集群 %s（%s类型）成功创建%s订单 %d，涉及设备 %d 台", clusterName, resourceType, actionName, orderID, len(selectedDeviceIDs))
 	}

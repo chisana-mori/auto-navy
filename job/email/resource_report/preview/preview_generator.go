@@ -678,7 +678,7 @@ func createMockData(reportDate string, environment string) resource_report.Repor
 // GeneratePreview 生成预览文件
 func generatePreview(environment string) error {
 	// 生成当前日期字符串
-	reportDate := time.Now().Format("2006-01-02")
+	reportDate := time.Now().Format(time.DateOnly)
 
 	// 读取模板文件
 	templatePath := "../template.html"

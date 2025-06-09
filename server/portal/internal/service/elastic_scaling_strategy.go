@@ -21,13 +21,12 @@ func (s *ElasticScalingService) CreateStrategy(dto StrategyDTO) (int64, error) {
 		Name:                   dto.Name,
 		Description:            dto.Description,
 		ThresholdTriggerAction: dto.ThresholdTriggerAction,
-		DeviceCount:            dto.DeviceCount,
-		NodeSelector:           dto.NodeSelector,
-		ResourceTypes:          dto.ResourceTypes,
-		Status:                 dto.Status,
-		CreatedBy:              dto.CreatedBy,
-		DurationMinutes:        dto.DurationMinutes,
-		CooldownMinutes:        dto.CooldownMinutes,
+
+		ResourceTypes:   dto.ResourceTypes,
+		Status:          dto.Status,
+		CreatedBy:       dto.CreatedBy,
+		DurationMinutes: dto.DurationMinutes,
+		CooldownMinutes: dto.CooldownMinutes,
 	}
 
 	// 设置可选字段
@@ -101,8 +100,7 @@ func (s *ElasticScalingService) UpdateStrategy(id int64, dto StrategyDTO) error 
 	strategy.Name = dto.Name
 	strategy.Description = dto.Description
 	strategy.ThresholdTriggerAction = dto.ThresholdTriggerAction
-	strategy.DeviceCount = dto.DeviceCount
-	strategy.NodeSelector = dto.NodeSelector
+
 	strategy.ResourceTypes = dto.ResourceTypes
 	strategy.Status = dto.Status
 	strategy.DurationMinutes = dto.DurationMinutes
@@ -205,8 +203,8 @@ func (s *ElasticScalingService) GetStrategy(id int64) (*StrategyDetailDTO, error
 	// 获取相关订单（使用新的订单模型）
 	var orders []portal.Order
 	if err := s.db.Preload("ElasticScalingDetail").
-		Joins("JOIN elastic_scaling_order_details ON orders.id = elastic_scaling_order_details.order_id").
-		Where("elastic_scaling_order_details.strategy_id = ?", id).
+		Joins("JOIN ng_elastic_scaling_order_details ON orders.id = ng_elastic_scaling_order_details.order_id").
+		Where("ng_elastic_scaling_order_details.strategy_id = ?", id).
 		Order("orders.created_at DESC").Limit(10).Find(&orders).Error; err != nil {
 		return nil, err
 	}
@@ -218,16 +216,15 @@ func (s *ElasticScalingService) GetStrategy(id int64) (*StrategyDetailDTO, error
 			Name:                   strategy.Name,
 			Description:            strategy.Description,
 			ThresholdTriggerAction: strategy.ThresholdTriggerAction,
-			DeviceCount:            strategy.DeviceCount,
-			NodeSelector:           strategy.NodeSelector,
-			ResourceTypes:          strategy.ResourceTypes,
-			Status:                 strategy.Status,
-			CreatedBy:              strategy.CreatedBy,
-			CreatedAt:              time.Time(strategy.CreatedAt),
-			UpdatedAt:              time.Time(strategy.UpdatedAt),
-			DurationMinutes:        strategy.DurationMinutes,
-			CooldownMinutes:        strategy.CooldownMinutes,
-			ClusterIDs:             clusterIDs,
+
+			ResourceTypes:   strategy.ResourceTypes,
+			Status:          strategy.Status,
+			CreatedBy:       strategy.CreatedBy,
+			CreatedAt:       time.Time(strategy.CreatedAt),
+			UpdatedAt:       time.Time(strategy.UpdatedAt),
+			DurationMinutes: strategy.DurationMinutes,
+			CooldownMinutes: strategy.CooldownMinutes,
+			ClusterIDs:      clusterIDs,
 		},
 		ExecutionHistory: make([]StrategyExecutionHistoryDTO, len(histories)),
 		RelatedOrders:    make([]OrderListItemDTO, len(orders)),
@@ -372,16 +369,16 @@ func (s *ElasticScalingService) ListStrategies(name string, status string, actio
 			Name:                   strategy.Name,
 			Description:            strategy.Description,
 			ThresholdTriggerAction: strategy.ThresholdTriggerAction,
-			DeviceCount:            strategy.DeviceCount,
-			Status:                 strategy.Status,
-			CreatedAt:              time.Time(strategy.CreatedAt),
-			UpdatedAt:              time.Time(strategy.UpdatedAt),
-			Clusters:               clusterNames,
-			CPUTargetValue:         &strategy.CPUTargetValue,
-			MemoryTargetValue:      &strategy.MemoryTargetValue,
-			DurationMinutes:        strategy.DurationMinutes,
-			CooldownMinutes:        strategy.CooldownMinutes,
-			ResourceTypes:          strategy.ResourceTypes,
+
+			Status:            strategy.Status,
+			CreatedAt:         time.Time(strategy.CreatedAt),
+			UpdatedAt:         time.Time(strategy.UpdatedAt),
+			Clusters:          clusterNames,
+			CPUTargetValue:    &strategy.CPUTargetValue,
+			MemoryTargetValue: &strategy.MemoryTargetValue,
+			DurationMinutes:   strategy.DurationMinutes,
+			CooldownMinutes:   strategy.CooldownMinutes,
+			ResourceTypes:     strategy.ResourceTypes,
 		}
 
 		// 设置可选阈值字段
@@ -430,8 +427,8 @@ func (s *ElasticScalingService) DeleteStrategy(id int64) error {
 	// 检查是否有关联的执行中订单（使用新的订单模型）
 	var count int64
 	if err := s.db.Table("orders").
-		Joins("JOIN elastic_scaling_order_details ON orders.id = elastic_scaling_order_details.order_id").
-		Where("elastic_scaling_order_details.strategy_id = ? AND orders.status IN ('pending', 'processing')", id).
+		Joins("JOIN ng_elastic_scaling_order_details ON orders.id = ng_elastic_scaling_order_details.order_id").
+		Where("ng_elastic_scaling_order_details.strategy_id = ? AND orders.status IN ('pending', 'processing')", id).
 		Count(&count).Error; err != nil {
 		return err
 	}
@@ -522,9 +519,7 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 		}
 	}
 
-	if dto.DeviceCount <= 0 {
-		return errors.New("设备数量必须大于0")
-	}
+	// 移除设备数量验证，设备数量将根据实际资源需求动态计算
 
 	if dto.Status != StrategyStatusEnabled && dto.Status != StrategyStatusDisabled {
 		return errors.New("无效的策略状态")

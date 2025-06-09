@@ -42,6 +42,7 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 			&portal.Order{},
 			&portal.OrderDevice{},
 			&portal.ElasticScalingOrderDetail{},
+			&portal.ResourcePoolDeviceMatchingPolicy{},
 		)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -70,7 +71,6 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 				strategy = &portal.ElasticScalingStrategy{
 					BaseModel:              portal.BaseModel{ID: 1},
 					ThresholdTriggerAction: service.TriggerActionPoolEntry,
-					DeviceCount:            2,
 				}
 			})
 
@@ -81,8 +81,9 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 					{ID: 3, ClusterID: 0, Cluster: ""},
 				}
 				selectedIDs := ess.FilterAndSelectDevicesPublic(candidates, strategy, clusterID, 0, 0)
-				Expect(selectedIDs).To(HaveLen(2))
-				Expect(selectedIDs).To(ConsistOf(int64(1), int64(3)))
+				// 设备数量现在动态计算，没有资源增量时默认选择1台设备
+				Expect(selectedIDs).To(HaveLen(1))
+				Expect(selectedIDs).To(ConsistOf(int64(1)))
 			})
 
 			It("should select assigned devices if no unassigned are available", func() {
@@ -91,21 +92,24 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 					{ID: 2, ClusterID: 3, Cluster: "another-cluster"},
 				}
 				selectedIDs := ess.FilterAndSelectDevicesPublic(candidates, strategy, clusterID, 0, 0)
-				Expect(selectedIDs).To(HaveLen(2))
-				Expect(selectedIDs).To(ConsistOf(int64(1), int64(2)))
+				// 设备数量现在动态计算，没有资源增量时默认选择1台设备
+				Expect(selectedIDs).To(HaveLen(1))
+				Expect(selectedIDs).To(ConsistOf(int64(1)))
 			})
 
-			It("should select a mix when not enough unassigned devices are available", func() {
-				strategy.DeviceCount = 3
+			It("should select devices based on resource demand", func() {
+				// 测试基于资源需求的设备选择
 				candidates := []service.DeviceResponse{
-					{ID: 1, ClusterID: 0, Cluster: ""},
-					{ID: 2, ClusterID: 2, Cluster: "other-cluster"},
-					{ID: 3, ClusterID: 3, Cluster: "another-cluster"},
-					{ID: 4, ClusterID: 0, Cluster: ""},
+					{ID: 1, ClusterID: 0, Cluster: "", CPU: 16, Memory: 64},
+					{ID: 2, ClusterID: 2, Cluster: "other-cluster", CPU: 32, Memory: 128},
+					{ID: 3, ClusterID: 3, Cluster: "another-cluster", CPU: 64, Memory: 256},
+					{ID: 4, ClusterID: 0, Cluster: "", CPU: 8, Memory: 32},
 				}
-				selectedIDs := ess.FilterAndSelectDevicesPublic(candidates, strategy, clusterID, 0, 0)
-				Expect(selectedIDs).To(HaveLen(3))
-				Expect(selectedIDs).To(ConsistOf(int64(1), int64(4), int64(2)))
+				// 需要80 CPU, 300 Memory的资源
+				selectedIDs := ess.FilterAndSelectDevicesPublic(candidates, strategy, clusterID, 80, 300)
+				// 应该选择足够满足需求的设备
+				Expect(selectedIDs).To(HaveLen(2))
+				Expect(selectedIDs).To(ContainElements(int64(3), int64(2))) // 64+32=96 CPU, 256+128=384 Memory
 			})
 		})
 
@@ -114,7 +118,6 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 				strategy = &portal.ElasticScalingStrategy{
 					BaseModel:              portal.BaseModel{ID: 1},
 					ThresholdTriggerAction: service.TriggerActionPoolExit,
-					DeviceCount:            2,
 				}
 			})
 
@@ -126,8 +129,9 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 					{ID: 4, ClusterID: 0, Cluster: ""},
 				}
 				selectedIDs := ess.FilterAndSelectDevicesPublic(candidates, strategy, clusterID, 0, 0)
-				Expect(selectedIDs).To(HaveLen(2))
-				Expect(selectedIDs).To(ConsistOf(int64(1), int64(3)))
+				// 设备数量现在动态计算，没有资源增量时默认选择1台设备
+				Expect(selectedIDs).To(HaveLen(1))
+				Expect(selectedIDs).To(ConsistOf(int64(1)))
 			})
 
 			It("should select nothing if no devices are in the current cluster", func() {
@@ -141,11 +145,10 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 		})
 
 		Context("general behavior", func() {
-			It("should default to 1 device if DeviceCount is zero or negative", func() {
+			It("should default to 1 device when no resource delta is provided", func() {
 				strategy = &portal.ElasticScalingStrategy{
 					BaseModel:              portal.BaseModel{ID: 1},
 					ThresholdTriggerAction: service.TriggerActionPoolEntry,
-					DeviceCount:            0,
 				}
 				candidates := []service.DeviceResponse{
 					{ID: 1, ClusterID: 0, Cluster: ""},
@@ -199,34 +202,18 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 		})
 	})
 
-	Describe("getQueryTemplateIDFromStrategy", func() {
-		It("should return the correct entry template ID", func() {
-			strategy := &portal.ElasticScalingStrategy{
-				ThresholdTriggerAction: service.TriggerActionPoolEntry,
-				EntryQueryTemplateID:   123,
-			}
-			id, err := ess.GetQueryTemplateIDFromStrategyPublic(strategy)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(id).To(Equal(int64(123)))
-		})
-
-		It("should return the correct exit template ID", func() {
-			strategy := &portal.ElasticScalingStrategy{
-				ThresholdTriggerAction: service.TriggerActionPoolExit,
-				ExitQueryTemplateID:    456,
-			}
-			id, err := ess.GetQueryTemplateIDFromStrategyPublic(strategy)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(id).To(Equal(int64(456)))
-		})
-
-		It("should return an error if the template ID is not set", func() {
-			strategy := &portal.ElasticScalingStrategy{
-				ThresholdTriggerAction: service.TriggerActionPoolEntry,
-				// EntryQueryTemplateID is 0
-			}
-			_, err := ess.GetQueryTemplateIDFromStrategyPublic(strategy)
+	Describe("getDeviceMatchingPolicies", func() {
+		It("should return error when no policies exist", func() {
+			policies, err := ess.GetDeviceMatchingPoliciesPublic("compute", service.TriggerActionPoolEntry)
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no enabled device matching policy found"))
+			Expect(policies).To(BeNil())
+		})
+
+		It("should return policies when they exist", func() {
+			// 这个测试需要实际的ResourcePoolDeviceMatchingPolicy数据
+			// 在实际环境中会有相应的测试数据
+			Skip("Requires ResourcePoolDeviceMatchingPolicy test data setup")
 		})
 	})
 

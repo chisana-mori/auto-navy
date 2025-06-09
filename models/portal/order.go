@@ -49,7 +49,7 @@ type Order struct {
 
 // TableName 指定表名
 func (Order) TableName() string {
-	return "orders"
+	return "ng_orders"
 }
 
 // ElasticScalingOrderDetail 弹性伸缩订单详情模型
@@ -72,5 +72,5 @@ type ElasticScalingOrderDetail struct {
 
 // TableName 指定表名
 func (ElasticScalingOrderDetail) TableName() string {
-	return "elastic_scaling_order_details"
+	return "ng_elastic_scaling_order_details"
 }

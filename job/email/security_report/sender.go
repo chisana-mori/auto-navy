@@ -23,7 +23,7 @@ import (
 
 // 日期格式常量
 const (
-	DateFormat = "2006-01-02"
+	DateFormat = time.DateOnly
 )
 
 // 集群状态常量

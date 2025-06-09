@@ -1,5 +1,251 @@
 basePath: /fe-v1
 definitions:
+  portal.ElasticScalingOrderDetail:
+    properties:
+      actionType:
+        description: 订单操作类型（入池/退池）
+        type: string
+      clusterID:
+        description: 关联集群ID
+        type: integer
+      createdAt:
+        description: 创建时间
+        type: string
+      deviceCount:
+        description: 请求的设备数量
+        type: integer
+      id:
+        description: 主键ID
+        type: integer
+      order:
+        allOf:
+        - $ref: '#/definitions/portal.Order'
+        description: 关联关系
+      orderID:
+        description: 关联订单ID（外键）
+        type: integer
+      resourcePoolType:
+        description: 资源池类型
+        type: string
+      strategyID:
+        description: 关联策略ID（可为NULL）
+        type: integer
+      strategyThresholdValue:
+        description: 策略触发时的阈值设定
+        type: string
+      strategyTriggeredValue:
+        description: 策略触发时的具体指标值
+        type: string
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  portal.GeneralOrderDetail:
+    properties:
+      createdAt:
+        description: 创建时间
+        type: string
+      id:
+        description: 主键ID
+        type: integer
+      order:
+        allOf:
+        - $ref: '#/definitions/portal.Order'
+        description: 关联关系
+      orderID:
+        description: 关联订单ID（外键）
+        type: integer
+      summary:
+        description: 一个简单的摘要字段作为示例
+        type: string
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  portal.MaintenanceOrderDetail:
+    properties:
+      clusterID:
+        description: 关联集群ID
+        type: integer
+      comments:
+        description: 附加说明
+        type: string
+      createdAt:
+        description: 创建时间
+        type: string
+      externalTicketID:
+        description: 外部工单号
+        type: string
+      id:
+        description: 主键ID
+        type: integer
+      maintenanceEndTime:
+        description: 维护结束时间
+        type: string
+      maintenanceStartTime:
+        description: 维护开始时间
+        type: string
+      maintenanceType:
+        description: 维护类型（cordon/uncordon/general）
+        type: string
+      order:
+        allOf:
+        - $ref: '#/definitions/portal.Order'
+        description: 关联关系
+      orderID:
+        description: 关联订单ID（外键）
+        type: integer
+      priority:
+        description: 优先级（high/medium/low）
+        type: string
+      reason:
+        description: 维护原因
+        type: string
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  portal.Order:
+    properties:
+      completionTime:
+        description: 完成时间
+        type: string
+      createdAt:
+        description: 创建时间
+        type: string
+      createdBy:
+        description: 创建人
+        type: string
+      description:
+        description: 订单描述
+        type: string
+      elasticScalingDetail:
+        allOf:
+        - $ref: '#/definitions/portal.ElasticScalingOrderDetail'
+        description: 关联关系
+      executionTime:
+        description: 执行时间
+        type: string
+      executor:
+        description: 执行人
+        type: string
+      failureReason:
+        description: 失败原因
+        type: string
+      id:
+        description: 主键ID
+        type: integer
+      maintenanceDetail:
+        allOf:
+        - $ref: '#/definitions/portal.MaintenanceOrderDetail'
+        description: 设备维护详情
+      name:
+        description: 订单名称
+        type: string
+      orderNumber:
+        description: 唯一订单号
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/portal.OrderStatus'
+        description: 订单状态
+      type:
+        allOf:
+        - $ref: '#/definitions/portal.OrderType'
+        description: 订单类型
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  portal.OrderStatus:
+    enum:
+    - pending
+    - processing
+    - returning
+    - return_completed
+    - no_return
+    - completed
+    - failed
+    - cancelled
+    - ignored
+    type: string
+    x-enum-comments:
+      OrderStatusCancelled: 已取消
+      OrderStatusCompleted: 已完成
+      OrderStatusFailed: 失败
+      OrderStatusIgnored: 已忽略
+      OrderStatusNoReturn: 无需归还（退池订单专用）
+      OrderStatusPending: 待处理
+      OrderStatusProcessing: 处理中
+      OrderStatusReturnCompleted: 归还完成（退池订单专用）
+      OrderStatusReturning: 归还中（退池订单专用）
+    x-enum-varnames:
+    - OrderStatusPending
+    - OrderStatusProcessing
+    - OrderStatusReturning
+    - OrderStatusReturnCompleted
+    - OrderStatusNoReturn
+    - OrderStatusCompleted
+    - OrderStatusFailed
+    - OrderStatusCancelled
+    - OrderStatusIgnored
+  portal.OrderType:
+    enum:
+    - elastic_scaling
+    - maintenance
+    - deployment
+    - general
+    type: string
+    x-enum-comments:
+      OrderTypeDeployment: 应用部署
+      OrderTypeElasticScaling: 弹性伸缩
+      OrderTypeGeneral: 通用订单
+      OrderTypeMaintenance: 设备维护
+    x-enum-varnames:
+    - OrderTypeElasticScaling
+    - OrderTypeMaintenance
+    - OrderTypeDeployment
+    - OrderTypeGeneral
+  render.ErrorResponse:
+    properties:
+      error:
+        example: 操作失败
+        type: string
+    type: object
+  render.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      msg:
+        type: string
+    type: object
+  routers.ExecutorRequest:
+    properties:
+      executor:
+        type: string
+    required:
+    - executor
+    type: object
+  routers.FailRequest:
+    properties:
+      executor:
+        type: string
+      reason:
+        type: string
+    required:
+    - executor
+    - reason
+    type: object
+  routers.UpdateOrderStatusRequest:
+    properties:
+      reason:
+        type: string
+      status:
+        type: string
+    required:
+    - status
+    type: object
   service.ConditionType:
     enum:
     - equal
@@ -10,12 +256,20 @@ definitions:
     - notExists
     - in
     - notIn
+    - greaterThan
+    - lessThan
+    - isEmpty
+    - isNotEmpty
     type: string
     x-enum-comments:
       ConditionTypeContains: 包含
       ConditionTypeEqual: 等于
       ConditionTypeExists: 存在
+      ConditionTypeGreaterThan: 大于
       ConditionTypeIn: 在列表中
+      ConditionTypeIsEmpty: 为空
+      ConditionTypeIsNotEmpty: 不为空
+      ConditionTypeLessThan: 小于
       ConditionTypeNotContains: 不包含
       ConditionTypeNotEqual: 不等于
       ConditionTypeNotExists: 不存在
@@ -29,6 +283,169 @@ definitions:
     - ConditionTypeNotExists
     - ConditionTypeIn
     - ConditionTypeNotIn
+    - ConditionTypeGreaterThan
+    - ConditionTypeLessThan
+    - ConditionTypeIsEmpty
+    - ConditionTypeIsNotEmpty
+  service.CreateK8sClusterRequest:
+    properties:
+      alias:
+        type: string
+      apiServer:
+        type: string
+      apiServerVip:
+        type: string
+      architecture:
+        type: string
+      clusterGroup:
+        type: string
+      clusterId:
+        type: string
+      clusterName:
+        type: string
+      clusterNameCn:
+        type: string
+      clusterType:
+        type: string
+      desc:
+        type: string
+      esServer:
+        type: string
+      etcdServer:
+        type: string
+      etcdServerVip:
+        type: string
+      flowType:
+        type: string
+      group:
+        type: string
+      idc:
+        type: string
+      ingressServerVip:
+        type: string
+      ingressServername:
+        type: string
+      kubeConfig:
+        type: string
+      kubePromVersion:
+        type: string
+      netType:
+        type: string
+      novaName:
+        type: string
+      podCidr:
+        type: string
+      priority:
+        type: integer
+      promServer:
+        type: string
+      rrCicode:
+        type: string
+      rrGroup:
+        type: string
+      serviceCidr:
+        type: string
+      status:
+        type: string
+      thanosServer:
+        type: string
+      zone:
+        type: string
+    required:
+    - apiServer
+    - clusterId
+    - clusterName
+    - clusterNameCn
+    - clusterType
+    - idc
+    - status
+    - zone
+    type: object
+  service.CreateResourcePoolDeviceMatchingPolicyRequest:
+    properties:
+      actionType:
+        description: 动作类型：pool_entry 或 pool_exit
+        enum:
+        - pool_entry
+        - pool_exit
+        type: string
+      additionConds:
+        description: 额外动态条件，仅入池时有效
+        items:
+          type: string
+        type: array
+      description:
+        description: 策略描述
+        type: string
+      name:
+        description: 策略名称
+        type: string
+      queryTemplateId:
+        description: 关联的查询模板ID
+        type: integer
+      resourcePoolType:
+        description: 资源池类型
+        type: string
+      status:
+        description: 状态：enabled 或 disabled
+        enum:
+        - enabled
+        - disabled
+        type: string
+    required:
+    - actionType
+    - name
+    - queryTemplateId
+    - resourcePoolType
+    - status
+    type: object
+  service.DeviceDTO:
+    properties:
+      archType:
+        type: string
+      ciCode:
+        type: string
+      cluster:
+        type: string
+      clusterId:
+        type: integer
+      cpu:
+        type: number
+      featureCount:
+        type: integer
+      id:
+        type: integer
+      ip:
+        type: string
+      isSpecial:
+        type: boolean
+      memory:
+        type: number
+      orderStatus:
+        description: 在订单中的状态
+        type: string
+      role:
+        type: string
+      status:
+        type: string
+    type: object
+  service.DeviceExportRequest:
+    properties:
+      format:
+        description: 导出格式，支持 csv, excel
+        example: csv
+        type: string
+      include_details:
+        description: 是否包含详细信息
+        example: true
+        type: boolean
+    type: object
+  service.DeviceGroupUpdateRequest:
+    properties:
+      group:
+        description: 新的用途值
+        type: string
+    type: object
   service.DeviceListResponse:
     properties:
       list:
@@ -61,26 +478,56 @@ definitions:
     type: object
   service.DeviceResponse:
     properties:
+      acceptanceTime:
+        description: 验收时间
+        type: string
       appId:
         description: APPID
         type: string
-      arch:
-        description: 架构
+      appName:
+        description: 应用名称（来自 device_app 表）
+        type: string
+      archType:
+        description: CPU架构
         type: string
       cabinet:
-        description: 机柜号
+        description: 所属机柜
+        type: string
+      cabinetNo:
+        description: 机柜编号
+        type: string
+      ciCode:
+        description: 设备编码
         type: string
       cluster:
-        description: 所属集群
+        description: 最终集群名称 (来自 k8s_node 或 k8s_etcd 或 device)
         type: string
+      clusterId:
+        description: 集群ID (来自 k8s_node 或 k8s_etcd 或 device)
+        type: integer
+      company:
+        description: 厂商
+        type: string
+      cpu:
+        description: CPU数量
+        type: number
       createdAt:
         description: 创建时间
         type: string
-      datacenter:
-        description: 机房
-        type: string
       deviceId:
-        description: 设备ID
+        description: 设备ID (Ensure this is populated)
+        type: integer
+      diskCount:
+        description: 磁盘数量 (来自 device 表)
+        type: integer
+      diskDetail:
+        description: 磁盘详情 (来自 device 表)
+        type: string
+      featureCount:
+        description: 特性数量 (用于前端显示)
+        type: integer
+      group:
+        description: 机器类别
         type: string
       id:
         description: ID
@@ -88,110 +535,65 @@ definitions:
       idc:
         description: IDC
         type: string
+      infraType:
+        description: 网络类型
+        type: string
       ip:
         description: IP地址
         type: string
-      machineType:
-        description: 机器类型
+      isLocalization:
+        description: 是否国产化
+        type: boolean
+      isSpecial:
+        description: 是否为特殊设备 (用于前端高亮)
+        type: boolean
+      kvmIp:
+        description: KVM IP
         type: string
-      network:
+      memory:
+        description: 内存大小
+        type: number
+      model:
+        description: 型号
+        type: string
+      netZone:
         description: 网络区域
         type: string
-      resourcePool:
-        description: 资源池/产品
+      networkSpeed:
+        description: 网络速度 (来自 device 表)
+        type: string
+      os:
+        description: 操作系统
+        type: string
+      osCreateTime:
+        description: 操作系统创建时间
+        type: string
+      osIssue:
+        description: 操作系统版本
+        type: string
+      osKernel:
+        description: 操作系统内核
+        type: string
+      osName:
+        description: 操作系统名称
         type: string
       role:
-        description: 集群角色
+        description: Fields from K8s relations and device table
         type: string
       room:
-        description: Room
+        description: 机房
+        type: string
+      status:
+        description: 状态
         type: string
       updatedAt:
         description: 更新时间
         type: string
     type: object
-  service.DeviceRoleUpdateRequest:
-    properties:
-      role:
-        description: 新的角色值
-        type: string
-    required:
-    - role
-    type: object
   service.ErrorResponse:
     properties:
       error:
         example: 操作失败
-        type: string
-    type: object
-  service.F5InfoListResponse:
-    properties:
-      list:
-        items:
-          $ref: '#/definitions/service.F5InfoResponse'
-        type: array
-      page:
-        example: 1
-        type: integer
-      size:
-        example: 10
-        type: integer
-      total:
-        example: 100
-        type: integer
-    type: object
-  service.F5InfoResponse:
-    properties:
-      appid:
-        example: app-001
-        type: string
-      created_at:
-        example: "2024-01-01T12:00:00Z"
-        type: string
-      domains:
-        example: example.com,test.com
-        type: string
-      grafana_params:
-        example: http://grafana.example.com
-        type: string
-      id:
-        example: 1
-        type: integer
-      ignored:
-        example: false
-        type: boolean
-      instance_group:
-        example: group-1
-        type: string
-      k8s_cluster_id:
-        example: 1
-        type: integer
-      k8s_cluster_name:
-        example: 生产集群
-        type: string
-      name:
-        example: f5-test
-        type: string
-      pool_members:
-        example: 192.168.1.10:80,192.168.1.11:80
-        type: string
-      pool_name:
-        example: pool-1
-        type: string
-      pool_status:
-        example: active
-        type: string
-      port:
-        example: "80"
-        type: string
-      status:
-        example: active
-        type: string
-      updated_at:
-        example: "2024-01-02T12:00:00Z"
-        type: string
-      vip:
-        example: 192.168.1.1
         type: string
     type: object
   service.F5InfoUpdateDTO:
@@ -262,7 +664,30 @@ definitions:
         - $ref: '#/definitions/service.FilterType'
         description: 筛选类型
       value:
-        description: 值
+        description: 值 (可以是 string 或 []string)
+    type: object
+  service.FilterBlockRequest:
+    properties:
+      conditionType:
+        allOf:
+        - $ref: '#/definitions/service.ConditionType'
+        example: equal
+      id:
+        example: block1
+        type: string
+      key:
+        example: ip
+        type: string
+      operator:
+        allOf:
+        - $ref: '#/definitions/service.LogicalOperator'
+        example: and
+      type:
+        allOf:
+        - $ref: '#/definitions/service.FilterType'
+        example: device
+      value:
+        example: 192.168.1.1
         type: string
     type: object
   service.FilterGroup:
@@ -279,6 +704,20 @@ definitions:
         allOf:
         - $ref: '#/definitions/service.LogicalOperator'
         description: 与下一个组的逻辑关系
+    type: object
+  service.FilterGroupRequest:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/service.FilterBlockRequest'
+        type: array
+      id:
+        example: group1
+        type: string
+      operator:
+        allOf:
+        - $ref: '#/definitions/service.LogicalOperator'
+        example: and
     type: object
   service.FilterOptionResponse:
     properties:
@@ -309,6 +748,209 @@ definitions:
     - FilterTypeNodeLabel
     - FilterTypeTaint
     - FilterTypeDevice
+  service.GeneralOrderCreateDTO:
+    properties:
+      createdBy:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      summary:
+        description: Add other fields specific to creating a general order
+        type: string
+    required:
+    - createdBy
+    - name
+    type: object
+  service.GeneralOrderDTO:
+    properties:
+      completionTime:
+        description: 完成时间
+        type: string
+      createdAt:
+        description: 创建时间
+        type: string
+      createdBy:
+        description: 创建人
+        type: string
+      description:
+        description: 订单描述
+        type: string
+      details:
+        $ref: '#/definitions/portal.GeneralOrderDetail'
+      elasticScalingDetail:
+        allOf:
+        - $ref: '#/definitions/portal.ElasticScalingOrderDetail'
+        description: 关联关系
+      executionTime:
+        description: 执行时间
+        type: string
+      executor:
+        description: 执行人
+        type: string
+      failureReason:
+        description: 失败原因
+        type: string
+      id:
+        description: 主键ID
+        type: integer
+      maintenanceDetail:
+        allOf:
+        - $ref: '#/definitions/portal.MaintenanceOrderDetail'
+        description: 设备维护详情
+      name:
+        description: 订单名称
+        type: string
+      orderNumber:
+        description: 唯一订单号
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/portal.OrderStatus'
+        description: 订单状态
+      type:
+        allOf:
+        - $ref: '#/definitions/portal.OrderType'
+        description: 订单类型
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  service.GeneralOrderQueryDTO:
+    properties:
+      createdBy:
+        type: string
+      name:
+        description: 订单名称，支持模糊查询
+        type: string
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      status:
+        type: string
+    type: object
+  service.K8sClusterResponse:
+    properties:
+      alias:
+        type: string
+      apiServer:
+        type: string
+      apiServerVip:
+        type: string
+      architecture:
+        type: string
+      clusterGroup:
+        type: string
+      clusterId:
+        type: string
+      clusterName:
+        type: string
+      clusterNameCn:
+        type: string
+      clusterType:
+        type: string
+      createdAt:
+        type: string
+      creator:
+        type: string
+      desc:
+        type: string
+      esServer:
+        type: string
+      etcdServer:
+        type: string
+      etcdServerVip:
+        type: string
+      flowType:
+        type: string
+      group:
+        type: string
+      id:
+        type: integer
+      idc:
+        type: string
+      ingressServerVip:
+        type: string
+      ingressServername:
+        type: string
+      kubeConfig:
+        type: string
+      kubePromVersion:
+        type: string
+      netType:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/service.K8sNodeResponse'
+        type: array
+      novaName:
+        type: string
+      podCidr:
+        type: string
+      priority:
+        type: integer
+      promServer:
+        type: string
+      rrCicode:
+        type: string
+      rrGroup:
+        type: string
+      serviceCidr:
+        type: string
+      status:
+        type: string
+      thanosServer:
+        type: string
+      updatedAt:
+        type: string
+      zone:
+        type: string
+    type: object
+  service.K8sNodeResponse:
+    properties:
+      containerRuntimeVersion:
+        type: string
+      cpuAllocatable:
+        type: string
+      cpuCapacity:
+        type: string
+      cpuLogic:
+        type: string
+      createdAt:
+        type: string
+      diskDocker:
+        type: string
+      diskRoot:
+        type: string
+      fsTypeRoot:
+        type: string
+      hostIp:
+        type: string
+      id:
+        type: integer
+      kernelVersion:
+        type: string
+      kubeProxyVersion:
+        type: string
+      kubeletVersion:
+        type: string
+      memAllocatable:
+        type: string
+      memCapacity:
+        type: string
+      memLogic:
+        type: string
+      nodeName:
+        type: string
+      osImage:
+        type: string
+      role:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   service.LogicalOperator:
     enum:
     - and
@@ -320,6 +962,36 @@ definitions:
     x-enum-varnames:
     - LogicalOperatorAnd
     - LogicalOperatorOr
+  service.MaintenanceCallbackDTO:
+    properties:
+      completedAt:
+        type: string
+      externalTicketId:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  service.MaintenanceRequestDTO:
+    properties:
+      ciCode:
+        type: string
+      comments:
+        type: string
+      deviceId:
+        type: integer
+      externalTicketId:
+        type: string
+      maintenanceEndTime:
+        type: string
+      maintenanceStartTime:
+        type: string
+      priority:
+        type: string
+      reason:
+        type: string
+    type: object
   service.OpsJobCreateDTO:
     properties:
       description:
@@ -331,53 +1003,70 @@ definitions:
     required:
     - name
     type: object
-  service.OpsJobListResponse:
+  service.OrderDTO:
     properties:
-      list:
-        items:
-          $ref: '#/definitions/service.OpsJobResponse'
-        type: array
-      page:
-        example: 1
+      actionType:
+        description: pool_entry, pool_exit, maintenance_request, maintenance_uncordon
+        type: string
+      clusterId:
         type: integer
-      size:
-        example: 10
-        type: integer
-      total:
-        example: 100
-        type: integer
-    type: object
-  service.OpsJobResponse:
-    properties:
-      created_at:
-        example: "2024-01-01T12:00:00Z"
+      clusterName:
+        type: string
+      completionTime:
+        type: string
+      createdAt:
+        type: string
+      createdBy:
         type: string
       description:
-        example: 部署应用到生产环境
+        description: 订单描述
         type: string
-      end_time:
-        example: "2024-01-01T12:30:00Z"
+      deviceCount:
+        type: integer
+      deviceInfo:
+        allOf:
+        - $ref: '#/definitions/service.DeviceDTO'
+        description: DeviceID字段已移除，使用Devices列表和OrderDevice关联表
+      devices:
+        description: 设备ID列表
+        items:
+          type: integer
+        type: array
+      executionTime:
+        type: string
+      executor:
+        type: string
+      externalTicketId:
+        type: string
+      extraInfo:
+        additionalProperties: true
+        description: 额外信息，用于存储维护原因等
+        type: object
+      failureReason:
         type: string
       id:
-        example: 1
         type: integer
-      log_content:
-        example: Starting deployment...
+      maintenanceEndTime:
+        type: string
+      maintenanceStartTime:
         type: string
       name:
-        example: deploy-app
+        description: 订单名称
         type: string
-      progress:
-        example: 50
-        type: integer
-      start_time:
-        example: "2024-01-01T12:00:00Z"
+      orderNumber:
+        type: string
+      resourcePoolType:
+        description: 资源池类型
         type: string
       status:
-        example: running
         type: string
-      updated_at:
-        example: "2024-01-01T12:30:00Z"
+      strategyId:
+        type: integer
+      strategyName:
+        type: string
+      strategyThresholdValue:
+        type: string
+      strategyTriggeredValue:
         type: string
     type: object
   service.QueryTemplate:
@@ -397,6 +1086,214 @@ definitions:
         description: 模板名称
         type: string
     type: object
+  service.QueryTemplateListResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/service.QueryTemplateResponse'
+        type: array
+      page:
+        example: 1
+        type: integer
+      size:
+        example: 10
+        type: integer
+      total:
+        example: 10
+        type: integer
+    type: object
+  service.QueryTemplateResponse:
+    properties:
+      createdAt:
+        example: "2024-01-01T12:00:00Z"
+        type: string
+      description:
+        example: 查询所有生产环境的设备
+        type: string
+      groups:
+        items:
+          $ref: '#/definitions/service.FilterGroupRequest'
+        type: array
+      id:
+        example: 1
+        type: integer
+      name:
+        example: 生产环境设备
+        type: string
+      updatedAt:
+        example: "2024-01-01T12:30:00Z"
+        type: string
+    type: object
+  service.StrategyDTO:
+    properties:
+      clusterIds:
+        description: 关联的集群ID列表
+        items:
+          type: integer
+        type: array
+      conditionLogic:
+        description: AND 或 OR
+        type: string
+      cooldownMinutes:
+        type: integer
+      cpuTargetValue:
+        description: 动作执行后CPU目标使用率
+        type: number
+      cpuThresholdType:
+        description: usage 或 allocated
+        type: string
+      cpuThresholdValue:
+        type: number
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      description:
+        type: string
+      deviceCount:
+        type: integer
+      durationMinutes:
+        type: integer
+      id:
+        type: integer
+      memoryTargetValue:
+        description: 动作执行后内存目标使用率
+        type: number
+      memoryThresholdType:
+        description: usage 或 allocated
+        type: string
+      memoryThresholdValue:
+        type: number
+      name:
+        type: string
+      nodeSelector:
+        type: string
+      resourceTypes:
+        description: 资源类型列表，逗号分隔
+        type: string
+      status:
+        description: enabled 或 disabled
+        type: string
+      thresholdTriggerAction:
+        description: pool_entry 或 pool_exit
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  service.UpdateK8sClusterRequest:
+    properties:
+      alias:
+        type: string
+      apiServer:
+        type: string
+      apiServerVip:
+        type: string
+      architecture:
+        type: string
+      clusterGroup:
+        type: string
+      clusterId:
+        type: string
+      clusterName:
+        type: string
+      clusterNameCn:
+        type: string
+      clusterType:
+        type: string
+      desc:
+        type: string
+      esServer:
+        type: string
+      etcdServer:
+        type: string
+      etcdServerVip:
+        type: string
+      flowType:
+        type: string
+      group:
+        type: string
+      idc:
+        type: string
+      ingressServerVip:
+        type: string
+      ingressServername:
+        type: string
+      kubeConfig:
+        type: string
+      kubePromVersion:
+        type: string
+      netType:
+        type: string
+      novaName:
+        type: string
+      podCidr:
+        type: string
+      priority:
+        type: integer
+      promServer:
+        type: string
+      rrCicode:
+        type: string
+      rrGroup:
+        type: string
+      serviceCidr:
+        type: string
+      status:
+        type: string
+      thanosServer:
+        type: string
+      zone:
+        type: string
+    type: object
+  service.UpdateResourcePoolDeviceMatchingPolicyRequest:
+    properties:
+      actionType:
+        description: 动作类型：pool_entry 或 pool_exit
+        enum:
+        - pool_entry
+        - pool_exit
+        type: string
+      additionConds:
+        description: 额外动态条件，仅入池时有效
+        items:
+          type: string
+        type: array
+      description:
+        description: 策略描述
+        type: string
+      name:
+        description: 策略名称
+        type: string
+      queryTemplateId:
+        description: 关联的查询模板ID
+        type: integer
+      resourcePoolType:
+        description: 资源池类型
+        type: string
+      status:
+        description: 状态：enabled 或 disabled
+        enum:
+        - enabled
+        - disabled
+        type: string
+    required:
+    - actionType
+    - name
+    - queryTemplateId
+    - resourcePoolType
+    - status
+    type: object
+  service.UpdateResourcePoolDeviceMatchingPolicyStatusRequest:
+    properties:
+      status:
+        description: 状态：enabled 或 disabled
+        enum:
+        - enabled
+        - disabled
+        type: string
+    required:
+    - status
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -411,42 +1308,6 @@ info:
   title: Navy-NG API
   version: "1.0"
 paths:
-  /device:
-    get:
-      consumes:
-      - application/json
-      description: 获取设备列表，支持分页和关键字搜索
-      parameters:
-      - description: 页码
-        in: query
-        name: page
-        type: integer
-      - description: 每页数量
-        in: query
-        name: size
-        type: integer
-      - description: 搜索关键字
-        in: query
-        name: keyword
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 成功获取设备列表
-          schema:
-            $ref: '#/definitions/service.DeviceListResponse'
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "500":
-          description: 获取设备列表失败
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 获取设备列表
-      tags:
-      - 设备管理
   /device-query/filter-options:
     get:
       consumes:
@@ -468,37 +1329,6 @@ paths:
           schema:
             $ref: '#/definitions/service.ErrorResponse'
       summary: 获取设备筛选项
-      tags:
-      - 设备查询
-  /device-query/label-values:
-    get:
-      consumes:
-      - application/json
-      description: 根据标签键获取节点标签的可选值列表
-      parameters:
-      - description: 标签键
-        in: query
-        name: key
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 成功获取标签值
-          schema:
-            items:
-              $ref: '#/definitions/service.FilterOptionResponse'
-            type: array
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "500":
-          description: 获取标签值失败
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 获取节点标签可选值
       tags:
       - 设备查询
   /device-query/query:
@@ -566,16 +1396,23 @@ paths:
     get:
       consumes:
       - application/json
-      description: 获取所有设备查询模板列表
+      description: 获取所有设备查询模板列表，支持分页
+      parameters:
+      - description: 页码，默认为1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认为10，最大为100
+        in: query
+        name: size
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: 成功获取模板列表
           schema:
-            items:
-              $ref: '#/definitions/service.QueryTemplate'
-            type: array
+            $ref: '#/definitions/service.QueryTemplateListResponse'
         "500":
           description: 获取模板列表失败
           schema:
@@ -673,153 +1510,6 @@ paths:
       summary: 获取查询模板详情
       tags:
       - 设备查询
-  /device/{id}:
-    get:
-      consumes:
-      - application/json
-      description: 根据设备ID获取设备详情
-      parameters:
-      - description: 设备ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 成功获取设备详情
-          schema:
-            $ref: '#/definitions/service.DeviceResponse'
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "404":
-          description: 设备不存在
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "500":
-          description: 获取设备详情失败
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 获取设备详情
-      tags:
-      - 设备管理
-  /device/{id}/role:
-    patch:
-      consumes:
-      - application/json
-      description: 根据设备ID更新设备的集群角色
-      parameters:
-      - description: 设备ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: 角色更新信息
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/service.DeviceRoleUpdateRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 角色更新成功
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "404":
-          description: 设备不存在
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "500":
-          description: 更新角色失败
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 更新设备角色
-      tags:
-      - 设备管理
-  /device/export:
-    get:
-      consumes:
-      - application/json
-      description: 导出所有设备信息为CSV文件，包含设备的全部字段
-      produces:
-      - text/csv
-      responses:
-        "200":
-          description: device_info.csv
-          schema:
-            type: file
-        "500":
-          description: 导出设备信息失败
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 导出设备信息
-      tags:
-      - 设备管理
-  /f5:
-    get:
-      consumes:
-      - application/json
-      description: 获取F5信息列表，支持分页和多条件筛选
-      parameters:
-      - description: 页码
-        in: query
-        name: page
-        required: true
-        type: integer
-      - description: 每页数量
-        in: query
-        name: size
-        required: true
-        type: integer
-      - description: F5名称
-        in: query
-        name: name
-        type: string
-      - description: VIP地址
-        in: query
-        name: vip
-        type: string
-      - description: 端口
-        in: query
-        name: port
-        type: string
-      - description: 应用ID
-        in: query
-        name: appid
-        type: string
-      - description: 状态
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 成功获取F5信息列表
-          schema:
-            $ref: '#/definitions/service.F5InfoListResponse'
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "500":
-          description: 获取F5信息列表失败
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 获取F5信息列表
-      tags:
-      - F5管理
   /f5/{id}:
     delete:
       consumes:
@@ -853,38 +1543,6 @@ paths:
           schema:
             $ref: '#/definitions/service.ErrorResponse'
       summary: 删除F5信息
-      tags:
-      - F5管理
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取F5信息的详细信息
-      parameters:
-      - description: F5信息ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 成功获取F5信息详情
-          schema:
-            $ref: '#/definitions/service.F5InfoResponse'
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "404":
-          description: F5信息不存在
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-        "500":
-          description: 获取F5信息详情失败
-          schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 获取F5信息详情
       tags:
       - F5管理
     put:
@@ -927,25 +1585,806 @@ paths:
       summary: 更新F5信息
       tags:
       - F5管理
-  /ops/job:
+  /fe-v1/device-maintenance/callback:
+    post:
+      consumes:
+      - application/json
+      description: 接收并处理来自上游系统的维护完成通知
+      parameters:
+      - description: 维护回调信息
+        in: body
+        name: callback
+        required: true
+        schema:
+          $ref: '#/definitions/service.MaintenanceCallbackDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 处理维护完成回调
+      tags:
+      - 设备维护
+  /fe-v1/device-maintenance/confirm/{id}:
+    post:
+      consumes:
+      - application/json
+      description: 确认接受维护请求，更改状态为已确认待维护
+      parameters:
+      - description: 维护订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 确认维护请求
+      tags:
+      - 设备维护
+  /fe-v1/device-maintenance/request:
+    post:
+      consumes:
+      - application/json
+      description: 接收并处理来自上游系统的设备维护请求
+      parameters:
+      - description: 维护请求信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.MaintenanceRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 处理设备维护请求
+      tags:
+      - 设备维护
+  /fe-v1/device-maintenance/start/{id}:
+    post:
+      consumes:
+      - application/json
+      description: 执行节点Cordon操作，准备设备维护
+      parameters:
+      - description: 维护订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 开始设备维护
+      tags:
+      - 设备维护
+  /fe-v1/device-maintenance/uncordon-requests:
     get:
       consumes:
       - application/json
-      description: 获取运维任务列表，支持分页和条件筛选
+      description: 获取所有待执行的节点Uncordon请求
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取待处理的Uncordon请求
+      tags:
+      - 设备维护
+  /fe-v1/device-maintenance/uncordon/{id}:
+    post:
+      consumes:
+      - application/json
+      description: 执行节点Uncordon操作，恢复节点服务
       parameters:
-      - description: 页码
+      - description: Uncordon订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 执行节点Uncordon操作
+      tags:
+      - 设备维护
+  /fe-v1/devices:
+    get:
+      consumes:
+      - application/json
+      description: 获取设备列表，支持分页
+      parameters:
+      - description: 页码，默认1
         in: query
         name: page
         type: integer
-      - description: 每页数量
+      - description: 每页大小，默认10
         in: query
         name: size
         type: integer
-      - description: 任务名称
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取设备列表
+      tags:
+      - 设备管理
+  /fe-v1/devices/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据设备ID获取设备的详细信息
+      parameters:
+      - description: 设备ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取设备详情
+      tags:
+      - 设备管理
+  /fe-v1/devices/export:
+    post:
+      consumes:
+      - application/json
+      description: 导出设备数据为Excel文件
+      parameters:
+      - description: 导出请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.DeviceExportRequest'
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        "200":
+          description: Excel文件
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 导出设备数据
+      tags:
+      - 设备管理
+  /fe-v1/devices/group:
+    put:
+      consumes:
+      - application/json
+      description: 批量更新设备的分组信息
+      parameters:
+      - description: 更新分组请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.DeviceGroupUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 更新设备分组
+      tags:
+      - 设备管理
+  /fe-v1/elastic-scaling/orders:
+    get:
+      consumes:
+      - application/json
+      description: 获取弹性伸缩订单列表，支持分页和过滤
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小，默认10
+        in: query
+        name: pageSize
+        type: integer
+      - description: 集群ID
+        in: query
+        name: clusterId
+        type: integer
+      - description: 策略ID
+        in: query
+        name: strategyId
+        type: integer
+      - description: 动作类型
+        in: query
+        name: actionType
+        type: string
+      - description: 订单状态
+        in: query
+        name: status
+        type: string
+      - description: 订单名称（支持模糊搜索）
         in: query
         name: name
         type: string
-      - description: 任务状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取弹性伸缩订单列表
+      tags:
+      - 弹性伸缩订单
+    post:
+      consumes:
+      - application/json
+      description: 创建新的弹性伸缩订单
+      parameters:
+      - description: 订单数据
+        in: body
+        name: order
+        required: true
+        schema:
+          $ref: '#/definitions/service.OrderDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 创建弹性伸缩订单
+      tags:
+      - 弹性伸缩订单
+  /fe-v1/elastic-scaling/orders/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定订单的详细信息
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取弹性伸缩订单详情
+      tags:
+      - 弹性伸缩订单
+  /fe-v1/elastic-scaling/orders/{id}/devices:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定订单关联的设备列表
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取订单关联的设备
+      tags:
+      - 弹性伸缩订单
+  /fe-v1/elastic-scaling/orders/{id}/devices/{device_id}/status:
+    put:
+      consumes:
+      - application/json
+      description: 更新指定订单中指定设备的状态
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 设备ID
+        in: path
+        name: device_id
+        required: true
+        type: integer
+      - description: 设备状态更新请求
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            status:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 更新订单关联设备的状态
+      tags:
+      - 弹性伸缩订单
+  /fe-v1/elastic-scaling/orders/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: 更新指定订单的状态
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 状态更新请求
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            reason:
+              type: string
+            status:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 更新订单状态
+      tags:
+      - 弹性伸缩订单
+  /fe-v1/elastic-scaling/stats/dashboard:
+    get:
+      consumes:
+      - application/json
+      description: 获取工作台概览统计数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取工作台统计数据
+      tags:
+      - 弹性伸缩
+  /fe-v1/elastic-scaling/stats/orders:
+    get:
+      consumes:
+      - application/json
+      description: 获取不同时间范围的订单统计数据
+      parameters:
+      - description: 时间范围（7d/30d/90d）
+        in: query
+        name: timeRange
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取订单统计
+      tags:
+      - 弹性伸缩
+  /fe-v1/elastic-scaling/stats/resource-pool-types:
+    get:
+      consumes:
+      - application/json
+      description: 获取当天所有资源池类型
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取资源池类型列表
+      tags:
+      - 弹性伸缩
+  /fe-v1/elastic-scaling/strategies:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的弹性伸缩策略
+      parameters:
+      - description: 策略数据
+        in: body
+        name: strategy
+        required: true
+        schema:
+          $ref: '#/definitions/service.StrategyDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 创建策略
+      tags:
+      - 弹性伸缩
+  /fe-v1/elastic-scaling/strategies/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的策略
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 删除策略
+      tags:
+      - 弹性伸缩
+    get:
+      consumes:
+      - application/json
+      description: 获取指定策略的详细信息
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取策略详情
+      tags:
+      - 弹性伸缩
+    put:
+      consumes:
+      - application/json
+      description: 更新指定策略的信息
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 策略数据
+        in: body
+        name: strategy
+        required: true
+        schema:
+          $ref: '#/definitions/service.StrategyDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 更新策略
+      tags:
+      - 弹性伸缩
+  /fe-v1/elastic-scaling/strategies/{id}/execution-history:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定策略的执行历史记录，支持分页和集群名字模糊查询
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 集群名字（模糊查询）
+        in: query
+        name: clusterName
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取策略执行历史
+      tags:
+      - 弹性伸缩
+  /fe-v1/elastic-scaling/strategies/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: 更新指定策略的启用/禁用状态
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 状态数据
+        in: body
+        name: status
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 更新策略状态
+      tags:
+      - 弹性伸缩
+  /fe-v1/f5:
+    get:
+      consumes:
+      - application/json
+      description: 获取F5设备信息列表，支持分页
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小，默认10
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取F5信息列表
+      tags:
+      - F5管理
+  /fe-v1/f5/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据F5 ID获取F5设备的详细信息
+      parameters:
+      - description: F5设备ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取F5信息
+      tags:
+      - F5管理
+  /fe-v1/k8s-clusters:
+    get:
+      consumes:
+      - application/json
+      description: 获取K8s集群列表，支持分页和过滤
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小，默认10
+        in: query
+        name: size
+        type: integer
+      - description: 集群名称
+        in: query
+        name: name
+        type: string
+      - description: 集群状态
         in: query
         name: status
         type: string
@@ -953,28 +2392,397 @@ paths:
       - application/json
       responses:
         "200":
-          description: 成功获取任务列表
+          description: OK
           schema:
-            $ref: '#/definitions/service.OpsJobListResponse'
+            $ref: '#/definitions/render.Response'
         "400":
-          description: 参数错误
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取K8s集群列表
+      tags:
+      - K8s集群管理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的K8s集群
+      parameters:
+      - description: 集群信息
+        in: body
+        name: cluster
+        required: true
+        schema:
+          $ref: '#/definitions/service.CreateK8sClusterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/service.K8sClusterResponse'
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/service.ErrorResponse'
         "500":
-          description: 获取任务列表失败
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/service.ErrorResponse'
+      summary: 创建K8s集群
+      tags:
+      - K8s集群
+  /fe-v1/k8s-clusters/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除K8s集群
+      parameters:
+      - description: 集群ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 删除K8s集群
+      tags:
+      - K8s集群
+    get:
+      consumes:
+      - application/json
+      description: 根据集群ID获取K8s集群的详细信息
+      parameters:
+      - description: 集群ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取K8s集群详情
+      tags:
+      - K8s集群管理
+    put:
+      consumes:
+      - application/json
+      description: 更新现有K8s集群信息
+      parameters:
+      - description: 集群ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 集群信息
+        in: body
+        name: cluster
+        required: true
+        schema:
+          $ref: '#/definitions/service.UpdateK8sClusterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.K8sClusterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 更新K8s集群
+      tags:
+      - K8s集群
+  /fe-v1/k8s-clusters/{id}/nodes:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定集群的所有节点
+      parameters:
+      - description: 集群ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.K8sNodeResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/service.ErrorResponse'
+      summary: 获取集群的节点列表
+      tags:
+      - K8s集群
+  /fe-v1/maintenance:
+    get:
+      consumes:
+      - application/json
+      description: 获取维护任务列表，支持分页和过滤
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小，默认10
+        in: query
+        name: size
+        type: integer
+      - description: 维护状态
+        in: query
+        name: status
+        type: string
+      - description: 维护类型
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取维护任务列表
+      tags:
+      - 维护管理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的维护任务
+      parameters:
+      - description: 创建维护任务请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.MaintenanceRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 创建维护任务
+      tags:
+      - 维护管理
+  /fe-v1/maintenance/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的维护任务
+      parameters:
+      - description: 维护任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 删除维护任务
+      tags:
+      - 维护管理
+    get:
+      consumes:
+      - application/json
+      description: 根据维护任务ID获取维护任务的详细信息
+      parameters:
+      - description: 维护任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取维护任务详情
+      tags:
+      - 维护管理
+    put:
+      consumes:
+      - application/json
+      description: 更新维护任务信息
+      parameters:
+      - description: 维护任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新维护任务请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.MaintenanceRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 更新维护任务
+      tags:
+      - 维护管理
+  /fe-v1/ops-jobs:
+    get:
+      consumes:
+      - application/json
+      description: 获取运维任务列表，支持分页
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小，默认10
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
       summary: 获取运维任务列表
       tags:
       - 运维任务
     post:
       consumes:
       - application/json
-      description: 创建新的运维任务，并返回创建的任务信息
+      description: 创建新的运维任务
       parameters:
-      - description: 任务信息
+      - description: 运维任务数据
         in: body
-        name: data
+        name: job
         required: true
         schema:
           $ref: '#/definitions/service.OpsJobCreateDTO'
@@ -982,21 +2790,21 @@ paths:
       - application/json
       responses:
         "200":
-          description: 任务创建成功
+          description: OK
           schema:
-            $ref: '#/definitions/service.OpsJobResponse'
+            $ref: '#/definitions/render.Response'
         "400":
-          description: 参数错误
+          description: Bad Request
           schema:
-            $ref: '#/definitions/service.ErrorResponse'
+            $ref: '#/definitions/render.ErrorResponse'
         "500":
-          description: 创建任务失败
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/service.ErrorResponse'
+            $ref: '#/definitions/render.ErrorResponse'
       summary: 创建运维任务
       tags:
       - 运维任务
-  /ops/job/{id}:
+  /fe-v1/ops-jobs/{id}:
     get:
       consumes:
       - application/json
@@ -1006,36 +2814,165 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       produces:
       - application/json
       responses:
         "200":
-          description: 成功获取任务详情
+          description: OK
           schema:
-            $ref: '#/definitions/service.OpsJobResponse'
+            $ref: '#/definitions/render.Response'
         "400":
-          description: 参数错误
+          description: Bad Request
           schema:
-            $ref: '#/definitions/service.ErrorResponse'
+            $ref: '#/definitions/render.ErrorResponse'
         "404":
-          description: 任务不存在
+          description: Not Found
           schema:
-            $ref: '#/definitions/service.ErrorResponse'
+            $ref: '#/definitions/render.ErrorResponse'
         "500":
-          description: 获取任务详情失败
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/service.ErrorResponse'
+            $ref: '#/definitions/render.ErrorResponse'
       summary: 获取运维任务详情
       tags:
       - 运维任务
-  /ops/job/{id}/ws:
+  /fe-v1/ops-jobs/{id}/ws:
     get:
       consumes:
       - application/json
-      description: 建立WebSocket连接以实时获取运维任务的状态更新和日志
+      description: 建立WebSocket连接以实时获取运维任务执行状态
       parameters:
       - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: Switching Protocols
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 处理WebSocket连接
+      tags:
+      - 运维任务
+  /fe-v1/orders/{orderType}:
+    get:
+      consumes:
+      - application/json
+      description: 根据订单类型和查询参数获取订单列表
+      parameters:
+      - description: 订单类型 (e.g., general)
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: pageSize
+        type: integer
+      - description: 订单状态
+        in: query
+        name: status
+        type: string
+      - description: 创建者
+        in: query
+        name: createdBy
+        type: string
+      - description: 订单名称，支持模糊查询
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功时返回订单列表和总数
+          schema:
+            allOf:
+            - $ref: '#/definitions/render.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.GeneralOrderQueryDTO'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取指定类型的订单列表
+      tags:
+      - 统一订单
+    post:
+      consumes:
+      - application/json
+      description: 根据指定的订单类型创建一个新的订单
+      parameters:
+      - description: 订单类型 (e.g., general)
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - description: 创建通用订单所需的数据
+        in: body
+        name: order
+        required: true
+        schema:
+          $ref: '#/definitions/service.GeneralOrderCreateDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 成功时返回创建的订单详情
+          schema:
+            allOf:
+            - $ref: '#/definitions/render.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.GeneralOrderDTO'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 创建一个新订单
+      tags:
+      - 统一订单
+  /fe-v1/orders/{orderType}/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据订单类型和ID获取订单的详细信息
+      parameters:
+      - description: 订单类型 (e.g., general)
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - description: 订单ID
         in: path
         name: id
         required: true
@@ -1043,21 +2980,401 @@ paths:
       produces:
       - application/json
       responses:
-        "101":
-          description: 升级为WebSocket协议
+        "200":
+          description: 成功时返回通用订单详情
           schema:
-            type: string
+            allOf:
+            - $ref: '#/definitions/render.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.GeneralOrderDTO'
+              type: object
         "400":
-          description: 参数错误
+          description: 请求参数错误
           schema:
-            $ref: '#/definitions/service.ErrorResponse'
+            $ref: '#/definitions/render.ErrorResponse'
+        "404":
+          description: 订单不存在
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
         "500":
-          description: WebSocket连接失败
+          description: 服务器内部错误
           schema:
-            $ref: '#/definitions/service.ErrorResponse'
-      summary: 运维任务WebSocket连接
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 获取特定类型的订单详情
       tags:
-      - 运维任务
+      - 统一订单
+  /fe-v1/orders/{orderType}/{id}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: 将订单状态设置为“已取消”
+      parameters:
+      - description: 订单类型
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 执行者信息
+        in: body
+        name: executor
+        required: true
+        schema:
+          $ref: '#/definitions/routers.ExecutorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 取消订单
+      tags:
+      - 统一订单
+  /fe-v1/orders/{orderType}/{id}/complete:
+    post:
+      consumes:
+      - application/json
+      description: 将订单状态设置为“已完成”
+      parameters:
+      - description: 订单类型
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 执行者信息
+        in: body
+        name: executor
+        required: true
+        schema:
+          $ref: '#/definitions/routers.ExecutorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 完成订单
+      tags:
+      - 统一订单
+  /fe-v1/orders/{orderType}/{id}/fail:
+    post:
+      consumes:
+      - application/json
+      description: 将订单状态设置为“失败”
+      parameters:
+      - description: 订单类型
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 失败信息
+        in: body
+        name: failInfo
+        required: true
+        schema:
+          $ref: '#/definitions/routers.FailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 失败订单
+      tags:
+      - 统一订单
+  /fe-v1/orders/{orderType}/{id}/process:
+    post:
+      consumes:
+      - application/json
+      description: 将订单状态设置为“处理中”
+      parameters:
+      - description: 订单类型
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 执行者信息
+        in: body
+        name: executor
+        required: true
+        schema:
+          $ref: '#/definitions/routers.ExecutorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 处理订单
+      tags:
+      - 统一订单
+  /fe-v1/orders/{orderType}/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: 更新指定订单的状态
+      parameters:
+      - description: 订单类型 (e.g., general)
+        in: path
+        name: orderType
+        required: true
+        type: string
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 状态更新请求
+        in: body
+        name: statusUpdate
+        required: true
+        schema:
+          $ref: '#/definitions/routers.UpdateOrderStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/render.ErrorResponse'
+      summary: 更新订单状态
+      tags:
+      - 统一订单
+  /resource-pool/matching-policies:
+    get:
+      consumes:
+      - application/json
+      description: 获取资源池设备匹配策略列表
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认10
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取资源池设备匹配策略列表
+      tags:
+      - 资源池设备匹配策略
+    post:
+      consumes:
+      - application/json
+      description: 创建资源池设备匹配策略
+      parameters:
+      - description: 创建策略请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.CreateResourcePoolDeviceMatchingPolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 创建资源池设备匹配策略
+      tags:
+      - 资源池设备匹配策略
+  /resource-pool/matching-policies/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除资源池设备匹配策略
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 删除资源池设备匹配策略
+      tags:
+      - 资源池设备匹配策略
+    get:
+      consumes:
+      - application/json
+      description: 获取资源池设备匹配策略详情
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 获取资源池设备匹配策略详情
+      tags:
+      - 资源池设备匹配策略
+    put:
+      consumes:
+      - application/json
+      description: 更新资源池设备匹配策略
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新策略请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.UpdateResourcePoolDeviceMatchingPolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 更新资源池设备匹配策略
+      tags:
+      - 资源池设备匹配策略
+  /resource-pool/matching-policies/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: 更新资源池设备匹配策略状态
+      parameters:
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新状态请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.UpdateResourcePoolDeviceMatchingPolicyStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/render.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/render.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/render.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/render.Response'
+      summary: 更新资源池设备匹配策略状态
+      tags:
+      - 资源池设备匹配策略
 securityDefinitions:
   BasicAuth:
     type: basic

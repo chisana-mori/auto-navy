@@ -2,10 +2,11 @@ package resource_report
 
 import (
 	"navy-ng/models/portal"
+	"time"
 )
 
 // DateFormat defines the standard date format used in the report.
-const DateFormat = "2006-01-02"
+const DateFormat = time.DateOnly
 
 // snapshotQueryResult is a struct to hold the necessary fields from the join query
 type snapshotQueryResult struct {

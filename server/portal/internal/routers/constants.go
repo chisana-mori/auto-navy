@@ -1,5 +1,7 @@
 package routers
 
+import "time"
+
 // HTTP 路由路径常量
 const (
 	// 基础路由组
@@ -238,5 +240,5 @@ const (
 
 // 时间格式常量
 const (
-	DateFormatYYYYMMDD = "2006-01-02"
+	DateFormatYYYYMMDD = time.DateOnly
 )

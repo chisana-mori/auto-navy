@@ -10,7 +10,7 @@ type OrderDevice struct {
 
 // TableName 指定表名
 func (OrderDevice) TableName() string {
-	return "order_device"
+	return "ng_order_device"
 }
 
 // StrategyExecutionHistory 策略执行历史表
@@ -29,7 +29,7 @@ type StrategyExecutionHistory struct {
 
 // TableName 指定表名
 func (StrategyExecutionHistory) TableName() string {
-	return "strategy_execution_history"
+	return "ng_strategy_execution_history"
 }
 
 // NotificationLog 通知日志表

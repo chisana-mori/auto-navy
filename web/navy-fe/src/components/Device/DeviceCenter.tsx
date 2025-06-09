@@ -140,17 +140,8 @@ const DeviceCenter: React.FC = () => {
   const [roleForm] = Form.useForm();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  // 从URL获取查询参数的通用函数
-  const getQueryParams = () => {
-    const searchParams = new URLSearchParams(location.search);
-    return {
-      tab: searchParams.get('tab') as 'simple' | 'advanced' | 'template' | null,
-      templateId: searchParams.get('templateId') ? parseInt(searchParams.get('templateId')!) : null,
-    };
-  };
-
   // 加载模板列表
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     try {
       const { current, pageSize } = templatePagination;
 
@@ -172,20 +163,7 @@ const DeviceCenter: React.FC = () => {
       console.error('加载模板列表失败:', error);
       message.error('加载模板列表失败');
     }
-  };
-
-  // 过滤模板
-  const filterTemplates = (keyword: string) => {
-    if (!keyword.trim()) {
-      return templates;
-    }
-
-    const lowerKeyword = keyword.toLowerCase();
-    return templates.filter(template =>
-      template.name.toLowerCase().includes(lowerKeyword) ||
-      (template.description && template.description.toLowerCase().includes(lowerKeyword))
-    );
-  };
+  }, [templatePagination]);
 
   // 处理模板搜索
   const handleTemplateSearch = (value: string) => {
@@ -384,7 +362,7 @@ const DeviceCenter: React.FC = () => {
     };
 
     loadInitialData();
-  }, []);
+  }, [initialParams, loadTemplates]);
 
   // 处理多行查询关键字
   const processMultilineKeyword = (keyword: string): string => {

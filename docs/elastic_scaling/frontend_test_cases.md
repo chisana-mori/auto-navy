@@ -177,12 +177,12 @@
 
 ```sql
 -- 清理现有数据
-DELETE FROM strategy_execution_history;
-DELETE FROM order_device;
-DELETE FROM elastic_scaling_order_details;
-DELETE FROM orders;
+DELETE FROM ng_strategy_execution_history;
+DELETE FROM ng_order_device;
+DELETE FROM ng_elastic_scaling_order_details;
+DELETE FROM ng_orders;
 DELETE FROM resource_snapshots;
-DELETE FROM strategy_cluster_associations;
+DELETE FROM ng_strategy_cluster_association;
 DELETE FROM elastic_scaling_strategies;
 DELETE FROM query_templates;
 DELETE FROM devices;
@@ -220,7 +220,7 @@ INSERT INTO elastic_scaling_strategies (
 );
 
 -- 创建策略集群关联
-INSERT INTO strategy_cluster_associations (strategy_id, cluster_id, created_at, updated_at) VALUES 
+INSERT INTO ng_strategy_cluster_association (strategy_id, cluster_id, created_at, updated_at) VALUES 
 (1, 1, datetime('now'), datetime('now'));
 
 -- 创建资源快照数据（连续3天CPU使用率超过80%）
@@ -242,12 +242,12 @@ INSERT INTO resource_snapshots (
 
 ```sql
 -- 清理现有数据
-DELETE FROM strategy_execution_history;
-DELETE FROM order_device;
-DELETE FROM elastic_scaling_order_details;
-DELETE FROM orders;
+DELETE FROM ng_strategy_execution_history;
+DELETE FROM ng_order_device;
+DELETE FROM ng_elastic_scaling_order_details;
+DELETE FROM ng_orders;
 DELETE FROM resource_snapshots;
-DELETE FROM strategy_cluster_associations;
+DELETE FROM ng_strategy_cluster_association;
 DELETE FROM elastic_scaling_strategies;
 DELETE FROM query_templates;
 DELETE FROM devices;
@@ -284,7 +284,7 @@ INSERT INTO elastic_scaling_strategies (
 );
 
 -- 创建策略集群关联
-INSERT INTO strategy_cluster_associations (strategy_id, cluster_id, created_at, updated_at) VALUES 
+INSERT INTO ng_strategy_cluster_association (strategy_id, cluster_id, created_at, updated_at) VALUES 
 (2, 2, datetime('now'), datetime('now'));
 
 -- 创建资源快照数据（连续2天内存分配率低于20%）
@@ -304,12 +304,12 @@ INSERT INTO resource_snapshots (
 
 ```sql
 -- 清理现有数据
-DELETE FROM strategy_execution_history;
-DELETE FROM order_device;
-DELETE FROM elastic_scaling_order_details;
-DELETE FROM orders;
+DELETE FROM ng_strategy_execution_history;
+DELETE FROM ng_order_device;
+DELETE FROM ng_elastic_scaling_order_details;
+DELETE FROM ng_orders;
 DELETE FROM resource_snapshots;
-DELETE FROM strategy_cluster_associations;
+DELETE FROM ng_strategy_cluster_association;
 DELETE FROM elastic_scaling_strategies;
 DELETE FROM query_templates;
 DELETE FROM devices;
@@ -345,7 +345,7 @@ INSERT INTO elastic_scaling_strategies (
 );
 
 -- 创建策略集群关联
-INSERT INTO strategy_cluster_associations (strategy_id, cluster_id, created_at, updated_at) VALUES
+INSERT INTO ng_strategy_cluster_association (strategy_id, cluster_id, created_at, updated_at) VALUES
 (3, 3, datetime('now'), datetime('now'));
 
 -- 创建资源快照数据（第2天中断，不满足连续3天要求）
@@ -440,12 +440,12 @@ curl -X POST http://localhost:8080/api/v1/elastic-scaling/strategies/{id}/evalua
 
 ```sql
 -- 清理所有测试数据
-DELETE FROM strategy_execution_history;
-DELETE FROM order_device;
-DELETE FROM elastic_scaling_order_details;
-DELETE FROM orders;
+DELETE FROM ng_strategy_execution_history;
+DELETE FROM ng_order_device;
+DELETE FROM ng_elastic_scaling_order_details;
+DELETE FROM ng_orders;
 DELETE FROM resource_snapshots;
-DELETE FROM strategy_cluster_associations;
+DELETE FROM ng_strategy_cluster_association;
 DELETE FROM elastic_scaling_strategies;
 DELETE FROM query_templates;
 DELETE FROM devices;
@@ -453,8 +453,8 @@ DELETE FROM k8s_clusters;
 
 -- 重置自增ID（如果需要）
 DELETE FROM sqlite_sequence WHERE name IN (
-    'strategy_execution_history', 'order_device', 'elastic_scaling_order_details',
-    'orders', 'resource_snapshots', 'strategy_cluster_associations',
+    'ng_strategy_execution_history', 'ng_order_device', 'ng_elastic_scaling_order_details',
+    'ng_orders', 'resource_snapshots', 'ng_strategy_cluster_association',
     'elastic_scaling_strategies', 'query_templates', 'devices', 'k8s_clusters'
 );
 ```

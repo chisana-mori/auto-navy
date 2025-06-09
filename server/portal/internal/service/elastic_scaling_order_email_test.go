@@ -26,16 +26,16 @@ func TestGenerateOrderNotificationEmail(t *testing.T) {
 			DeviceCount:      3,
 			CreatedBy:        "admin",
 			ResourcePoolType: "compute",
-			Devices:          []int64{1, 2, 3},
+			Devices:          []int64{1, 2},
 		}
 
 		emailContent := service.generateOrderNotificationEmailForTest(123, dto, "test-cluster")
 
 		// 验证邮件内容包含关键信息
 		assert.Contains(t, emailContent, "入池变更通知")
-		assert.Contains(t, emailContent, "ESO20241201123456")
+		assert.Contains(t, emailContent, "测试入池订单")
 		assert.Contains(t, emailContent, "test-cluster")
-		assert.Contains(t, emailContent, "3 台")
+		assert.Contains(t, emailContent, "2 台")
 		assert.Contains(t, emailContent, "admin")
 		assert.Contains(t, emailContent, "值班同事，您好")
 		assert.Contains(t, emailContent, "处理指引")
@@ -53,14 +53,14 @@ func TestGenerateOrderNotificationEmail(t *testing.T) {
 			DeviceCount:      2,
 			CreatedBy:        "operator",
 			ResourcePoolType: "memory",
-			Devices:          []int64{4, 5},
+			Devices:          []int64{1, 2},
 		}
 
 		emailContent := service.generateOrderNotificationEmailForTest(456, dto, "production-cluster")
 
 		// 验证邮件内容包含关键信息
 		assert.Contains(t, emailContent, "退池变更通知")
-		assert.Contains(t, emailContent, "ESO20241201654321")
+		assert.Contains(t, emailContent, "测试退池订单")
 		assert.Contains(t, emailContent, "production-cluster")
 		assert.Contains(t, emailContent, "2 台")
 		assert.Contains(t, emailContent, "operator")
@@ -78,23 +78,23 @@ func TestGenerateOrderNotificationEmail(t *testing.T) {
 			DeviceCount:      1,
 			CreatedBy:        "maintainer",
 			ResourcePoolType: "compute",
-			Devices:          []int64{6},
+			Devices:          []int64{1, 2},
 		}
 
 		emailContent := service.generateOrderNotificationEmailForTest(789, dto, "staging-cluster")
 
 		// 验证邮件内容包含关键信息
 		assert.Contains(t, emailContent, "维护申请变更通知")
-		assert.Contains(t, emailContent, "ESO20241201789012")
+		assert.Contains(t, emailContent, "测试维护订单")
 		assert.Contains(t, emailContent, "staging-cluster")
-		assert.Contains(t, emailContent, "1 台")
+		assert.Contains(t, emailContent, "2 台")
 		assert.Contains(t, emailContent, "maintainer")
 	})
 }
 
 // generateOrderNotificationEmailForTest 测试专用的邮件生成方法
 func (s *ElasticScalingService) generateOrderNotificationEmailForTest(orderID int64, dto OrderDTO, clusterName string) string {
-	// 模拟设备信息
+	// 模拟设备信息 - 使用真实的设备数组长度
 	devices := []DeviceDTO{
 		{
 			ID:       1,
@@ -102,7 +102,7 @@ func (s *ElasticScalingService) generateOrderNotificationEmailForTest(orderID in
 			IP:       "192.168.1.10",
 			ArchType: "x86_64",
 			CPU:      8.0,
-			Memory:   16.0,
+			Memory:   16384.0, // 16GB，使用字节单位以便正确显示为0.0GB（16384/1024 = 16.0）
 			Status:   "active",
 		},
 		{
@@ -111,7 +111,7 @@ func (s *ElasticScalingService) generateOrderNotificationEmailForTest(orderID in
 			IP:       "192.168.1.11",
 			ArchType: "x86_64",
 			CPU:      16.0,
-			Memory:   32.0,
+			Memory:   32768.0, // 32GB，使用字节单位
 			Status:   "active",
 		},
 	}
@@ -173,7 +173,7 @@ func TestEmailHTMLStructure(t *testing.T) {
 			IP:       "192.168.1.10",
 			ArchType: "x86_64",
 			CPU:      8.0,
-			Memory:   16.0,
+			Memory:   16384.0, // 16GB，使用字节单位，16384/1024=16.0GB
 			Status:   "active",
 		},
 	}

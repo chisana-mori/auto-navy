@@ -122,3 +122,12 @@ type DeviceResponse struct {
 	NetworkSpeed string `json:"networkSpeed,omitempty"` // 网络速度 (来自 device 表)
 	FeatureCount int    `json:"featureCount,omitempty"` // 特性数量 (用于前端显示)
 }
+
+// DeviceExportRequest 设备导出请求
+// swagger:model
+type DeviceExportRequest struct {
+	// 导出格式，支持 csv, excel
+	Format string `json:"format" example:"csv" swagger:"description=导出格式"`
+	// 是否包含详细信息
+	IncludeDetails bool `json:"include_details" example:"true" swagger:"description=是否包含详细信息"`
+}

@@ -170,7 +170,7 @@ func (h *MaintenanceHandler) listMaintenances(c *gin.Context) {
 // @Tags 维护管理
 // @Accept json
 // @Produce json
-// @Param request body service.CreateMaintenanceRequest true "创建维护任务请求"
+// @Param request body service.MaintenanceRequestDTO true "创建维护任务请求"
 // @Success 201 {object} render.Response
 // @Failure 400 {object} render.ErrorResponse
 // @Failure 500 {object} render.ErrorResponse
@@ -187,7 +187,7 @@ func (h *MaintenanceHandler) createMaintenance(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path string true "维护任务ID"
-// @Param request body service.UpdateMaintenanceRequest true "更新维护任务请求"
+// @Param request body service.MaintenanceRequestDTO true "更新维护任务请求"
 // @Success 200 {object} render.Response
 // @Failure 400 {object} render.ErrorResponse
 // @Failure 404 {object} render.ErrorResponse

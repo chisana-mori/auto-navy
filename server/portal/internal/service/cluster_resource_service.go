@@ -431,7 +431,7 @@ func (s *ClusterResourceService) GetResourcePoolAllocationRate(clusterName, reso
 		CPUCapacity:  snapshot.CpuCapacity,
 		MemRequest:   snapshot.MemRequest,
 		MemCapacity:  snapshot.MemoryCapacity,
-		QueryDate:    today.Format("2006-01-02"),
+		QueryDate:    today.Format(time.DateOnly),
 	}
 
 	return result, nil

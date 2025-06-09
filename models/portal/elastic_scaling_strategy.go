@@ -20,18 +20,14 @@ type ElasticScalingStrategy struct {
 	ConditionLogic         string  `gorm:"column:condition_logic;size:10;default:'OR'"`      // AND 或 OR
 	DurationMinutes        int     `gorm:"column:duration_minutes;not null"`                 // 持续时间（分钟）
 	CooldownMinutes        int     `gorm:"column:cooldown_minutes;not null"`                 // 冷却时间（分钟）
-	DeviceCount            int     `gorm:"column:device_count;not null"`                     // 设备数量
-	NodeSelector           string  `gorm:"column:node_selector;size:255"`                    // 节点选择器
 	ResourceTypes          string  `gorm:"column:resource_types;size:255"`                   // 资源类型列表，逗号分隔（计算、存储、网络等）
 	Status                 string  `gorm:"column:status;size:20;not null"`                   // enabled 或 disabled
 	CreatedBy              string  `gorm:"column:created_by;size:50;not null"`
-	EntryQueryTemplateID   int64   `gorm:"column:entry_query_template_id"` // 入池查询模板ID
-	ExitQueryTemplateID    int64   `gorm:"column:exit_query_template_id"`  // 退池查询模板ID
 }
 
 // TableName 指定表名
 func (ElasticScalingStrategy) TableName() string {
-	return "elastic_scaling_strategy"
+	return "ng_elastic_scaling_strategy"
 }
 
 // StrategyClusterAssociation 策略集群关联表
@@ -42,5 +38,5 @@ type StrategyClusterAssociation struct {
 
 // TableName 指定表名
 func (StrategyClusterAssociation) TableName() string {
-	return "strategy_cluster_association"
+	return "ng_strategy_cluster_association"
 }

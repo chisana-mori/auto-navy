@@ -19,5 +19,5 @@ type ResourcePoolDeviceMatchingPolicy struct {
 
 // TableName 返回表名.
 func (ResourcePoolDeviceMatchingPolicy) TableName() string {
-	return "resource_pool_device_matching_policy"
+	return "ng_resource_pool_device_matching_policy"
 }

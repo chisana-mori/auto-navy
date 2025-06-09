@@ -58,7 +58,7 @@ func (h *ClusterResourceHandler) GetRemainingClusterResources(c *gin.Context) {
 	// Parse optional date parameter
 	var queryDate *time.Time
 	if query.Date != "" {
-		parsedDate, err := time.Parse("2006-01-02", query.Date)
+		parsedDate, err := time.Parse(time.DateOnly, query.Date)
 		if err != nil {
 			render.Fail(c, http.StatusBadRequest, "Invalid date format. Please use YYYY-MM-DD format.")
 			return

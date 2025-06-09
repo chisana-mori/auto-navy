@@ -85,7 +85,7 @@ func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strate
 
 	// 如果有集群名字过滤条件，需要关联集群表进行模糊查询
 	if clusterName != "" {
-		baseQuery = baseQuery.Joins("JOIN k8s_cluster ON strategy_execution_history.cluster_id = k8s_cluster.id").
+		baseQuery = baseQuery.Joins("JOIN k8s_cluster ON ng_strategy_execution_history.cluster_id = k8s_cluster.id").
 			Where("k8s_cluster.clustername LIKE ? OR k8s_cluster.clusternamecn LIKE ?", "%"+clusterName+"%", "%"+clusterName+"%")
 	}
 
@@ -101,7 +101,7 @@ func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strate
 
 	// 如果有集群名字过滤条件，添加相同的关联查询
 	if clusterName != "" {
-		query = query.Joins("JOIN k8s_cluster ON strategy_execution_history.cluster_id = k8s_cluster.id").
+		query = query.Joins("JOIN k8s_cluster ON ng_strategy_execution_history.cluster_id = k8s_cluster.id").
 			Where("k8s_cluster.clustername LIKE ? OR k8s_cluster.clusternamecn LIKE ?", "%"+clusterName+"%", "%"+clusterName+"%")
 	}
 

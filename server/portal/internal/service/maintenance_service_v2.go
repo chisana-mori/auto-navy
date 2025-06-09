@@ -24,12 +24,12 @@ type MaintenanceRequestDTO struct {
 
 // MaintenanceResponseDTO 维护响应DTO
 type MaintenanceResponseDTO struct {
-	Success       bool   `json:"success"`
-	OrderID       int64  `json:"orderId"`
-	OrderNumber   string `json:"orderNumber"`
-	ScheduledTime string `json:"scheduledTime"`
-	Status        string `json:"status"`
-	Message       string `json:"message"`
+	Success         bool   `json:"success"`
+	OrderID         int64  `json:"orderId"`
+	OrderNumber     string `json:"orderNumber"`
+	ScheduledTime   string `json:"scheduledTime"`
+	Status          string `json:"status"`
+	Message         string `json:"message"`
 	UncordonOrderID *int64 `json:"uncordonOrderId,omitempty"`
 }
 
@@ -43,25 +43,25 @@ type MaintenanceCallbackDTO struct {
 
 // MaintenanceOrderDTO 维护订单DTO
 type MaintenanceOrderDTO struct {
-	Name                 string     `json:"name"`
-	Description          string     `json:"description"`
-	ClusterID            int64      `json:"clusterId"`
-	Devices              []int64    `json:"devices"`
-	MaintenanceStartTime *time.Time `json:"maintenanceStartTime"`
-	MaintenanceEndTime   *time.Time `json:"maintenanceEndTime"`
-	ExternalTicketID     string     `json:"externalTicketId"`
+	Name                 string                 `json:"name"`
+	Description          string                 `json:"description"`
+	ClusterID            int64                  `json:"clusterId"`
+	Devices              []int64                `json:"devices"`
+	MaintenanceStartTime *time.Time             `json:"maintenanceStartTime"`
+	MaintenanceEndTime   *time.Time             `json:"maintenanceEndTime"`
+	ExternalTicketID     string                 `json:"externalTicketId"`
 	MaintenanceType      portal.MaintenanceType `json:"maintenanceType"`
-	Priority             string     `json:"priority"`
-	Reason               string     `json:"reason"`
-	Comments             string     `json:"comments"`
-	CreatedBy            string     `json:"createdBy"`
+	Priority             string                 `json:"priority"`
+	Reason               string                 `json:"reason"`
+	Comments             string                 `json:"comments"`
+	CreatedBy            string                 `json:"createdBy"`
 }
 
 // MaintenanceOrderDetailDTO 维护订单详情DTO
 type MaintenanceOrderDetailDTO struct {
-	Order             *portal.Order                `json:"order"`
+	Order             *portal.Order                  `json:"order"`
 	MaintenanceDetail *portal.MaintenanceOrderDetail `json:"maintenanceDetail"`
-	Devices           []portal.Device              `json:"devices"`
+	Devices           []portal.Device                `json:"devices"`
 }
 
 // MaintenanceOrderService 维护订单服务接口
@@ -213,9 +213,9 @@ func (s *MaintenanceOrderService) CompleteMaintenance(ctx context.Context, exter
 // MaintenanceServiceV2 设备维护服务V2版本
 // 保持原有接口不变，但内部使用新的维护订单服务架构
 type MaintenanceServiceV2 struct {
-	db                       *gorm.DB
-	maintenanceOrderService  *MaintenanceOrderService
-	logger                   *zap.Logger
+	db                      *gorm.DB
+	maintenanceOrderService *MaintenanceOrderService
+	logger                  *zap.Logger
 }
 
 // convertDevicesToDTO 转换Device到DeviceDTO
@@ -369,7 +369,7 @@ func (s *MaintenanceServiceV2) GetPendingMaintenanceRequests() ([]OrderDetailDTO
 		// 只返回待确认和已安排维护的订单
 		if order.Order.Status == portal.OrderStatusPending ||
 			order.Order.Status == "scheduled_for_maintenance" {
-			
+
 			// 转换为原有的OrderDetailDTO格式
 			orderDetailDTO := OrderDetailDTO{
 				OrderDTO: OrderDTO{
@@ -382,30 +382,30 @@ func (s *MaintenanceServiceV2) GetPendingMaintenanceRequests() ([]OrderDetailDTO
 					CreatedBy:   order.Order.CreatedBy,
 					CreatedAt:   time.Time(order.Order.CreatedAt),
 				},
-			Devices: convertDevicesToDTO(order.Devices),
-		}
+				Devices: convertDevicesToDTO(order.Devices),
+			}
 
-		if order.Order.ExecutionTime != nil {
-			execTime := time.Time(*order.Order.ExecutionTime)
-			orderDetailDTO.ExecutionTime = &execTime
-		}
-		if order.Order.CompletionTime != nil {
-			compTime := time.Time(*order.Order.CompletionTime)
-			orderDetailDTO.CompletionTime = &compTime
-		}
+			if order.Order.ExecutionTime != nil {
+				execTime := time.Time(*order.Order.ExecutionTime)
+				orderDetailDTO.ExecutionTime = &execTime
+			}
+			if order.Order.CompletionTime != nil {
+				compTime := time.Time(*order.Order.CompletionTime)
+				orderDetailDTO.CompletionTime = &compTime
+			}
 
 			// 设置维护相关字段
 			if order.MaintenanceDetail != nil {
 				orderDetailDTO.ClusterID = order.MaintenanceDetail.ClusterID
 				orderDetailDTO.ExternalTicketID = order.MaintenanceDetail.ExternalTicketID
-			if order.MaintenanceDetail.MaintenanceStartTime != nil {
-				startTime := time.Time(*order.MaintenanceDetail.MaintenanceStartTime)
-				orderDetailDTO.MaintenanceStartTime = &startTime
-			}
-			if order.MaintenanceDetail.MaintenanceEndTime != nil {
-				endTime := time.Time(*order.MaintenanceDetail.MaintenanceEndTime)
-				orderDetailDTO.MaintenanceEndTime = &endTime
-			}
+				if order.MaintenanceDetail.MaintenanceStartTime != nil {
+					startTime := time.Time(*order.MaintenanceDetail.MaintenanceStartTime)
+					orderDetailDTO.MaintenanceStartTime = &startTime
+				}
+				if order.MaintenanceDetail.MaintenanceEndTime != nil {
+					endTime := time.Time(*order.MaintenanceDetail.MaintenanceEndTime)
+					orderDetailDTO.MaintenanceEndTime = &endTime
+				}
 			}
 
 			results = append(results, orderDetailDTO)
@@ -431,7 +431,7 @@ func (s *MaintenanceServiceV2) GetPendingUncordonRequests() ([]OrderDetailDTO, e
 		if order.MaintenanceDetail != nil &&
 			order.MaintenanceDetail.MaintenanceType == string(portal.MaintenanceTypeUncordon) &&
 			(order.Order.Status == portal.OrderStatusPending || order.Order.Status == portal.OrderStatusProcessing) {
-			
+
 			// 转换为原有的OrderDetailDTO格式
 			orderDetailDTO := OrderDetailDTO{
 				OrderDTO: OrderDTO{
@@ -444,17 +444,17 @@ func (s *MaintenanceServiceV2) GetPendingUncordonRequests() ([]OrderDetailDTO, e
 					CreatedBy:   order.Order.CreatedBy,
 					CreatedAt:   time.Time(order.Order.CreatedAt),
 				},
-			Devices: convertDevicesToDTO(order.Devices),
-		}
+				Devices: convertDevicesToDTO(order.Devices),
+			}
 
-		if order.Order.ExecutionTime != nil {
-			execTime := time.Time(*order.Order.ExecutionTime)
-			orderDetailDTO.ExecutionTime = &execTime
-		}
-		if order.Order.CompletionTime != nil {
-			compTime := time.Time(*order.Order.CompletionTime)
-			orderDetailDTO.CompletionTime = &compTime
-		}
+			if order.Order.ExecutionTime != nil {
+				execTime := time.Time(*order.Order.ExecutionTime)
+				orderDetailDTO.ExecutionTime = &execTime
+			}
+			if order.Order.CompletionTime != nil {
+				compTime := time.Time(*order.Order.CompletionTime)
+				orderDetailDTO.CompletionTime = &compTime
+			}
 
 			// 设置维护相关字段
 			orderDetailDTO.ClusterID = order.MaintenanceDetail.ClusterID

@@ -16,20 +16,20 @@ const (
 	preloadDevices              = "Devices"
 
 	// 数据库字段
-fieldOrderNumber    = "order_number = ?"
-fieldID             = "id = ?"
-fieldType           = "type = ?"
-fieldStatus         = "status"
-fieldStatusEq       = "status = ?"
-fieldCreatedBy      = "created_by = ?"
-fieldNameLike       = "name LIKE ?"
-fieldCreatedAtGTE   = "created_at >= ?"
-fieldCreatedAtLTE   = "created_at <= ?"
-fieldUpdatedAt      = "updated_at"
-fieldExecutor       = "executor"
-fieldExecutionTime  = "execution_time"
-fieldCompletionTime = "completion_time"
-fieldFailureReason  = "failure_reason"
+	fieldOrderNumber    = "order_number = ?"
+	fieldID             = "id = ?"
+	fieldType           = "type = ?"
+	fieldStatus         = "status"
+	fieldStatusEq       = "status = ?"
+	fieldCreatedBy      = "created_by = ?"
+	fieldNameLike       = "name LIKE ?"
+	fieldCreatedAtGTE   = "created_at >= ?"
+	fieldCreatedAtLTE   = "created_at <= ?"
+	fieldUpdatedAt      = "updated_at"
+	fieldExecutor       = "executor"
+	fieldExecutionTime  = "execution_time"
+	fieldCompletionTime = "completion_time"
+	fieldFailureReason  = "failure_reason"
 
 	// 默认消息
 	msgOrderCancelled = "订单已取消"
@@ -44,7 +44,7 @@ type OrderQuery struct {
 	Type      portal.OrderType   `json:"type"`
 	Status    portal.OrderStatus `json:"status"`
 	CreatedBy string             `json:"createdBy"`
-	Name      string             `json:"name"`      // 订单名称，支持模糊查询
+	Name      string             `json:"name"` // 订单名称，支持模糊查询
 	Page      int                `json:"page"`
 	PageSize  int                `json:"pageSize"`
 	StartTime *time.Time         `json:"startTime"`

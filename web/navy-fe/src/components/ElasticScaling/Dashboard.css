@@ -306,36 +306,44 @@
 .strategy-table .ant-table-thead > tr > th {
   background-color: #fafafa;
   font-weight: 600;
+  padding: 16px 12px;
+  border-bottom: 2px solid #f0f0f0;
 }
 
-/* 操作按钮样式 - 与设备匹配策略保持一致 */
+.strategy-table .ant-table-tbody > tr > td {
+  padding: 16px 12px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.strategy-table .ant-table-tbody > tr:hover > td {
+  background-color: #fafafa;
+}
+
+.strategy-table .ant-table {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* 操作按钮样式 - 优化版本 */
 .strategy-table .action-buttons {
   display: flex;
   justify-content: center;
+  gap: 4px;
 }
 
 .strategy-table .ant-btn-text {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.3s;
-  margin: 0 4px;
-  position: relative;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
 }
 
 .strategy-table .ant-btn-text:hover {
-  background-color: #f5f5f5;
-}
-
-.strategy-table .ant-btn-text[danger]:hover {
-  background-color: #fff1f0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .strategy-table .ant-btn-text .anticon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 /* 编辑按钮 */
@@ -345,6 +353,7 @@
 
 .strategy-table .edit-button:hover {
   background-color: #e6f7ff;
+  border-color: #91d5ff;
 }
 
 /* 启用按钮 */
@@ -354,6 +363,7 @@
 
 .strategy-table .enable-button:hover {
   background-color: #f6ffed;
+  border-color: #b7eb8f;
 }
 
 /* 禁用按钮 */
@@ -363,6 +373,7 @@
 
 .strategy-table .disable-button:hover {
   background-color: #fff1f0;
+  border-color: #ffadd2;
 }
 
 /* 执行历史按钮 */
@@ -372,6 +383,7 @@
 
 .strategy-table .history-button:hover {
   background-color: #f9f0ff;
+  border-color: #d3adf7;
 }
 
 /* 删除按钮 */
@@ -381,6 +393,7 @@
 
 .strategy-table .delete-button:hover {
   background-color: #fff1f0;
+  border-color: #ffadd2;
 }
 
 /* 策略详情抽屉 */
@@ -388,10 +401,19 @@
   z-index: 1001 !important;
 }
 
+/* 策略执行历史抽屉 */
+.execution-history-drawer {
+  z-index: 1000 !important;
+}
+
+.detail-drawer {
+  z-index: 1100 !important;
+}
+
 .detail-drawer .ant-drawer-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #8fa4f3 0%, #9d7cc7 100%);
   border-bottom: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .detail-drawer .ant-drawer-header .ant-drawer-title {
@@ -494,9 +516,9 @@
 
 /* 策略执行历史抽屉样式 */
 .ant-drawer .ant-drawer-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #8fa4f3 0%, #9d7cc7 100%);
   border-bottom: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .ant-drawer .ant-drawer-header .ant-drawer-title {

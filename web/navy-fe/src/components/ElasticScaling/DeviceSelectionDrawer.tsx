@@ -1,30 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Drawer,
   Button,
   Table,
   Space,
   Spin,
-  Empty,
   message,
-  Divider,
   Badge,
   Typography,
   Tag,
   Input,
-  Tooltip,
   Card,
-  Popover,
-  Checkbox,
-  Tabs
 } from 'antd';
 import {
   SelectOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
   SearchOutlined,
-  FilterOutlined,
-  DownloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Device } from '../../types/device';
@@ -66,104 +58,8 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
   const [clientSearchText, setClientSearchText] = useState<string>('');
   const [displayedDevices, setDisplayedDevices] = useState<Device[]>([]);
 
-  // 初始化本地选中设备
-  useEffect(() => {
-    if (visible) {
-      // 如果是退池操作，则不默认选中任何设备
-      if (initialSelectionActionType === 'pool_exit') {
-        setLocalSelectedDevices([]);
-        setSelectedRowKeys([]);
-      } else if (selectedDevices.length > 0) {
-        // 其他情况，如果已有选中设备，则保留
-        setLocalSelectedDevices(selectedDevices);
-        setSelectedRowKeys(selectedDevices.map(device => device.id));
-      } else {
-        // 其他情况且无选中设备，则清空
-        setLocalSelectedDevices([]);
-        setSelectedRowKeys([]);
-      }
-
-      // 重置分页信息，确保每次打开抽屉时都从第一页开始
-      setPagination({
-        current: 1,
-        pageSize: 500, // 默认分页大小调整为500
-        total: 0
-      });
-
-      // 当抽屉打开时，自动执行查询
-      fetchDevices(1, 500); // 默认分页大小调整为500
-    }
-  }, [visible, selectedDevices, initialSelectionActionType]);
-
-  // Effect to apply client-side search whenever clientSearchText or the base 'devices' list changes
-  useEffect(() => {
-    if (!clientSearchText.trim()) {
-      setDisplayedDevices(devices);
-      return;
-    }
-
-    const searchTerms = clientSearchText.toLowerCase().split('\n').filter(term => term.trim() !== '');
-    if (searchTerms.length === 0) {
-      setDisplayedDevices(devices);
-      return;
-    }
-
-    const filtered = devices.filter(device => {
-      return searchTerms.some(term => {
-        const searchableProperties = [
-          String(device.id),
-          device.ciCode,
-          device.ip,
-          device.archType,
-          device.idc,
-          device.room,
-          device.cabinet,
-          device.cabinetNO,
-          device.infraType,
-          device.netZone,
-          device.group,
-          device.appId,
-          device.appName,
-          device.model,
-          device.kvmIp,
-          device.os,
-          device.company,
-          device.osName,
-          device.osIssue,
-          device.osKernel,
-          device.status,
-          device.role,
-          device.cluster,
-          device.isLocalization ? '是' : '否',
-        ];
-        return searchableProperties.some(prop => 
-          prop && typeof prop === 'string' && prop.toLowerCase().includes(term)
-        );
-      });
-    });
-    setDisplayedDevices(filtered);
-  }, [clientSearchText, devices]);
-
-  // 处理多行关键字搜索
-  const handleMultilineSearch = () => {
-    if (!multilineKeywords.trim()) {
-      message.warning('请输入搜索关键字');
-      return;
-    }
-
-    // 按行分割关键字
-    const keywords = multilineKeywords.split('\n').filter(k => k.trim());
-    if (keywords.length === 0) {
-      message.warning('请输入有效的搜索关键字');
-      return;
-    }
-
-    // 执行查询
-    fetchDevices(1, pagination.pageSize, keywords);
-  };
-
   // 查询设备
-  const fetchDevices = async (page = 1, pageSize = 500, keywordList?: string[]) => {
+  const fetchDevices = useCallback(async (page = 1, pageSize = 500, keywordList?: string[]) => {
     try {
       setLoading(true);
 
@@ -269,6 +165,102 @@ const DeviceSelectionDrawer: React.FC<DeviceSelectionDrawerProps> = ({
     } finally {
       setLoading(false);
     }
+  }, [filterGroups, keyword, simpleMode]);
+
+  // 初始化本地选中设备
+  useEffect(() => {
+    if (visible) {
+      // 如果是退池操作，则不默认选中任何设备
+      if (initialSelectionActionType === 'pool_exit') {
+        setLocalSelectedDevices([]);
+        setSelectedRowKeys([]);
+      } else if (selectedDevices.length > 0) {
+        // 其他情况，如果已有选中设备，则保留
+        setLocalSelectedDevices(selectedDevices);
+        setSelectedRowKeys(selectedDevices.map(device => device.id));
+      } else {
+        // 其他情况且无选中设备，则清空
+        setLocalSelectedDevices([]);
+        setSelectedRowKeys([]);
+      }
+
+      // 重置分页信息，确保每次打开抽屉时都从第一页开始
+      setPagination({
+        current: 1,
+        pageSize: 500, // 默认分页大小调整为500
+        total: 0
+      });
+
+      // 当抽屉打开时，自动执行查询
+      fetchDevices(1, 500); // 默认分页大小调整为500
+    }
+  }, [visible, selectedDevices, initialSelectionActionType, fetchDevices]);
+
+  // Effect to apply client-side search whenever clientSearchText or the base 'devices' list changes
+  useEffect(() => {
+    if (!clientSearchText.trim()) {
+      setDisplayedDevices(devices);
+      return;
+    }
+
+    const searchTerms = clientSearchText.toLowerCase().split('\n').filter(term => term.trim() !== '');
+    if (searchTerms.length === 0) {
+      setDisplayedDevices(devices);
+      return;
+    }
+
+    const filtered = devices.filter(device => {
+      return searchTerms.some(term => {
+        const searchableProperties = [
+          String(device.id),
+          device.ciCode,
+          device.ip,
+          device.archType,
+          device.idc,
+          device.room,
+          device.cabinet,
+          device.cabinetNO,
+          device.infraType,
+          device.netZone,
+          device.group,
+          device.appId,
+          device.appName,
+          device.model,
+          device.kvmIp,
+          device.os,
+          device.company,
+          device.osName,
+          device.osIssue,
+          device.osKernel,
+          device.status,
+          device.role,
+          device.cluster,
+          device.isLocalization ? '是' : '否',
+        ];
+        return searchableProperties.some(prop =>
+          prop && typeof prop === 'string' && prop.toLowerCase().includes(term)
+        );
+      });
+    });
+    setDisplayedDevices(filtered);
+  }, [clientSearchText, devices]);
+
+  // 处理多行关键字搜索
+  const handleMultilineSearch = () => {
+    if (!multilineKeywords.trim()) {
+      message.warning('请输入搜索关键字');
+      return;
+    }
+
+    // 按行分割关键字
+    const keywords = multilineKeywords.split('\n').filter(k => k.trim());
+    if (keywords.length === 0) {
+      message.warning('请输入有效的搜索关键字');
+      return;
+    }
+
+    // 执行查询
+    fetchDevices(1, pagination.pageSize, keywords);
   };
 
   // 处理表格分页变化

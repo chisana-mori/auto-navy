@@ -100,7 +100,7 @@ validate_data_integrity() {
     
     # 验证外键关系
     local invalid_devices=$(sqlite3 "$temp_db" "SELECT COUNT(*) FROM devices WHERE cluster_id NOT IN (SELECT id FROM k8s_clusters);")
-    local invalid_associations=$(sqlite3 "$temp_db" "SELECT COUNT(*) FROM strategy_cluster_associations WHERE cluster_id NOT IN (SELECT id FROM k8s_clusters) OR strategy_id NOT IN (SELECT id FROM elastic_scaling_strategies);")
+    local invalid_associations=$(sqlite3 "$temp_db" "SELECT COUNT(*) FROM ng_strategy_cluster_association WHERE cluster_id NOT IN (SELECT id FROM k8s_clusters) OR strategy_id NOT IN (SELECT id FROM ng_elastic_scaling_strategy);")
     
     if [ "$invalid_devices" -gt 0 ] || [ "$invalid_associations" -gt 0 ]; then
         print_error "$scenario_name 外键关系错误"

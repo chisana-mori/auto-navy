@@ -14,8 +14,7 @@ export interface Strategy {
   conditionLogic: 'AND' | 'OR';
   durationMinutes?: number;
   cooldownMinutes?: number;
-  deviceCount: number;
-  nodeSelector: string;
+
   status: 'enabled' | 'disabled';
   createdBy: string;
   createdAt: string;
@@ -61,7 +60,7 @@ export interface OrderListItem {
   memAllocation?: number;
   // 实际分配率数据（从API获取）
   actualCpuAllocation?: number;
-  actualMemAllocation?: number;
+  actualMemoryAllocation?: number;
   hasAllocationData?: boolean; // 标识是否有实际数据
   // 新增字段以支持通用订单模型
   type?: string;

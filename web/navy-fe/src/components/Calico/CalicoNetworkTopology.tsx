@@ -574,7 +574,7 @@ const CalicoNetworkTopology: React.FC = () => {
       }
     };
 
-  }, []); // Dependencies for createStaticTopology
+  }, [topoData.nodes, topoData.edges]); // Dependencies for createStaticTopology
 
   // 将G6图初始化逻辑抽取为单独的函数 (useCallback)
   const initGraph = useCallback(() => {
@@ -644,7 +644,7 @@ const CalicoNetworkTopology: React.FC = () => {
       return cleanupStaticTopology;
     }
     return undefined; // Return undefined if containerRef.current is null
-  }, [currentNode, topoVisible, createStaticTopology]); // Dependencies for initGraph
+  }, [currentNode, topoVisible, createStaticTopology, topoType]); // Dependencies for initGraph
 
   // 初始化拓扑图 - 当模态框打开时
   useEffect(() => {
@@ -671,6 +671,7 @@ const CalicoNetworkTopology: React.FC = () => {
     }
 
     // Cleanup function for the effect
+    const container = containerRef.current;
     return () => {
       if (timerId) clearTimeout(timerId); // Clear timeout if component unmounts or deps change
       if (graphRef.current) {
@@ -681,7 +682,6 @@ const CalicoNetworkTopology: React.FC = () => {
           cleanupGraph(); // Call cleanup returned by initGraph
       }
        // Also cleanup static topology if necessary on unmount
-       const container = containerRef.current;
        if (container) {
            // Check if cleanup is needed or just clear innerHTML
            // container.innerHTML = '';

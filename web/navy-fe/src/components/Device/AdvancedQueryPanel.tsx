@@ -45,7 +45,6 @@ import {
   getTaintValues,
   getDeviceFieldValues
 } from '../../services/deviceQueryService';
-import ReactDOM from 'react-dom';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -85,8 +84,7 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
   const [filterOptions, setFilterOptions] = useState<Record<string, any>>({});
   const [templateModalVisible, setTemplateModalVisible] = useState(false);
   const [saveMode, setSaveMode] = useState<'save' | 'saveAs'>('save'); // 保存模式：保存或另存为
-  // 保留状态，因为它在代码中被使用
-  const [isConditionModified, setIsConditionModified] = useState(false); // 条件是否已经被修改
+  const [, setIsConditionModified] = useState(false); // 条件是否已经被修改
   const [templateForm] = Form.useForm();
 
   // 标签、污点和设备字段值选项
@@ -96,7 +94,6 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
   const [loadingValues, setLoadingValues] = useState(false);
 
   // 在组件开始部分添加必要的状态和引用
-  const [activeDropdownGroupId, setActiveDropdownGroupId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // 获取标签值
@@ -217,12 +214,6 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     handleFilterGroupsChange([...currentGroups, newGroup]);
   };
 
-  // 删除筛选组
-  const removeFilterGroup = (groupId: string) => {
-    // 确保filterGroups不为null
-    const currentGroups = filterGroups || [];
-    handleFilterGroupsChange(currentGroups.filter(group => group.id !== groupId));
-  };
 
   // 更新筛选组
   const updateFilterGroup = (groupId: string, updatedGroup: Partial<FilterGroup>) => {
@@ -737,34 +728,12 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     );
   };
 
-  // 修改toggleDropdown函数，添加更多日志
-  const toggleDropdown = (groupId: string) => {
-    console.log('Toggle dropdown for group:', groupId, 'Current active:', activeDropdownGroupId);
-    
-    // 强制关闭其他下拉菜单
-    setActiveDropdownGroupId(null);
-    
-    // 延迟一下再打开当前下拉菜单，避免立即关闭
-    setTimeout(() => {
-      console.log('Setting active dropdown to:', groupId);
-      setActiveDropdownGroupId(groupId);
-      
-      // 添加调试信息
-      setTimeout(() => {
-        const dropdown = document.querySelector('.add-condition-dropdown');
-        console.log('Dropdown element:', dropdown);
-        if (dropdown) {
-          console.log('Dropdown style:', window.getComputedStyle(dropdown));
-        }
-      }, 100);
-    }, 50);
-  };
 
   // 添加点击外部关闭下拉菜单的逻辑
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setActiveDropdownGroupId(null);
+        // setActiveDropdownGroupId(null); // This state is no longer used
       }
     };
 
@@ -774,97 +743,6 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     };
   }, []);
 
-  // 修改renderAddConditionDropdown函数，使用Portal渲染
-  const renderAddConditionDropdown = (groupId: string) => {
-    if (activeDropdownGroupId !== groupId) return null;
-
-    console.log('Rendering dropdown for group:', groupId);
-
-    // 获取按钮元素的位置
-    const buttonElement = document.querySelector(`[data-group-id="${groupId}"]`);
-    if (!buttonElement) {
-      console.error('Button element not found');
-      return null;
-    }
-
-    const rect = buttonElement.getBoundingClientRect();
-    console.log('Button position:', rect);
-
-    // 使用内联样式确保可见
-    const dropdownStyle: React.CSSProperties = {
-      position: 'fixed',
-      top: `${rect.bottom + window.scrollY}px`,
-      left: `${rect.left + window.scrollX}px`,
-      width: '220px',
-      backgroundColor: '#fff',
-      boxShadow: '0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08)',
-      borderRadius: '4px',
-      padding: '8px 0',
-      zIndex: 9999,
-      border: '1px solid #f0f0f0',
-      display: 'block'
-    };
-
-    const itemStyle: React.CSSProperties = {
-      padding: '8px 16px', 
-      display: 'flex', 
-      alignItems: 'center', 
-      cursor: 'pointer'
-    };
-
-    const content = (
-      <div className="add-condition-dropdown" ref={dropdownRef} style={dropdownStyle}>
-        <div
-          className="add-condition-dropdown-item"
-          onClick={(e) => {
-            e.stopPropagation(); // 阻止事件冒泡
-            console.log('Adding device filter block');
-            addFilterBlock(groupId, FilterType.Device);
-            setActiveDropdownGroupId(null);
-          }}
-          style={itemStyle}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        >
-          <DesktopOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-          <span>添加设备字段条件</span>
-        </div>
-        <div
-          className="add-condition-dropdown-item"
-          onClick={(e) => {
-            e.stopPropagation(); // 阻止事件冒泡
-            console.log('Adding node label filter block');
-            addFilterBlock(groupId, FilterType.NodeLabel);
-            setActiveDropdownGroupId(null);
-          }}
-          style={itemStyle}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        >
-          <TagsOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-          <span>添加节点标签条件</span>
-        </div>
-        <div
-          className="add-condition-dropdown-item"
-          onClick={(e) => {
-            e.stopPropagation(); // 阻止事件冒泡
-            console.log('Adding taint filter block');
-            addFilterBlock(groupId, FilterType.Taint);
-            setActiveDropdownGroupId(null);
-          }}
-          style={itemStyle}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        >
-          <ExclamationCircleOutlined style={{ color: '#fa8c16', marginRight: '8px' }} />
-          <span>添加节点污点条件</span>
-        </div>
-      </div>
-    );
-
-    // 使用Portal将下拉菜单渲染到body中
-    return ReactDOM.createPortal(content, document.body);
-  };
 
   // 渲染筛选组
   const renderFilterGroup = (group: FilterGroup) => {

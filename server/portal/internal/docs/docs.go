@@ -24,61 +24,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/device": {
-            "get": {
-                "description": "获取设备列表，支持分页和关键字搜索",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "设备管理"
-                ],
-                "summary": "获取设备列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页数量",
-                        "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "搜索关键字",
-                        "name": "keyword",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功获取设备列表",
-                        "schema": {
-                            "$ref": "#/definitions/service.DeviceListResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "获取设备列表失败",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/device-query/filter-options": {
             "get": {
                 "description": "获取设备筛选项，包括设备字段、节点标签和节点污点",
@@ -107,53 +52,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "获取筛选项失败",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/device-query/label-values": {
-            "get": {
-                "description": "根据标签键获取节点标签的可选值列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "设备查询"
-                ],
-                "summary": "获取节点标签可选值",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "标签键",
-                        "name": "key",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功获取标签值",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/service.FilterOptionResponse"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "获取标签值失败",
                         "schema": {
                             "$ref": "#/definitions/service.ErrorResponse"
                         }
@@ -256,7 +154,7 @@ const docTemplate = `{
         },
         "/device-query/templates": {
             "get": {
-                "description": "获取所有设备查询模板列表",
+                "description": "获取所有设备查询模板列表，支持分页",
                 "consumes": [
                     "application/json"
                 ],
@@ -267,14 +165,25 @@ const docTemplate = `{
                     "设备查询"
                 ],
                 "summary": "获取查询模板列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认为1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量，默认为10，最大为100",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "成功获取模板列表",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/service.QueryTemplate"
-                            }
+                            "$ref": "#/definitions/service.QueryTemplateListResponse"
                         }
                     },
                     "500": {
@@ -422,277 +331,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/device/export": {
-            "get": {
-                "description": "导出所有设备信息为CSV文件，包含设备的全部字段",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "text/csv"
-                ],
-                "tags": [
-                    "设备管理"
-                ],
-                "summary": "导出设备信息",
-                "responses": {
-                    "200": {
-                        "description": "device_info.csv",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "500": {
-                        "description": "导出设备信息失败",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/device/{id}": {
-            "get": {
-                "description": "根据设备ID获取设备详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "设备管理"
-                ],
-                "summary": "获取设备详情",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "设备ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功获取设备详情",
-                        "schema": {
-                            "$ref": "#/definitions/service.DeviceResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "设备不存在",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "获取设备详情失败",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/device/{id}/role": {
-            "patch": {
-                "description": "根据设备ID更新设备的集群角色",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "设备管理"
-                ],
-                "summary": "更新设备角色",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "设备ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "角色更新信息",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/service.DeviceRoleUpdateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "角色更新成功",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "设备不存在",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "更新角色失败",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/f5": {
-            "get": {
-                "description": "获取F5信息列表，支持分页和多条件筛选",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "F5管理"
-                ],
-                "summary": "获取F5信息列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页数量",
-                        "name": "size",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "F5名称",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "VIP地址",
-                        "name": "vip",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "端口",
-                        "name": "port",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "应用ID",
-                        "name": "appid",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "状态",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功获取F5信息列表",
-                        "schema": {
-                            "$ref": "#/definitions/service.F5InfoListResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "获取F5信息列表失败",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/f5/{id}": {
-            "get": {
-                "description": "根据ID获取F5信息的详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "F5管理"
-                ],
-                "summary": "获取F5信息详情",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "F5信息ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功获取F5信息详情",
-                        "schema": {
-                            "$ref": "#/definitions/service.F5InfoResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "F5信息不存在",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "获取F5信息详情失败",
-                        "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
-                        }
-                    }
-                }
-            },
             "put": {
                 "description": "根据ID更新F5信息的各项属性",
                 "consumes": [
@@ -805,9 +444,1767 @@ const docTemplate = `{
                 }
             }
         },
-        "/ops/job": {
+        "/fe-v1/device-maintenance/callback": {
+            "post": {
+                "description": "接收并处理来自上游系统的维护完成通知",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备维护"
+                ],
+                "summary": "处理维护完成回调",
+                "parameters": [
+                    {
+                        "description": "维护回调信息",
+                        "name": "callback",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.MaintenanceCallbackDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/device-maintenance/confirm/{id}": {
+            "post": {
+                "description": "确认接受维护请求，更改状态为已确认待维护",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备维护"
+                ],
+                "summary": "确认维护请求",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "维护订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/device-maintenance/request": {
+            "post": {
+                "description": "接收并处理来自上游系统的设备维护请求",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备维护"
+                ],
+                "summary": "处理设备维护请求",
+                "parameters": [
+                    {
+                        "description": "维护请求信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.MaintenanceRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/device-maintenance/start/{id}": {
+            "post": {
+                "description": "执行节点Cordon操作，准备设备维护",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备维护"
+                ],
+                "summary": "开始设备维护",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "维护订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/device-maintenance/uncordon-requests": {
             "get": {
-                "description": "获取运维任务列表，支持分页和条件筛选",
+                "description": "获取所有待执行的节点Uncordon请求",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备维护"
+                ],
+                "summary": "获取待处理的Uncordon请求",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/device-maintenance/uncordon/{id}": {
+            "post": {
+                "description": "执行节点Uncordon操作，恢复节点服务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备维护"
+                ],
+                "summary": "执行节点Uncordon操作",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Uncordon订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/devices": {
+            "get": {
+                "description": "获取设备列表，支持分页",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "获取设备列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小，默认10",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/devices/export": {
+            "post": {
+                "description": "导出设备数据为Excel文件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "导出设备数据",
+                "parameters": [
+                    {
+                        "description": "导出请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.DeviceExportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/devices/group": {
+            "put": {
+                "description": "批量更新设备的分组信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "更新设备分组",
+                "parameters": [
+                    {
+                        "description": "更新分组请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.DeviceGroupUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/devices/{id}": {
+            "get": {
+                "description": "根据设备ID获取设备的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "设备管理"
+                ],
+                "summary": "获取设备详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "设备ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/orders": {
+            "get": {
+                "description": "获取弹性伸缩订单列表，支持分页和过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩订单"
+                ],
+                "summary": "获取弹性伸缩订单列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小，默认10",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "集群ID",
+                        "name": "clusterId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "strategyId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "动作类型",
+                        "name": "actionType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "订单状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "订单名称（支持模糊搜索）",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的弹性伸缩订单",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩订单"
+                ],
+                "summary": "创建弹性伸缩订单",
+                "parameters": [
+                    {
+                        "description": "订单数据",
+                        "name": "order",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.OrderDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/orders/{id}": {
+            "get": {
+                "description": "获取指定订单的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩订单"
+                ],
+                "summary": "获取弹性伸缩订单详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/orders/{id}/devices": {
+            "get": {
+                "description": "获取指定订单关联的设备列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩订单"
+                ],
+                "summary": "获取订单关联的设备",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/orders/{id}/devices/{device_id}/status": {
+            "put": {
+                "description": "更新指定订单中指定设备的状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩订单"
+                ],
+                "summary": "更新订单关联设备的状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "设备ID",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "设备状态更新请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/orders/{id}/status": {
+            "put": {
+                "description": "更新指定订单的状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩订单"
+                ],
+                "summary": "更新订单状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "状态更新请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "reason": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/stats/dashboard": {
+            "get": {
+                "description": "获取工作台概览统计数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "获取工作台统计数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/stats/orders": {
+            "get": {
+                "description": "获取不同时间范围的订单统计数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "获取订单统计",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "时间范围（7d/30d/90d）",
+                        "name": "timeRange",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/stats/resource-pool-types": {
+            "get": {
+                "description": "获取当天所有资源池类型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "获取资源池类型列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/strategies": {
+            "post": {
+                "description": "创建新的弹性伸缩策略",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "创建策略",
+                "parameters": [
+                    {
+                        "description": "策略数据",
+                        "name": "strategy",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.StrategyDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/strategies/{id}": {
+            "get": {
+                "description": "获取指定策略的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "获取策略详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新指定策略的信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "更新策略",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "策略数据",
+                        "name": "strategy",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.StrategyDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的策略",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "删除策略",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/strategies/{id}/execution-history": {
+            "get": {
+                "description": "获取指定策略的执行历史记录，支持分页和集群名字模糊查询",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "获取策略执行历史",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "集群名字（模糊查询）",
+                        "name": "clusterName",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/elastic-scaling/strategies/{id}/status": {
+            "put": {
+                "description": "更新指定策略的启用/禁用状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "弹性伸缩"
+                ],
+                "summary": "更新策略状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "状态数据",
+                        "name": "status",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/f5": {
+            "get": {
+                "description": "获取F5设备信息列表，支持分页",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "获取F5信息列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小，默认10",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/f5/{id}": {
+            "get": {
+                "description": "根据F5 ID获取F5设备的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "F5管理"
+                ],
+                "summary": "获取F5信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "F5设备ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/k8s-clusters": {
+            "get": {
+                "description": "获取K8s集群列表，支持分页和过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "K8s集群管理"
+                ],
+                "summary": "获取K8s集群列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小，默认10",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "集群名称",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "集群状态",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的K8s集群",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "K8s集群"
+                ],
+                "summary": "创建K8s集群",
+                "parameters": [
+                    {
+                        "description": "集群信息",
+                        "name": "cluster",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.CreateK8sClusterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/service.K8sClusterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/k8s-clusters/{id}": {
+            "get": {
+                "description": "根据集群ID获取K8s集群的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "K8s集群管理"
+                ],
+                "summary": "获取K8s集群详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "集群ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新现有K8s集群信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "K8s集群"
+                ],
+                "summary": "更新K8s集群",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "集群ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "集群信息",
+                        "name": "cluster",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.UpdateK8sClusterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.K8sClusterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除K8s集群",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "K8s集群"
+                ],
+                "summary": "删除K8s集群",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "集群ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/k8s-clusters/{id}/nodes": {
+            "get": {
+                "description": "获取指定集群的所有节点",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "K8s集群"
+                ],
+                "summary": "获取集群的节点列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "集群ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.K8sNodeResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/service.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/maintenance": {
+            "get": {
+                "description": "获取维护任务列表，支持分页和过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "维护管理"
+                ],
+                "summary": "获取维护任务列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页大小，默认10",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "维护状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "维护类型",
+                        "name": "type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的维护任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "维护管理"
+                ],
+                "summary": "创建维护任务",
+                "parameters": [
+                    {
+                        "description": "创建维护任务请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.MaintenanceRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/maintenance/{id}": {
+            "get": {
+                "description": "根据维护任务ID获取维护任务的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "维护管理"
+                ],
+                "summary": "获取维护任务详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "维护任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新维护任务信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "维护管理"
+                ],
+                "summary": "更新维护任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "维护任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新维护任务请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.MaintenanceRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的维护任务",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "维护管理"
+                ],
+                "summary": "删除维护任务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "维护任务ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/ops-jobs": {
+            "get": {
+                "description": "获取运维任务列表，支持分页",
                 "consumes": [
                     "application/json"
                 ],
@@ -821,52 +2218,40 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码，默认1",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页大小，默认10",
                         "name": "size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "任务名称",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "任务状态",
-                        "name": "status",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "成功获取任务列表",
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.OpsJobListResponse"
+                            "$ref": "#/definitions/render.Response"
                         }
                     },
                     "400": {
-                        "description": "参数错误",
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "获取任务列表失败",
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     }
                 }
             },
             "post": {
-                "description": "创建新的运维任务，并返回创建的任务信息",
+                "description": "创建新的运维任务",
                 "consumes": [
                     "application/json"
                 ],
@@ -879,8 +2264,8 @@ const docTemplate = `{
                 "summary": "创建运维任务",
                 "parameters": [
                     {
-                        "description": "任务信息",
-                        "name": "data",
+                        "description": "运维任务数据",
+                        "name": "job",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -890,27 +2275,27 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "任务创建成功",
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.OpsJobResponse"
+                            "$ref": "#/definitions/render.Response"
                         }
                     },
                     "400": {
-                        "description": "参数错误",
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "创建任务失败",
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/ops/job/{id}": {
+        "/fe-v1/ops-jobs/{id}": {
             "get": {
                 "description": "根据任务ID获取运维任务的详细信息",
                 "consumes": [
@@ -925,7 +2310,7 @@ const docTemplate = `{
                 "summary": "获取运维任务详情",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "任务ID",
                         "name": "id",
                         "in": "path",
@@ -934,35 +2319,35 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "成功获取任务详情",
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.OpsJobResponse"
+                            "$ref": "#/definitions/render.Response"
                         }
                     },
                     "400": {
-                        "description": "参数错误",
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "任务不存在",
+                        "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "获取任务详情失败",
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/ops/job/{id}/ws": {
+        "/fe-v1/ops-jobs/{id}/ws": {
             "get": {
-                "description": "建立WebSocket连接以实时获取运维任务的状态更新和日志",
+                "description": "建立WebSocket连接以实时获取运维任务执行状态",
                 "consumes": [
                     "application/json"
                 ],
@@ -972,10 +2357,10 @@ const docTemplate = `{
                 "tags": [
                     "运维任务"
                 ],
-                "summary": "运维任务WebSocket连接",
+                "summary": "处理WebSocket连接",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "任务ID",
                         "name": "id",
                         "in": "path",
@@ -984,21 +2369,800 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "101": {
-                        "description": "升级为WebSocket协议",
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "string"
                         }
                     },
                     "400": {
-                        "description": "参数错误",
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "WebSocket连接失败",
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/service.ErrorResponse"
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/orders/{orderType}": {
+            "get": {
+                "description": "根据订单类型和查询参数获取订单列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "获取指定类型的订单列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型 (e.g., general)",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "订单状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "创建者",
+                        "name": "createdBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "订单名称，支持模糊查询",
+                        "name": "name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功时返回订单列表和总数",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/render.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.GeneralOrderQueryDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "根据指定的订单类型创建一个新的订单",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "创建一个新订单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型 (e.g., general)",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "创建通用订单所需的数据",
+                        "name": "order",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.GeneralOrderCreateDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "成功时返回创建的订单详情",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/render.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.GeneralOrderDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/orders/{orderType}/{id}": {
+            "get": {
+                "description": "根据订单类型和ID获取订单的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "获取特定类型的订单详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型 (e.g., general)",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功时返回通用订单详情",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/render.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.GeneralOrderDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "订单不存在",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/orders/{orderType}/{id}/cancel": {
+            "post": {
+                "description": "将订单状态设置为“已取消”",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "取消订单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "执行者信息",
+                        "name": "executor",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routers.ExecutorRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/orders/{orderType}/{id}/complete": {
+            "post": {
+                "description": "将订单状态设置为“已完成”",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "完成订单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "执行者信息",
+                        "name": "executor",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routers.ExecutorRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/orders/{orderType}/{id}/fail": {
+            "post": {
+                "description": "将订单状态设置为“失败”",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "失败订单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "失败信息",
+                        "name": "failInfo",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routers.FailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/orders/{orderType}/{id}/process": {
+            "post": {
+                "description": "将订单状态设置为“处理中”",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "处理订单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "执行者信息",
+                        "name": "executor",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routers.ExecutorRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/fe-v1/orders/{orderType}/{id}/status": {
+            "put": {
+                "description": "更新指定订单的状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统一订单"
+                ],
+                "summary": "更新订单状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "订单类型 (e.g., general)",
+                        "name": "orderType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "状态更新请求",
+                        "name": "statusUpdate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routers.UpdateOrderStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/render.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/resource-pool/matching-policies": {
+            "get": {
+                "description": "获取资源池设备匹配策略列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "资源池设备匹配策略"
+                ],
+                "summary": "获取资源池设备匹配策略列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量，默认10",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建资源池设备匹配策略",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "资源池设备匹配策略"
+                ],
+                "summary": "创建资源池设备匹配策略",
+                "parameters": [
+                    {
+                        "description": "创建策略请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.CreateResourcePoolDeviceMatchingPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/resource-pool/matching-policies/{id}": {
+            "get": {
+                "description": "获取资源池设备匹配策略详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "资源池设备匹配策略"
+                ],
+                "summary": "获取资源池设备匹配策略详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新资源池设备匹配策略",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "资源池设备匹配策略"
+                ],
+                "summary": "更新资源池设备匹配策略",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新策略请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.UpdateResourcePoolDeviceMatchingPolicyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除资源池设备匹配策略",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "资源池设备匹配策略"
+                ],
+                "summary": "删除资源池设备匹配策略",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/resource-pool/matching-policies/{id}/status": {
+            "put": {
+                "description": "更新资源池设备匹配策略状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "资源池设备匹配策略"
+                ],
+                "summary": "更新资源池设备匹配策略状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新状态请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.UpdateResourcePoolDeviceMatchingPolicyStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/render.Response"
                         }
                     }
                 }
@@ -1006,6 +3170,356 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "portal.ElasticScalingOrderDetail": {
+            "type": "object",
+            "properties": {
+                "actionType": {
+                    "description": "订单操作类型（入池/退池）",
+                    "type": "string"
+                },
+                "clusterID": {
+                    "description": "关联集群ID",
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "deviceCount": {
+                    "description": "请求的设备数量",
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "order": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.Order"
+                        }
+                    ]
+                },
+                "orderID": {
+                    "description": "关联订单ID（外键）",
+                    "type": "integer"
+                },
+                "resourcePoolType": {
+                    "description": "资源池类型",
+                    "type": "string"
+                },
+                "strategyID": {
+                    "description": "关联策略ID（可为NULL）",
+                    "type": "integer"
+                },
+                "strategyThresholdValue": {
+                    "description": "策略触发时的阈值设定",
+                    "type": "string"
+                },
+                "strategyTriggeredValue": {
+                    "description": "策略触发时的具体指标值",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "portal.GeneralOrderDetail": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "order": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.Order"
+                        }
+                    ]
+                },
+                "orderID": {
+                    "description": "关联订单ID（外键）",
+                    "type": "integer"
+                },
+                "summary": {
+                    "description": "一个简单的摘要字段作为示例",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "portal.MaintenanceOrderDetail": {
+            "type": "object",
+            "properties": {
+                "clusterID": {
+                    "description": "关联集群ID",
+                    "type": "integer"
+                },
+                "comments": {
+                    "description": "附加说明",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "externalTicketID": {
+                    "description": "外部工单号",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "maintenanceEndTime": {
+                    "description": "维护结束时间",
+                    "type": "string"
+                },
+                "maintenanceStartTime": {
+                    "description": "维护开始时间",
+                    "type": "string"
+                },
+                "maintenanceType": {
+                    "description": "维护类型（cordon/uncordon/general）",
+                    "type": "string"
+                },
+                "order": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.Order"
+                        }
+                    ]
+                },
+                "orderID": {
+                    "description": "关联订单ID（外键）",
+                    "type": "integer"
+                },
+                "priority": {
+                    "description": "优先级（high/medium/low）",
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "维护原因",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "portal.Order": {
+            "type": "object",
+            "properties": {
+                "completionTime": {
+                    "description": "完成时间",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "createdBy": {
+                    "description": "创建人",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "订单描述",
+                    "type": "string"
+                },
+                "elasticScalingDetail": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.ElasticScalingOrderDetail"
+                        }
+                    ]
+                },
+                "executionTime": {
+                    "description": "执行时间",
+                    "type": "string"
+                },
+                "executor": {
+                    "description": "执行人",
+                    "type": "string"
+                },
+                "failureReason": {
+                    "description": "失败原因",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "maintenanceDetail": {
+                    "description": "设备维护详情",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.MaintenanceOrderDetail"
+                        }
+                    ]
+                },
+                "name": {
+                    "description": "订单名称",
+                    "type": "string"
+                },
+                "orderNumber": {
+                    "description": "唯一订单号",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "订单状态",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.OrderStatus"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "订单类型",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.OrderType"
+                        }
+                    ]
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "portal.OrderStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "processing",
+                "returning",
+                "return_completed",
+                "no_return",
+                "completed",
+                "failed",
+                "cancelled",
+                "ignored"
+            ],
+            "x-enum-comments": {
+                "OrderStatusCancelled": "已取消",
+                "OrderStatusCompleted": "已完成",
+                "OrderStatusFailed": "失败",
+                "OrderStatusIgnored": "已忽略",
+                "OrderStatusNoReturn": "无需归还（退池订单专用）",
+                "OrderStatusPending": "待处理",
+                "OrderStatusProcessing": "处理中",
+                "OrderStatusReturnCompleted": "归还完成（退池订单专用）",
+                "OrderStatusReturning": "归还中（退池订单专用）"
+            },
+            "x-enum-varnames": [
+                "OrderStatusPending",
+                "OrderStatusProcessing",
+                "OrderStatusReturning",
+                "OrderStatusReturnCompleted",
+                "OrderStatusNoReturn",
+                "OrderStatusCompleted",
+                "OrderStatusFailed",
+                "OrderStatusCancelled",
+                "OrderStatusIgnored"
+            ]
+        },
+        "portal.OrderType": {
+            "type": "string",
+            "enum": [
+                "elastic_scaling",
+                "maintenance",
+                "deployment",
+                "general"
+            ],
+            "x-enum-comments": {
+                "OrderTypeDeployment": "应用部署",
+                "OrderTypeElasticScaling": "弹性伸缩",
+                "OrderTypeGeneral": "通用订单",
+                "OrderTypeMaintenance": "设备维护"
+            },
+            "x-enum-varnames": [
+                "OrderTypeElasticScaling",
+                "OrderTypeMaintenance",
+                "OrderTypeDeployment",
+                "OrderTypeGeneral"
+            ]
+        },
+        "render.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "操作失败"
+                }
+            }
+        },
+        "render.Response": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "data": {},
+                "msg": {
+                    "type": "string"
+                }
+            }
+        },
+        "routers.ExecutorRequest": {
+            "type": "object",
+            "required": [
+                "executor"
+            ],
+            "properties": {
+                "executor": {
+                    "type": "string"
+                }
+            }
+        },
+        "routers.FailRequest": {
+            "type": "object",
+            "required": [
+                "executor",
+                "reason"
+            ],
+            "properties": {
+                "executor": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "routers.UpdateOrderStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "service.ConditionType": {
             "type": "string",
             "enum": [
@@ -1016,13 +3530,21 @@ const docTemplate = `{
                 "exists",
                 "notExists",
                 "in",
-                "notIn"
+                "notIn",
+                "greaterThan",
+                "lessThan",
+                "isEmpty",
+                "isNotEmpty"
             ],
             "x-enum-comments": {
                 "ConditionTypeContains": "包含",
                 "ConditionTypeEqual": "等于",
                 "ConditionTypeExists": "存在",
+                "ConditionTypeGreaterThan": "大于",
                 "ConditionTypeIn": "在列表中",
+                "ConditionTypeIsEmpty": "为空",
+                "ConditionTypeIsNotEmpty": "不为空",
+                "ConditionTypeLessThan": "小于",
                 "ConditionTypeNotContains": "不包含",
                 "ConditionTypeNotEqual": "不等于",
                 "ConditionTypeNotExists": "不存在",
@@ -1036,8 +3558,240 @@ const docTemplate = `{
                 "ConditionTypeExists",
                 "ConditionTypeNotExists",
                 "ConditionTypeIn",
-                "ConditionTypeNotIn"
+                "ConditionTypeNotIn",
+                "ConditionTypeGreaterThan",
+                "ConditionTypeLessThan",
+                "ConditionTypeIsEmpty",
+                "ConditionTypeIsNotEmpty"
             ]
+        },
+        "service.CreateK8sClusterRequest": {
+            "type": "object",
+            "required": [
+                "apiServer",
+                "clusterId",
+                "clusterName",
+                "clusterNameCn",
+                "clusterType",
+                "idc",
+                "status",
+                "zone"
+            ],
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "apiServer": {
+                    "type": "string"
+                },
+                "apiServerVip": {
+                    "type": "string"
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "clusterGroup": {
+                    "type": "string"
+                },
+                "clusterId": {
+                    "type": "string"
+                },
+                "clusterName": {
+                    "type": "string"
+                },
+                "clusterNameCn": {
+                    "type": "string"
+                },
+                "clusterType": {
+                    "type": "string"
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "esServer": {
+                    "type": "string"
+                },
+                "etcdServer": {
+                    "type": "string"
+                },
+                "etcdServerVip": {
+                    "type": "string"
+                },
+                "flowType": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "idc": {
+                    "type": "string"
+                },
+                "ingressServerVip": {
+                    "type": "string"
+                },
+                "ingressServername": {
+                    "type": "string"
+                },
+                "kubeConfig": {
+                    "type": "string"
+                },
+                "kubePromVersion": {
+                    "type": "string"
+                },
+                "netType": {
+                    "type": "string"
+                },
+                "novaName": {
+                    "type": "string"
+                },
+                "podCidr": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "promServer": {
+                    "type": "string"
+                },
+                "rrCicode": {
+                    "type": "string"
+                },
+                "rrGroup": {
+                    "type": "string"
+                },
+                "serviceCidr": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "thanosServer": {
+                    "type": "string"
+                },
+                "zone": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.CreateResourcePoolDeviceMatchingPolicyRequest": {
+            "type": "object",
+            "required": [
+                "actionType",
+                "name",
+                "queryTemplateId",
+                "resourcePoolType",
+                "status"
+            ],
+            "properties": {
+                "actionType": {
+                    "description": "动作类型：pool_entry 或 pool_exit",
+                    "type": "string",
+                    "enum": [
+                        "pool_entry",
+                        "pool_exit"
+                    ]
+                },
+                "additionConds": {
+                    "description": "额外动态条件，仅入池时有效",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "description": "策略描述",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "策略名称",
+                    "type": "string"
+                },
+                "queryTemplateId": {
+                    "description": "关联的查询模板ID",
+                    "type": "integer"
+                },
+                "resourcePoolType": {
+                    "description": "资源池类型",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态：enabled 或 disabled",
+                    "type": "string",
+                    "enum": [
+                        "enabled",
+                        "disabled"
+                    ]
+                }
+            }
+        },
+        "service.DeviceDTO": {
+            "type": "object",
+            "properties": {
+                "archType": {
+                    "type": "string"
+                },
+                "ciCode": {
+                    "type": "string"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "clusterId": {
+                    "type": "integer"
+                },
+                "cpu": {
+                    "type": "number"
+                },
+                "featureCount": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "isSpecial": {
+                    "type": "boolean"
+                },
+                "memory": {
+                    "type": "number"
+                },
+                "orderStatus": {
+                    "description": "在订单中的状态",
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.DeviceExportRequest": {
+            "type": "object",
+            "properties": {
+                "format": {
+                    "description": "导出格式，支持 csv, excel",
+                    "type": "string",
+                    "example": "csv"
+                },
+                "include_details": {
+                    "description": "是否包含详细信息",
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "service.DeviceGroupUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "group": {
+                    "description": "新的用途值",
+                    "type": "string"
+                }
+            }
         },
         "service.DeviceListResponse": {
             "type": "object",
@@ -1085,32 +3839,72 @@ const docTemplate = `{
         "service.DeviceResponse": {
             "type": "object",
             "properties": {
+                "acceptanceTime": {
+                    "description": "验收时间",
+                    "type": "string"
+                },
                 "appId": {
                     "description": "APPID",
                     "type": "string"
                 },
-                "arch": {
-                    "description": "架构",
+                "appName": {
+                    "description": "应用名称（来自 device_app 表）",
+                    "type": "string"
+                },
+                "archType": {
+                    "description": "CPU架构",
                     "type": "string"
                 },
                 "cabinet": {
-                    "description": "机柜号",
+                    "description": "所属机柜",
+                    "type": "string"
+                },
+                "cabinetNo": {
+                    "description": "机柜编号",
+                    "type": "string"
+                },
+                "ciCode": {
+                    "description": "设备编码",
                     "type": "string"
                 },
                 "cluster": {
-                    "description": "所属集群",
+                    "description": "最终集群名称 (来自 k8s_node 或 k8s_etcd 或 device)",
                     "type": "string"
+                },
+                "clusterId": {
+                    "description": "集群ID (来自 k8s_node 或 k8s_etcd 或 device)",
+                    "type": "integer"
+                },
+                "company": {
+                    "description": "厂商",
+                    "type": "string"
+                },
+                "cpu": {
+                    "description": "CPU数量",
+                    "type": "number"
                 },
                 "createdAt": {
                     "description": "创建时间",
                     "type": "string"
                 },
-                "datacenter": {
-                    "description": "机房",
+                "deviceId": {
+                    "description": "设备ID (Ensure this is populated)",
+                    "type": "integer"
+                },
+                "diskCount": {
+                    "description": "磁盘数量 (来自 device 表)",
+                    "type": "integer"
+                },
+                "diskDetail": {
+                    "description": "磁盘详情 (来自 device 表)",
                     "type": "string"
                 },
-                "deviceId": {
-                    "description": "设备ID",
+                "featureCount": {
+                    "description": "特性数量 (用于前端显示)",
+                    "type": "integer"
+                },
+                "group": {
+                    "description": "机器类别",
                     "type": "string"
                 },
                 "id": {
@@ -1121,44 +3915,76 @@ const docTemplate = `{
                     "description": "IDC",
                     "type": "string"
                 },
+                "infraType": {
+                    "description": "网络类型",
+                    "type": "string"
+                },
                 "ip": {
                     "description": "IP地址",
                     "type": "string"
                 },
-                "machineType": {
-                    "description": "机器类型",
+                "isLocalization": {
+                    "description": "是否国产化",
+                    "type": "boolean"
+                },
+                "isSpecial": {
+                    "description": "是否为特殊设备 (用于前端高亮)",
+                    "type": "boolean"
+                },
+                "kvmIp": {
+                    "description": "KVM IP",
                     "type": "string"
                 },
-                "network": {
+                "memory": {
+                    "description": "内存大小",
+                    "type": "number"
+                },
+                "model": {
+                    "description": "型号",
+                    "type": "string"
+                },
+                "netZone": {
                     "description": "网络区域",
                     "type": "string"
                 },
-                "resourcePool": {
-                    "description": "资源池/产品",
+                "networkSpeed": {
+                    "description": "网络速度 (来自 device 表)",
+                    "type": "string"
+                },
+                "os": {
+                    "description": "操作系统",
+                    "type": "string"
+                },
+                "osCreateTime": {
+                    "description": "操作系统创建时间",
+                    "type": "string"
+                },
+                "osIssue": {
+                    "description": "操作系统版本",
+                    "type": "string"
+                },
+                "osKernel": {
+                    "description": "操作系统内核",
+                    "type": "string"
+                },
+                "osName": {
+                    "description": "操作系统名称",
                     "type": "string"
                 },
                 "role": {
-                    "description": "集群角色",
+                    "description": "Fields from K8s relations and device table",
                     "type": "string"
                 },
                 "room": {
-                    "description": "Room",
+                    "description": "机房",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态",
                     "type": "string"
                 },
                 "updatedAt": {
                     "description": "更新时间",
-                    "type": "string"
-                }
-            }
-        },
-        "service.DeviceRoleUpdateRequest": {
-            "type": "object",
-            "required": [
-                "role"
-            ],
-            "properties": {
-                "role": {
-                    "description": "新的角色值",
                     "type": "string"
                 }
             }
@@ -1169,102 +3995,6 @@ const docTemplate = `{
                 "error": {
                     "type": "string",
                     "example": "操作失败"
-                }
-            }
-        },
-        "service.F5InfoListResponse": {
-            "type": "object",
-            "properties": {
-                "list": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/service.F5InfoResponse"
-                    }
-                },
-                "page": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "size": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 100
-                }
-            }
-        },
-        "service.F5InfoResponse": {
-            "type": "object",
-            "properties": {
-                "appid": {
-                    "type": "string",
-                    "example": "app-001"
-                },
-                "created_at": {
-                    "type": "string",
-                    "example": "2024-01-01T12:00:00Z"
-                },
-                "domains": {
-                    "type": "string",
-                    "example": "example.com,test.com"
-                },
-                "grafana_params": {
-                    "type": "string",
-                    "example": "http://grafana.example.com"
-                },
-                "id": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "ignored": {
-                    "type": "boolean",
-                    "example": false
-                },
-                "instance_group": {
-                    "type": "string",
-                    "example": "group-1"
-                },
-                "k8s_cluster_id": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "k8s_cluster_name": {
-                    "type": "string",
-                    "example": "生产集群"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "f5-test"
-                },
-                "pool_members": {
-                    "type": "string",
-                    "example": "192.168.1.10:80,192.168.1.11:80"
-                },
-                "pool_name": {
-                    "type": "string",
-                    "example": "pool-1"
-                },
-                "pool_status": {
-                    "type": "string",
-                    "example": "active"
-                },
-                "port": {
-                    "type": "string",
-                    "example": "80"
-                },
-                "status": {
-                    "type": "string",
-                    "example": "active"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "example": "2024-01-02T12:00:00Z"
-                },
-                "vip": {
-                    "type": "string",
-                    "example": "192.168.1.1"
                 }
             }
         },
@@ -1367,8 +4097,48 @@ const docTemplate = `{
                     ]
                 },
                 "value": {
-                    "description": "值",
-                    "type": "string"
+                    "description": "值 (可以是 string 或 []string)"
+                }
+            }
+        },
+        "service.FilterBlockRequest": {
+            "type": "object",
+            "properties": {
+                "conditionType": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.ConditionType"
+                        }
+                    ],
+                    "example": "equal"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "block1"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "ip"
+                },
+                "operator": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.LogicalOperator"
+                        }
+                    ],
+                    "example": "and"
+                },
+                "type": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.FilterType"
+                        }
+                    ],
+                    "example": "device"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "192.168.1.1"
                 }
             }
         },
@@ -1393,6 +4163,29 @@ const docTemplate = `{
                             "$ref": "#/definitions/service.LogicalOperator"
                         }
                     ]
+                }
+            }
+        },
+        "service.FilterGroupRequest": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FilterBlockRequest"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "example": "group1"
+                },
+                "operator": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.LogicalOperator"
+                        }
+                    ],
+                    "example": "and"
                 }
             }
         },
@@ -1435,6 +4228,314 @@ const docTemplate = `{
                 "FilterTypeDevice"
             ]
         },
+        "service.GeneralOrderCreateDTO": {
+            "type": "object",
+            "required": [
+                "createdBy",
+                "name"
+            ],
+            "properties": {
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "summary": {
+                    "description": "Add other fields specific to creating a general order",
+                    "type": "string"
+                }
+            }
+        },
+        "service.GeneralOrderDTO": {
+            "type": "object",
+            "properties": {
+                "completionTime": {
+                    "description": "完成时间",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "createdBy": {
+                    "description": "创建人",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "订单描述",
+                    "type": "string"
+                },
+                "details": {
+                    "$ref": "#/definitions/portal.GeneralOrderDetail"
+                },
+                "elasticScalingDetail": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.ElasticScalingOrderDetail"
+                        }
+                    ]
+                },
+                "executionTime": {
+                    "description": "执行时间",
+                    "type": "string"
+                },
+                "executor": {
+                    "description": "执行人",
+                    "type": "string"
+                },
+                "failureReason": {
+                    "description": "失败原因",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "maintenanceDetail": {
+                    "description": "设备维护详情",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.MaintenanceOrderDetail"
+                        }
+                    ]
+                },
+                "name": {
+                    "description": "订单名称",
+                    "type": "string"
+                },
+                "orderNumber": {
+                    "description": "唯一订单号",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "订单状态",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.OrderStatus"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "订单类型",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.OrderType"
+                        }
+                    ]
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "service.GeneralOrderQueryDTO": {
+            "type": "object",
+            "properties": {
+                "createdBy": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "订单名称，支持模糊查询",
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.K8sClusterResponse": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "apiServer": {
+                    "type": "string"
+                },
+                "apiServerVip": {
+                    "type": "string"
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "clusterGroup": {
+                    "type": "string"
+                },
+                "clusterId": {
+                    "type": "string"
+                },
+                "clusterName": {
+                    "type": "string"
+                },
+                "clusterNameCn": {
+                    "type": "string"
+                },
+                "clusterType": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "creator": {
+                    "type": "string"
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "esServer": {
+                    "type": "string"
+                },
+                "etcdServer": {
+                    "type": "string"
+                },
+                "etcdServerVip": {
+                    "type": "string"
+                },
+                "flowType": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "idc": {
+                    "type": "string"
+                },
+                "ingressServerVip": {
+                    "type": "string"
+                },
+                "ingressServername": {
+                    "type": "string"
+                },
+                "kubeConfig": {
+                    "type": "string"
+                },
+                "kubePromVersion": {
+                    "type": "string"
+                },
+                "netType": {
+                    "type": "string"
+                },
+                "nodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.K8sNodeResponse"
+                    }
+                },
+                "novaName": {
+                    "type": "string"
+                },
+                "podCidr": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "promServer": {
+                    "type": "string"
+                },
+                "rrCicode": {
+                    "type": "string"
+                },
+                "rrGroup": {
+                    "type": "string"
+                },
+                "serviceCidr": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "thanosServer": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "zone": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.K8sNodeResponse": {
+            "type": "object",
+            "properties": {
+                "containerRuntimeVersion": {
+                    "type": "string"
+                },
+                "cpuAllocatable": {
+                    "type": "string"
+                },
+                "cpuCapacity": {
+                    "type": "string"
+                },
+                "cpuLogic": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "diskDocker": {
+                    "type": "string"
+                },
+                "diskRoot": {
+                    "type": "string"
+                },
+                "fsTypeRoot": {
+                    "type": "string"
+                },
+                "hostIp": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "kernelVersion": {
+                    "type": "string"
+                },
+                "kubeProxyVersion": {
+                    "type": "string"
+                },
+                "kubeletVersion": {
+                    "type": "string"
+                },
+                "memAllocatable": {
+                    "type": "string"
+                },
+                "memCapacity": {
+                    "type": "string"
+                },
+                "memLogic": {
+                    "type": "string"
+                },
+                "nodeName": {
+                    "type": "string"
+                },
+                "osImage": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "service.LogicalOperator": {
             "type": "string",
             "enum": [
@@ -1449,6 +4550,52 @@ const docTemplate = `{
                 "LogicalOperatorAnd",
                 "LogicalOperatorOr"
             ]
+        },
+        "service.MaintenanceCallbackDTO": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "externalTicketId": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.MaintenanceRequestDTO": {
+            "type": "object",
+            "properties": {
+                "ciCode": {
+                    "type": "string"
+                },
+                "comments": {
+                    "type": "string"
+                },
+                "deviceId": {
+                    "type": "integer"
+                },
+                "externalTicketId": {
+                    "type": "string"
+                },
+                "maintenanceEndTime": {
+                    "type": "string"
+                },
+                "maintenanceStartTime": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
         },
         "service.OpsJobCreateDTO": {
             "type": "object",
@@ -1466,71 +4613,101 @@ const docTemplate = `{
                 }
             }
         },
-        "service.OpsJobListResponse": {
+        "service.OrderDTO": {
             "type": "object",
             "properties": {
-                "list": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/service.OpsJobResponse"
-                    }
+                "actionType": {
+                    "description": "pool_entry, pool_exit, maintenance_request, maintenance_uncordon",
+                    "type": "string"
                 },
-                "page": {
-                    "type": "integer",
-                    "example": 1
+                "clusterId": {
+                    "type": "integer"
                 },
-                "size": {
-                    "type": "integer",
-                    "example": 10
+                "clusterName": {
+                    "type": "string"
                 },
-                "total": {
-                    "type": "integer",
-                    "example": 100
-                }
-            }
-        },
-        "service.OpsJobResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "example": "2024-01-01T12:00:00Z"
+                "completionTime": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
                 },
                 "description": {
-                    "type": "string",
-                    "example": "部署应用到生产环境"
+                    "description": "订单描述",
+                    "type": "string"
                 },
-                "end_time": {
-                    "type": "string",
-                    "example": "2024-01-01T12:30:00Z"
+                "deviceCount": {
+                    "type": "integer"
+                },
+                "deviceInfo": {
+                    "description": "DeviceID字段已移除，使用Devices列表和OrderDevice关联表",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.DeviceDTO"
+                        }
+                    ]
+                },
+                "devices": {
+                    "description": "设备ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "executionTime": {
+                    "type": "string"
+                },
+                "executor": {
+                    "type": "string"
+                },
+                "externalTicketId": {
+                    "type": "string"
+                },
+                "extraInfo": {
+                    "description": "额外信息，用于存储维护原因等",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "failureReason": {
+                    "type": "string"
                 },
                 "id": {
-                    "type": "integer",
-                    "example": 1
+                    "type": "integer"
                 },
-                "log_content": {
-                    "type": "string",
-                    "example": "Starting deployment..."
+                "maintenanceEndTime": {
+                    "type": "string"
+                },
+                "maintenanceStartTime": {
+                    "type": "string"
                 },
                 "name": {
-                    "type": "string",
-                    "example": "deploy-app"
+                    "description": "订单名称",
+                    "type": "string"
                 },
-                "progress": {
-                    "type": "integer",
-                    "example": 50
+                "orderNumber": {
+                    "type": "string"
                 },
-                "start_time": {
-                    "type": "string",
-                    "example": "2024-01-01T12:00:00Z"
+                "resourcePoolType": {
+                    "description": "资源池类型",
+                    "type": "string"
                 },
                 "status": {
-                    "type": "string",
-                    "example": "running"
+                    "type": "string"
                 },
-                "updated_at": {
-                    "type": "string",
-                    "example": "2024-01-01T12:30:00Z"
+                "strategyId": {
+                    "type": "integer"
+                },
+                "strategyName": {
+                    "type": "string"
+                },
+                "strategyThresholdValue": {
+                    "type": "string"
+                },
+                "strategyTriggeredValue": {
+                    "type": "string"
                 }
             }
         },
@@ -1555,6 +4732,305 @@ const docTemplate = `{
                 "name": {
                     "description": "模板名称",
                     "type": "string"
+                }
+            }
+        },
+        "service.QueryTemplateListResponse": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.QueryTemplateResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 10
+                }
+            }
+        },
+        "service.QueryTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2024-01-01T12:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "查询所有生产环境的设备"
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FilterGroupRequest"
+                    }
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "生产环境设备"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2024-01-01T12:30:00Z"
+                }
+            }
+        },
+        "service.StrategyDTO": {
+            "type": "object",
+            "properties": {
+                "clusterIds": {
+                    "description": "关联的集群ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "conditionLogic": {
+                    "description": "AND 或 OR",
+                    "type": "string"
+                },
+                "cooldownMinutes": {
+                    "type": "integer"
+                },
+                "cpuTargetValue": {
+                    "description": "动作执行后CPU目标使用率",
+                    "type": "number"
+                },
+                "cpuThresholdType": {
+                    "description": "usage 或 allocated",
+                    "type": "string"
+                },
+                "cpuThresholdValue": {
+                    "type": "number"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "deviceCount": {
+                    "type": "integer"
+                },
+                "durationMinutes": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "memoryTargetValue": {
+                    "description": "动作执行后内存目标使用率",
+                    "type": "number"
+                },
+                "memoryThresholdType": {
+                    "description": "usage 或 allocated",
+                    "type": "string"
+                },
+                "memoryThresholdValue": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nodeSelector": {
+                    "type": "string"
+                },
+                "resourceTypes": {
+                    "description": "资源类型列表，逗号分隔",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "enabled 或 disabled",
+                    "type": "string"
+                },
+                "thresholdTriggerAction": {
+                    "description": "pool_entry 或 pool_exit",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.UpdateK8sClusterRequest": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "apiServer": {
+                    "type": "string"
+                },
+                "apiServerVip": {
+                    "type": "string"
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "clusterGroup": {
+                    "type": "string"
+                },
+                "clusterId": {
+                    "type": "string"
+                },
+                "clusterName": {
+                    "type": "string"
+                },
+                "clusterNameCn": {
+                    "type": "string"
+                },
+                "clusterType": {
+                    "type": "string"
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "esServer": {
+                    "type": "string"
+                },
+                "etcdServer": {
+                    "type": "string"
+                },
+                "etcdServerVip": {
+                    "type": "string"
+                },
+                "flowType": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "idc": {
+                    "type": "string"
+                },
+                "ingressServerVip": {
+                    "type": "string"
+                },
+                "ingressServername": {
+                    "type": "string"
+                },
+                "kubeConfig": {
+                    "type": "string"
+                },
+                "kubePromVersion": {
+                    "type": "string"
+                },
+                "netType": {
+                    "type": "string"
+                },
+                "novaName": {
+                    "type": "string"
+                },
+                "podCidr": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "promServer": {
+                    "type": "string"
+                },
+                "rrCicode": {
+                    "type": "string"
+                },
+                "rrGroup": {
+                    "type": "string"
+                },
+                "serviceCidr": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "thanosServer": {
+                    "type": "string"
+                },
+                "zone": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.UpdateResourcePoolDeviceMatchingPolicyRequest": {
+            "type": "object",
+            "required": [
+                "actionType",
+                "name",
+                "queryTemplateId",
+                "resourcePoolType",
+                "status"
+            ],
+            "properties": {
+                "actionType": {
+                    "description": "动作类型：pool_entry 或 pool_exit",
+                    "type": "string",
+                    "enum": [
+                        "pool_entry",
+                        "pool_exit"
+                    ]
+                },
+                "additionConds": {
+                    "description": "额外动态条件，仅入池时有效",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "description": "策略描述",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "策略名称",
+                    "type": "string"
+                },
+                "queryTemplateId": {
+                    "description": "关联的查询模板ID",
+                    "type": "integer"
+                },
+                "resourcePoolType": {
+                    "description": "资源池类型",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态：enabled 或 disabled",
+                    "type": "string",
+                    "enum": [
+                        "enabled",
+                        "disabled"
+                    ]
+                }
+            }
+        },
+        "service.UpdateResourcePoolDeviceMatchingPolicyStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "description": "状态：enabled 或 disabled",
+                    "type": "string",
+                    "enum": [
+                        "enabled",
+                        "disabled"
+                    ]
                 }
             }
         }

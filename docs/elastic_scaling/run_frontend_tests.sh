@@ -299,19 +299,19 @@ cleanup_test_data() {
     print_warning "清理所有测试数据..."
     
     cat << EOF | sqlite3 "$db_path"
-DELETE FROM strategy_execution_history;
-DELETE FROM order_device;
-DELETE FROM elastic_scaling_order_details;
-DELETE FROM orders;
+DELETE FROM ng_strategy_execution_history;
+DELETE FROM ng_order_device;
+DELETE FROM ng_elastic_scaling_order_details;
+DELETE FROM ng_orders;
 DELETE FROM resource_snapshots;
-DELETE FROM strategy_cluster_associations;
+DELETE FROM ng_strategy_cluster_association;
 DELETE FROM elastic_scaling_strategies;
 DELETE FROM query_templates;
 DELETE FROM devices;
 DELETE FROM k8s_clusters;
 DELETE FROM sqlite_sequence WHERE name IN (
-    'strategy_execution_history', 'order_device', 'elastic_scaling_order_details',
-    'orders', 'resource_snapshots', 'strategy_cluster_associations',
+    'ng_strategy_execution_history', 'ng_order_device', 'ng_elastic_scaling_order_details',
+'ng_orders', 'resource_snapshots', 'ng_strategy_cluster_association',
     'elastic_scaling_strategies', 'query_templates', 'devices', 'k8s_clusters'
 );
 EOF

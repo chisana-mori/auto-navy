@@ -120,7 +120,7 @@ func (h *OpsJobHandler) listOpsJobs(c *gin.Context) {
 // @Tags 运维任务
 // @Accept json
 // @Produce json
-// @Param job body service.CreateOpsJobRequest true "运维任务数据"
+// @Param job body service.OpsJobCreateDTO true "运维任务数据"
 // @Success 200 {object} render.Response
 // @Failure 400 {object} render.ErrorResponse
 // @Failure 500 {object} render.ErrorResponse

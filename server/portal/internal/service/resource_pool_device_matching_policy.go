@@ -92,8 +92,16 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 			// 解析额外动态条件
 			var additionConds []string
 			if dbPolicy.AdditionConds != "" {
+				// 尝试解析为字符串数组
 				if err := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionConds); err != nil {
-					return fmt.Errorf("failed to unmarshal addition conditions for policy %d: %w", dbPolicy.ID, err)
+					// 如果失败，可能是对象格式，尝试解析为通用对象并转换为字符串
+					var additionObj interface{}
+					if objErr := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionObj); objErr != nil {
+						return fmt.Errorf("failed to unmarshal addition conditions for policy %d: %w", dbPolicy.ID, err)
+					}
+					// 将对象转换回JSON字符串作为单个条件
+					condStr, _ := json.Marshal(additionObj)
+					additionConds = []string{string(condStr)}
 				}
 			}
 
@@ -179,8 +187,16 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 	// 解析额外动态条件
 	var additionConds []string
 	if dbPolicy.AdditionConds != "" {
+		// 尝试解析为字符串数组
 		if err := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionConds); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal addition conditions: %w", err)
+			// 如果失败，可能是对象格式，尝试解析为通用对象并转换为字符串
+			var additionObj interface{}
+			if objErr := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionObj); objErr != nil {
+				return nil, fmt.Errorf("failed to unmarshal addition conditions: %w", err)
+			}
+			// 将对象转换回JSON字符串作为单个条件
+			condStr, _ := json.Marshal(additionObj)
+			additionConds = []string{string(condStr)}
 		}
 	}
 
@@ -485,8 +501,16 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 		// 解析额外动态条件
 		var additionConds []string
 		if dbPolicy.AdditionConds != "" {
+			// 尝试解析为字符串数组
 			if err := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionConds); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal addition conditions for policy %d: %w", dbPolicy.ID, err)
+				// 如果失败，可能是对象格式，尝试解析为通用对象并转换为字符串
+				var additionObj interface{}
+				if objErr := json.Unmarshal([]byte(dbPolicy.AdditionConds), &additionObj); objErr != nil {
+					return nil, fmt.Errorf("failed to unmarshal addition conditions for policy %d: %w", dbPolicy.ID, err)
+				}
+				// 将对象转换回JSON字符串作为单个条件
+				condStr, _ := json.Marshal(additionObj)
+				additionConds = []string{string(condStr)}
 			}
 		}
 

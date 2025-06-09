@@ -250,23 +250,23 @@ const DeviceMatchingPolicy: React.FC = () => {
       title: '策略名称',
       dataIndex: 'name',
       key: 'name',
+      width: 180,
       render: (text: string, record: ResourcePoolDeviceMatchingPolicy) => (
         <a href="#!" onClick={(e) => { e.preventDefault(); handleEdit(record.id!); }}>{text}</a>
       ),
     },
-
     {
       title: '资源池类型',
       dataIndex: 'resourcePoolType',
       key: 'resourcePoolType',
+      width: 120,
       render: (text: string) => {
         const option = resourcePoolTypeOptions.find(opt => opt.value === text);
         // 如果是compute类型，显示为空
         const displayText = text === 'compute' ? '' : (option ? option.label : text);
         return (
-          <Tag color="blue">
-            <ClusterOutlined style={{ marginRight: 4 }} />
-            {displayText}
+          <Tag color="blue" style={{ borderStyle: 'dashed' }}>
+            #{displayText}
           </Tag>
         );
       },
@@ -274,6 +274,7 @@ const DeviceMatchingPolicy: React.FC = () => {
     {
       title: '查询模板',
       key: 'queryTemplate',
+      width: 240,
       render: (_, record) => {
         // 显示关联的查询模板信息
         const templateName = record.queryTemplate?.name || '未知模板';
@@ -311,6 +312,8 @@ const DeviceMatchingPolicy: React.FC = () => {
       title: '动作类型',
       dataIndex: 'actionType',
       key: 'actionType',
+      width: 90,
+      align: 'center' as const,
       render: (text: string) => (
         <Tag color={text === 'pool_entry' ? 'blue' : 'orange'}>
           {text === 'pool_entry' ? <CloudUploadOutlined style={{ marginRight: 4 }} /> : <CloudDownloadOutlined style={{ marginRight: 4 }} />}
@@ -322,6 +325,8 @@ const DeviceMatchingPolicy: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 90,
+      align: 'center' as const,
       render: (status: string) => (
         <Badge
           status={status === 'enabled' ? 'success' : 'default'}
@@ -332,8 +337,8 @@ const DeviceMatchingPolicy: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 150,
-      align: 'center',
+      width: 180,
+      align: 'center' as const,
       render: (_, record) => (
         <Space size="middle" className="action-buttons">
           <Tooltip title="编辑" placement="top">
@@ -955,7 +960,7 @@ const DeviceMatchingPolicy: React.FC = () => {
                   >
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
-                        <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
+                        <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
                         {option.value === 'compute' ? '' : option.value}
                       </Option>
                     ))}
@@ -1201,7 +1206,7 @@ const DeviceMatchingPolicy: React.FC = () => {
                   >
                     {resourcePoolTypeOptions.map(option => (
                       <Option key={option.value} value={option.value}>
-                        <ClusterOutlined style={{ marginRight: 4, color: '#52c41a' }} />
+                        <ClusterOutlined style={{ marginRight: 4, color: '#1890ff' }} />
                         {option.value === 'compute' ? '' : option.value}
                       </Option>
                     ))}

@@ -2,22 +2,23 @@
 -- 测试目标：验证当CPU使用率连续3天超过80%时，系统能够正确生成入池订单
 
 -- 清理现有数据
-DELETE FROM strategy_execution_history;
-DELETE FROM order_device;
-DELETE FROM elastic_scaling_order_details;
-DELETE FROM orders;
+DELETE FROM ng_strategy_execution_history;
+DELETE FROM ng_order_device;
+DELETE FROM ng_elastic_scaling_order_details;
+DELETE FROM ng_orders;
 DELETE FROM k8s_cluster_resource_snapshot;
-DELETE FROM strategy_cluster_association;
-DELETE FROM elastic_scaling_strategy;
+DELETE FROM ng_strategy_cluster_association;
+DELETE FROM ng_resource_pool_device_matching_policy;
+DELETE FROM ng_elastic_scaling_strategy;
 DELETE FROM query_template;
 DELETE FROM device;
 DELETE FROM k8s_cluster;
 
 -- 重置自增ID
 DELETE FROM sqlite_sequence WHERE name IN (
-    'strategy_execution_history', 'order_device', 'elastic_scaling_order_details',
-    'orders', 'k8s_cluster_resource_snapshot', 'strategy_cluster_association',
-    'elastic_scaling_strategy', 'query_template', 'device', 'k8s_cluster'
+    'ng_strategy_execution_history', 'ng_order_device', 'ng_elastic_scaling_order_details',
+'ng_orders', 'k8s_cluster_resource_snapshot', 'ng_strategy_cluster_association',
+'ng_resource_pool_device_matching_policy', 'ng_elastic_scaling_strategy', 'query_template', 'device', 'k8s_cluster'
 );
 
 -- 创建集群
@@ -35,24 +36,35 @@ INSERT INTO query_template (id, name, groups, created_at, updated_at) VALUES
 (1, 'Find Available Devices', '[{"id":"1","blocks":[{"id":"2","type":"device","key":"status","conditionType":"equal","value":"in_stock"}],"operator":"AND"}]', datetime('now'), datetime('now'));
 
 -- 创建弹性伸缩策略（入池策略）
-INSERT INTO elastic_scaling_strategy (
+INSERT INTO ng_elastic_scaling_strategy (
     id, name, description, threshold_trigger_action,
     cpu_threshold_value, cpu_threshold_type, cpu_target_value,
     memory_threshold_value, memory_threshold_type, memory_target_value,
-    condition_logic, duration_minutes, cooldown_minutes, device_count,
-    node_selector, resource_types, status, entry_query_template_id,
+    condition_logic, duration_minutes, cooldown_minutes,
+    resource_types, status,
     created_by, created_at, updated_at
 ) VALUES (
     1, 'CPU High Usage Scale Out', 'Scale out when CPU usage is high', 'pool_entry',
     80.0, 'usage', 70.0,
     0, '', 0,
-    'AND', 3, 60, 2,
-    '', 'total', 'enabled', 1,
+    'AND', 3, 60,
+    'total', 'enabled',
     'admin', datetime('now'), datetime('now')
 );
 
+-- 创建设备匹配策略（入池）
+INSERT INTO ng_resource_pool_device_matching_policy (
+    id, name, description, resource_pool_type, action_type,
+    query_template_id, status, addition_conds,
+    created_by, updated_by, created_at, updated_at
+) VALUES (
+    1, 'Total Pool Entry Device Matching', 'Device matching policy for total pool entry', 'total', 'pool_entry',
+    1, 'enabled', '',
+    'admin', 'admin', datetime('now'), datetime('now')
+);
+
 -- 创建策略集群关联
-INSERT INTO strategy_cluster_association (strategy_id, cluster_id) VALUES
+INSERT INTO ng_strategy_cluster_association (strategy_id, cluster_id) VALUES
 (1, 1);
 
 -- 创建资源快照数据（连续3天CPU使用率超过80%）
@@ -73,20 +85,20 @@ INSERT INTO k8s_cluster_resource_snapshot (
 
 -- 模拟系统自动生成的订单数据
 -- 创建基础订单
-INSERT INTO orders (id, order_number, name, description, type, status, created_by, created_at, updated_at) VALUES
+INSERT INTO ng_orders (id, order_number, name, description, type, status, created_by, created_at, updated_at) VALUES
 (1, 'ESO20241201123456', '策略触发-入池-production-cluster-total', '策略 ''CPU High Usage Scale Out'' 触发入池操作。集群：production-cluster，资源类型：total，涉及设备：2台。', 'elastic_scaling', 'pending', 'system/auto', datetime('now'), datetime('now'));
 
 -- 创建弹性伸缩订单详情
-INSERT INTO elastic_scaling_order_details (id, order_id, cluster_id, strategy_id, action_type, resource_pool_type, device_count, strategy_triggered_value, strategy_threshold_value, created_at, updated_at) VALUES
+INSERT INTO ng_elastic_scaling_order_details (id, order_id, cluster_id, strategy_id, action_type, resource_pool_type, device_count, strategy_triggered_value, strategy_threshold_value, created_at, updated_at) VALUES
 (1, 1, 1, 1, 'pool_entry', 'total', 2, 'CPU使用率: 88.0%', 'CPU阈值: 80.0%', datetime('now'), datetime('now'));
 
 -- 创建订单设备关联（选择前2台可用设备）
-INSERT INTO order_device (order_id, device_id, status, created_at, updated_at) VALUES
+INSERT INTO ng_order_device (order_id, device_id, status, created_at, updated_at) VALUES
 (1, 1001, 'pending', datetime('now'), datetime('now')),
 (1, 1002, 'pending', datetime('now'), datetime('now'));
 
 -- 创建策略执行历史记录
-INSERT INTO strategy_execution_history (id, strategy_id, cluster_id, resource_type, execution_time, triggered_value, threshold_value, result, order_id, reason, created_at, updated_at) VALUES
+INSERT INTO ng_strategy_execution_history (id, strategy_id, cluster_id, resource_type, execution_time, triggered_value, threshold_value, result, order_id, reason, created_at, updated_at) VALUES
 (1, 1, 1, 'total', datetime('now'), 'CPU使用率: 88.0%', 'CPU阈值: 80.0%', 'order_created', 1, '连续3天CPU使用率超过80%，成功生成入池订单', datetime('now'), datetime('now'));
 
 -- 验证数据插入
@@ -96,26 +108,34 @@ SELECT 'Devices:', count(*) FROM device
 UNION ALL
 SELECT 'Query Templates:', count(*) FROM query_template
 UNION ALL
-SELECT 'Strategies:', count(*) FROM elastic_scaling_strategy
+SELECT 'Strategies:', count(*) FROM ng_elastic_scaling_strategy
 UNION ALL
-SELECT 'Strategy Associations:', count(*) FROM strategy_cluster_association
+SELECT 'Device Matching Policies:', count(*) FROM ng_resource_pool_device_matching_policy
+UNION ALL
+SELECT 'Strategy Associations:', count(*) FROM ng_strategy_cluster_association
 UNION ALL
 SELECT 'Resource Snapshots:', count(*) FROM k8s_cluster_resource_snapshot
 UNION ALL
-SELECT 'Orders:', count(*) FROM orders
+SELECT 'Orders:', count(*) FROM ng_orders
 UNION ALL
-SELECT 'Order Details:', count(*) FROM elastic_scaling_order_details
+SELECT 'Order Details:', count(*) FROM ng_elastic_scaling_order_details
 UNION ALL
-SELECT 'Order Devices:', count(*) FROM order_device
+SELECT 'Order Devices:', count(*) FROM ng_order_device
 UNION ALL
-SELECT 'Execution History:', count(*) FROM strategy_execution_history;
+SELECT 'Execution History:', count(*) FROM ng_strategy_execution_history;
 
 -- 显示策略详情
 SELECT
     id, name, threshold_trigger_action,
     cpu_threshold_value, cpu_threshold_type,
     duration_minutes, status
-FROM elastic_scaling_strategy;
+FROM ng_elastic_scaling_strategy;
+
+-- 显示设备匹配策略详情
+SELECT
+    id, name, resource_pool_type, action_type,
+    query_template_id, status, addition_conds
+FROM ng_resource_pool_device_matching_policy;
 
 -- 显示资源快照趋势
 SELECT
@@ -142,8 +162,8 @@ SELECT
     esd.device_count,
     esd.strategy_triggered_value,
     esd.strategy_threshold_value
-FROM orders o
-JOIN elastic_scaling_order_details esd ON o.id = esd.order_id;
+FROM ng_orders o
+JOIN ng_elastic_scaling_order_details esd ON o.id = esd.order_id;
 
 -- 显示订单关联的设备信息
 SELECT
@@ -156,7 +176,7 @@ SELECT
     d.cpu,
     d.memory,
     d.status as device_current_status
-FROM order_device od
+FROM ng_order_device od
 JOIN device d ON od.device_id = d.id
 ORDER BY od.order_id, od.device_id;
 
@@ -171,4 +191,4 @@ SELECT
     seh.result,
     seh.order_id,
     seh.reason
-FROM strategy_execution_history seh;
+FROM ng_strategy_execution_history seh;
