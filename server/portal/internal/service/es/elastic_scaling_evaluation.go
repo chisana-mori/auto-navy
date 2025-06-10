@@ -1,13 +1,13 @@
 package es
 
 import (
+	"errors"
 	"fmt"
 	"navy-ng/models/portal"
 	. "navy-ng/server/portal/internal/service"
 	"sort"
 	"strings"
 	"time"
-	"errors"
 
 	"github.com/jinzhu/now"
 	"go.uber.org/zap"
@@ -120,8 +120,8 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 		// 检查该集群+资源池是否在冷却期内
 		inCooldown, err := s.isClusterResourcePoolInCooldown(strategy, clusterID, resourceType)
 		if err != nil {
-			s.logger.Error("Failed to check cooldown for cluster resource pool", 
-				zap.Error(err), 
+			s.logger.Error("Failed to check cooldown for cluster resource pool",
+				zap.Error(err),
 				zap.Int64("strategyID", strategy.ID),
 				zap.Int64("clusterID", clusterID),
 				zap.String("resourceType", resourceType))
@@ -136,7 +136,7 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 			}
 
 			reason := fmt.Sprintf("集群 %s（%s类型）处于冷却期内，跳过本次评估", clusterName, resourceType)
-			s.logger.Info(reason, 
+			s.logger.Info(reason,
 				zap.Int64("strategyID", strategy.ID),
 				zap.Int64("clusterID", clusterID),
 				zap.String("resourceType", resourceType))
@@ -229,8 +229,8 @@ func (s *ElasticScalingService) isClusterResourcePoolInCooldown(strategy *portal
 	var latestOrder portal.ElasticScalingOrderDetail
 	err := s.db.Table("ng_orders o").
 		Select("o.created_at").
-		Joins("JOIN elastic_scaling_order_details esd ON o.id = esd.order_id").
-		Where("esd.strategy_id = ? AND esd.cluster_id = ? AND esd.resource_type = ? AND o.status != ?",
+		Joins("JOIN ng_elastic_scaling_order_details esd ON o.id = esd.order_id").
+		Where("esd.strategy_id = ? AND esd.cluster_id = ? AND esd.resource_pool_type = ? AND o.status != ?",
 			strategy.ID, clusterID, resourceType, portal.OrderStatusCancelled).
 		Order("o.created_at DESC").
 		First(&latestOrder).Error
@@ -243,9 +243,30 @@ func (s *ElasticScalingService) isClusterResourcePoolInCooldown(strategy *portal
 		return false, fmt.Errorf("failed to query latest order for cluster %d resource %s: %w", clusterID, resourceType, err)
 	}
 
-	// 计算冷却期结束时间
-	cooldownEndTime := time.Time(latestOrder.CreatedAt).Add(time.Duration(strategy.CooldownMinutes) * time.Minute)
-	return time.Now().Before(cooldownEndTime), nil
+	// 计算时间差距和冷却期信息
+	now := time.Now()
+	lastOrderTime := time.Time(latestOrder.CreatedAt)
+	timeDiff := now.Sub(lastOrderTime)
+	cooldownEndTime := lastOrderTime.Add(time.Duration(strategy.CooldownMinutes) * time.Minute)
+	remainingCooldown := cooldownEndTime.Sub(now)
+
+	days := int(timeDiff.Hours() / 24)
+	hours := int(timeDiff.Hours()) % 24
+	minutes := int(timeDiff.Minutes()) % 60
+
+	var statusMsg string
+	if remainingCooldown > 0 {
+		remainingDays := int(remainingCooldown.Hours() / 24)
+		remainingHours := int(remainingCooldown.Hours()) % 24
+		remainingMinutes := int(remainingCooldown.Minutes()) % 60
+		statusMsg = fmt.Sprintf("剩余冷却时间: %d天%d时%d分钟", remainingDays, remainingHours, remainingMinutes)
+	} else {
+		statusMsg = "冷却期已结束"
+	}
+
+	s.logger.Info(fmt.Sprintf("[ElasticScaling] 集群 %d 资源池 %s | 最近订单时间差距: %d天%d时%d分钟 | 预期冷却时间: %d分钟 | %s",
+		clusterID, resourceType, days, hours, minutes, strategy.CooldownMinutes, statusMsg))
+	return now.Before(cooldownEndTime), nil
 }
 
 // getStrategyClusterAssociations 获取策略关联的集群。
@@ -460,8 +481,9 @@ func getRequiredConsecutiveDays(strategy *portal.ElasticScalingStrategy) int {
 		return strategy.DurationMinutes
 	}
 	days := strategy.DurationMinutes / (24 * 60)
-	if days < 1 {
-		return 1 // 至少1天
+	// 允许0天持续时间，表示立即触发
+	if days < 0 {
+		return 0
 	}
 	return days
 }

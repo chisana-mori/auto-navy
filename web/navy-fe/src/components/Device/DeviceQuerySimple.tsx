@@ -755,22 +755,52 @@ const DeviceQuerySimple: React.FC = () => {
           {(block.conditionType !== ConditionType.Exists &&
             block.conditionType !== ConditionType.NotExists) && (
             <Select
-              placeholder="选择值"
+              placeholder="输入值，支持空格/逗号/分号分隔"
               value={block.value}
               onChange={(value) => {
-                if (Array.isArray(value) && value.length > 1) {
-                  if (block.conditionType !== ConditionType.In && block.conditionType !== ConditionType.NotIn) {
-                    updateFilterBlock(groupId, block.id, { value, conditionType: ConditionType.In });
-                    return;
+                // 处理输入的文本，自动分割多个值
+                if (Array.isArray(value)) {
+                  const processedValues = value.flatMap((v: string) => {
+                    if (typeof v === 'string' && (v.includes(' ') || v.includes(',') || v.includes(';') || v.includes('\n'))) {
+                      // 分割多个值
+                      return v.split(/[\n,;\s]+/).filter((item: string) => item.trim() !== '');
+                    }
+                    return v;
+                  });
+                  
+                  if (processedValues.length > 1) {
+                    updateFilterBlock(groupId, block.id, { 
+                      value: processedValues, 
+                      conditionType: ConditionType.In 
+                    });
+                  } else {
+                    updateFilterBlock(groupId, block.id, { value: processedValues });
                   }
+                } else {
+                  updateFilterBlock(groupId, block.id, { value });
                 }
-                updateFilterBlock(groupId, block.id, { value });
               }}
               style={{ width: 200 }}
-              mode={(block.type !== FilterType.Device || block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn) ? 'multiple' : undefined}
+              mode="tags"
               loading={loadingValues}
               showSearch
-              optionFilterProp="children"
+              allowClear
+              tokenSeparators={['\n', ',', ';', ' ', '\t']}
+              maxTagCount="responsive"
+              maxTagTextLength={20}
+              filterOption={(input, option) => {
+                if (!input) return true;
+                const label = option?.children?.toString().toLowerCase() || '';
+                return label.includes(input.toLowerCase());
+              }}
+              dropdownRender={(menu) => (
+                <div>
+                  {menu}
+                  <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0', fontSize: '12px', color: '#666' }}>
+                    💡 支持空格、逗号、分号分隔多个值，按Enter添加标签
+                  </div>
+                </div>
+              )}
             >
 
               {block.type === FilterType.NodeLabel && block.key && labelValues[block.key]?.map((option) => (

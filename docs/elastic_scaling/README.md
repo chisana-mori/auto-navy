@@ -1,81 +1,86 @@
-# 弹性伸缩 (Elastic Scaling) 模块说明
+# 弹性伸缩（Elastic Scaling）模块说明
 
 ## 1. 模块概述
+弹性伸缩系统自动化管理集群资源，基于策略动态调整设备池，实现资源平衡与成本优化。支持策略驱动、设备匹配、订单化管理、异常处理和邮件通知。
 
-弹性伸缩系统是一个自动化的资源管理解决方案，能够根据预设策略自动调整集群资源，支持设备的入池和退池操作。系统通过监控资源使用情况，在满足触发条件时自动生成相应的操作订单，以实现资源的动态平衡和成本优化。
+## 2. 系统架构与核心功能
+- **策略引擎**：定义、存储、执行伸缩策略（CPU/内存阈值、持续时间、冷却期、设备数量等）。
+- **设备匹配器**：基于查询模板筛选目标设备，支持灵活配置。
+- **订单生成与管理**：所有伸缩操作均生成订单，便于追踪、审计和人工介入。
+- **监控与调度**：定时任务自动触发策略评估，支持分布式锁。
+- **通知系统**：订单生成或状态变更时自动发送HTML邮件，支持自定义集成。
 
-## 2. 核心功能
-
-- **策略驱动的自动伸缩**: 支持基于CPU、内存等资源的阈值，配置自动化的入池/退池策略。
-- **灵活的设备匹配**: 可通过查询模板自定义复杂的设备筛选逻辑，确保精确选择目标设备。
-- **订单化管理**: 所有伸缩操作均生成订单，便于追踪和审计。
-- **异常情况处理**: 对无可用设备、部分匹配等情况有明确的处理逻辑，生成提醒订单通知人工介入。
-- **邮件通知系统**: 在订单生成或状态变更时，自动发送内容详尽的HTML邮件通知。
+详细架构、数据模型与流程请参见[系统设计文档](./elastic_scaling_design.md)。
 
 ## 3. 快速开始
-
 ### 环境准备
-
 ```bash
-# 启动后端服务
-cd server/portal
-go run main.go
-
-# 启动前端服务（新终端）
-cd web/navy-fe
-npm run dev
+cd server/portal && go run main.go
+cd web/navy-fe && npm run dev
 ```
-
 ### 运行测试
-
-使用自动化脚本可以快速初始化特定场景的测试数据。
-
 ```bash
-# 在项目根目录执行
 ./docs/elastic_scaling/run_frontend_tests.sh 1    # 场景1：正常入池
 ./docs/elastic_scaling/run_frontend_tests.sh 4    # 场景4：入池无设备
 ./docs/elastic_scaling/run_frontend_tests.sh all  # 运行所有7个场景
 ```
 
-## 4. 文档导航
+## 4. 测试说明与用例
+### 4.1 测试目标
+- 验证策略评估、订单生成、前端展示、数据一致性等核心功能。
 
-本模块的详细文档分布在以下文件中，请根据需要查阅：
+### 4.2 场景总览
+| 场景 | 条件 | 预期结果 |
+|------|------|----------|
+| 1 | CPU连续3天>80% | 生成入池订单，含可用设备 |
+| 2 | 内存连续2天<20% | 生成退池订单，含在池设备 |
+| 3 | 阈值未持续 | 不生成订单，记录失败 |
+| 4 | 满足阈值无可用设备 | 生成提醒订单，提示申请设备 |
+| 5 | 满足阈值无在池设备 | 生成提醒订单，提示协调处理 |
+| 6 | 只匹配部分设备 | 生成订单，含部分设备 |
+| 7 | 退池只匹配部分设备 | 生成订单，含部分设备 |
 
-### 📖 设计与实现
-- **[系统设计文档](./elastic_scaling_design.md)**: 深入了解系统架构、数据模型、核心工作流和API设计。
-- **[邮件通知功能](./email_notification_feature.md)**: 查看邮件通知的实现细节、模板和集成方式。
-    - [入池邮件示例](./email_pool_entry_example.html)
-    - [退池邮件示例](./email_pool_exit_example.html)
-    - [无设备邮件示例](./email_no_devices_example.html)
+### 4.3 快速测试指南
+```bash
+chmod +x docs/elastic_scaling/run_frontend_tests.sh
+./docs/elastic_scaling/run_frontend_tests.sh 1    # 场景1
+./docs/elastic_scaling/run_frontend_tests.sh all  # 所有场景
+./docs/elastic_scaling/run_frontend_tests.sh clean # 清理测试数据
+```
+如脚本不可用，可手动执行SQL：
+```bash
+sqlite3 ./data/navy.db
+.read docs/elastic_scaling/test_data_scenario1_pool_entry.sql
+```
 
-### 👨‍💻 使用与操作
-- **[用户手册](./user_manual.md)**: 学习如何配置监控策略、手动创建订单以及理解订单的流转状态。
-- **[快速测试指南](./quick_test_guide.md)**: 提供开箱即用的测试步骤和关键验证点。
+### 4.4 关键验证点
+- 策略管理、资源监控、订单管理页面数据与流程正确
+- 订单详情、设备分配、邮件通知内容完整
+- API接口可手动触发与验证
 
-### 🧪 测试用例与数据
-- **[前端测试总览](./README_frontend_tests.md)**: 前端测试的总体说明。
-- **[详细测试用例](./frontend_test_cases.md)**: 包含所有7个核心场景的详细测试步骤和预期结果。
-- **[测试场景概览](./test_scenarios_overview.md)**: 对7个测试场景SQL数据文件的关键特征说明。
-- **测试数据脚本**:
-    - `test_data_scenario*.sql`: 各场景的SQL数据脚本。
-    - `create_test_schema.sql`: 用于创建测试的数据库表结构。
-- **测试工具**:
-    - `run_frontend_tests.sh`: 自动化测试执行脚本。
-    - `validate_test_data.sh`: 测试数据验证脚本。
+## 5. 邮件通知功能
+- 订单生成自动生成美观HTML邮件，内容含订单、设备、操作指引等
+- 支持自定义集成企业邮箱、钉钉、企业微信等
+- 详细说明见[邮件通知功能](./email_notification_feature.md)
 
-### 🔄 变更记录
-- **[更新日志 (CHANGELOG)](./CHANGELOG.md)**: 查看模块的版本迭代和重要变更历史。
+## 6. 用户手册
+- 策略配置、设备匹配、手动订单、订单流转等详见[用户手册](./user_manual.md)
 
-## 5. 系统架构概览
+## 7. 设计与变更
+- 架构、数据模型、核心流程详见[系统设计文档](./elastic_scaling_design.md)
+- 变更历史见[CHANGELOG](./CHANGELOG.md)
 
-系统采用前后端分离架构，核心组件包括：
+## 8. 其他资源
+- 邮件模板示例：[入池](./email_pool_entry_example.html)、[退池](./email_pool_exit_example.html)、[无设备](./email_no_devices_example.html)
+- 测试数据脚本：`test_data_scenario*.sql`、`create_test_schema.sql`
+- 测试工具：`run_frontend_tests.sh`、`validate_test_data.sh`
 
-- **策略引擎**: 负责策略的定义、存储和执行。
-- **设备匹配器**: 根据策略要求匹配合适的设备。
-- **订单生成器**: 创建弹性伸缩操作订单。
-- **监控模块**: 定时任务，负责触发策略评估。
-- **通知系统**: 自动发送邮件通知相关人员。
+---
+如需详细流程、数据结构、API等，请查阅各子文档。
 
-### 数据模型
+## 📋 测试指南与用例
 
-核心数据表包括 `elastic_scaling_strategies` (策略), `elastic_scaling_executions` (执行历史), 和 `resource_pool_device_matching_policies` (设备匹配策略)。详细表结构请参考[系统设计文档](./elastic_scaling_design.md)。
+弹性伸缩模块的测试文档已整合优化，提供了一个全面的测试参考，详见：
+- [弹性伸缩端到端测试文档](./test_case.md)
+
+该文档涵盖了测试环境准备、七大核心测试场景的详细描述（包括测试目标、SQL数据、关键特征、前置条件、测试步骤及预期结果）、Mock数据示例、测试执行指南（包括环境准备、脚本与手动执行方式、关键验证点）以及测试报告模板，便于端到端验证弹性伸缩功能。

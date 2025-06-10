@@ -27,7 +27,7 @@ import {
   StrategyDetail,
   OrderDetail,
   OrderListItem,
-  Device,
+  Device as ElasticScalingDevice,
   DashboardStats,
   PaginatedResponse,
   OrderStats
@@ -35,6 +35,7 @@ import {
 
 import { statsApi, strategyApi, orderApi } from '../../services/elasticScalingService';
 import clusterService, { getResourcePoolAllocationRate, ResourcePoolAllocationRate } from '../../services/clusterService';
+import { getDeviceFeatureDetails } from '../../services/deviceQueryService';
 
 import OrderStatusFlow from './OrderStatusFlow';
 import DeviceMatchingPolicy from './DeviceMatchingPolicy';
@@ -43,6 +44,20 @@ import CreateOrderModal from './CreateOrderModal';
 
 import './Dashboard.css';
 import './DeviceMatchingPolicy.less';
+
+// 扩展DOM元素类型定义以支持自定义属性
+declare global {
+  interface HTMLElement {
+    tooltip?: HTMLElement | null;
+    handleMouseMove?: ((event: MouseEvent) => void) | null;
+  }
+}
+
+// 扩展弹性伸缩的Device类型以包含设备中心的属性
+interface Device extends ElasticScalingDevice {
+  group?: string;        // 机器用途
+  appName?: string;      // 应用名称
+}
 
 const { confirm } = Modal;
 const { Option } = Select;
@@ -501,7 +516,7 @@ const Dashboard: React.FC = () => {
             <ClockCircleOutlined style={{ marginRight: 4, color: '#1890ff', fontSize: '12px' }} />
             <span style={{ color: 'rgba(0, 0, 0, 0.65)' }}>持续</span>
             <span style={{ fontWeight: 500, marginLeft: 'auto', color: '#1890ff' }}>
-              {record.durationMinutes ? Math.floor(record.durationMinutes / (24 * 60)) : '--'} 天
+              {record.durationMinutes !== undefined ? Math.floor(record.durationMinutes / (24 * 60)) : '--'} 天
             </span>
           </div>
           <div style={{ 
@@ -516,7 +531,7 @@ const Dashboard: React.FC = () => {
             <PauseCircleOutlined style={{ marginRight: 4, color: '#faad14', fontSize: '12px' }} />
             <span style={{ color: 'rgba(0, 0, 0, 0.65)' }}>冷却</span>
             <span style={{ fontWeight: 500, marginLeft: 'auto', color: '#faad14' }}>
-              {record.cooldownMinutes ? Math.floor(record.cooldownMinutes / (24 * 60)) : '--'} 天
+              {record.cooldownMinutes !== undefined ? Math.floor(record.cooldownMinutes / (24 * 60)) : '--'} 天
             </span>
           </div>
         </div>
@@ -1341,11 +1356,11 @@ const Dashboard: React.FC = () => {
         memoryThresholdValue: strategyDetail.memoryThresholdValue || 0,
         memoryTargetValue: strategyDetail.memoryTargetValue || 0,
         conditionLogic: strategyDetail.conditionLogic || 'AND',
-        // 转换分钟到天，如果后端没有返回时间字段，则使用默认值
-        durationDays: strategyDetail.durationMinutes ?
-          Math.floor(strategyDetail.durationMinutes / (24 * 60)) : 1,
-        cooldownDays: strategyDetail.cooldownMinutes ?
-          Math.floor(strategyDetail.cooldownMinutes / (24 * 60)) : 1,
+        // 转换分钟到天，支持0值
+        durationDays: strategyDetail.durationMinutes !== undefined ?
+          Math.floor(strategyDetail.durationMinutes / (24 * 60)) : 0,
+        cooldownDays: strategyDetail.cooldownMinutes !== undefined ?
+          Math.floor(strategyDetail.cooldownMinutes / (24 * 60)) : 0,
         status: strategyDetail.status,
       });
 
@@ -1876,7 +1891,281 @@ const Dashboard: React.FC = () => {
   // 渲染设备项
   const renderDeviceItem = (device: Device) => {
     return (
-      <div key={device.id} className="device-item">
+      <div 
+        key={device.id} 
+        className="device-item"
+        onMouseEnter={async (e) => {
+          // 如果是特殊设备或有应用名称，显示提示框
+          if (device.isSpecial || (device.appName && device.appName.trim() !== '')) {
+            try {
+              // 创建提示框
+              const tooltip = document.createElement('div');
+              tooltip.className = 'device-feature-tooltip';
+
+              // 初始内容 - 美化样式
+              tooltip.innerHTML = `
+                <div style="font-weight: 600; font-size: 14px; color: #1677ff; margin-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 6px;">
+                  <span style="margin-right: 5px;">&#x1F4CB;</span>设备特性
+                </div>
+                <div style="color: #666; font-size: 13px;">
+                  <div style="display: flex; align-items: center;">
+                    <span style="margin-right: 5px;">&#x231B;</span>正在加载特性详情...
+                  </div>
+                </div>
+              `;
+
+              // 计算位置 - 跟随鼠标
+              tooltip.style.position = 'fixed';
+              tooltip.style.left = `${e.clientX + 15}px`; // 鼠标右侧偏移15px
+              tooltip.style.top = `${e.clientY - 20}px`;  // 鼠标上方偏移20px
+
+              // 美化样式 - 半透明卡片
+              tooltip.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+              tooltip.style.backdropFilter = 'blur(5px)'; // 模糊效果
+              tooltip.style.border = '1px solid rgba(217, 217, 217, 0.6)';
+              tooltip.style.borderRadius = '8px';
+              tooltip.style.padding = '12px';
+              tooltip.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+              tooltip.style.zIndex = '9999';
+              tooltip.style.maxWidth = '350px';
+              tooltip.style.transition = 'all 0.2s ease-in-out';
+
+              document.body.appendChild(tooltip);
+
+              // 存储提示框引用，便于移除
+              e.currentTarget.tooltip = tooltip;
+
+              // 创建一个引用副本，避免使用 e.currentTarget
+              const tooltipElement = tooltip;
+              const deviceElement = e.currentTarget;
+
+              // 添加鼠标移动事件，使提示框跟随鼠标
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                // 检查元素和提示框是否仍然存在
+                if (deviceElement && deviceElement.tooltip && tooltipElement && document.body.contains(tooltipElement)) {
+                  // 更新提示框位置
+                  tooltipElement.style.left = `${moveEvent.clientX + 15}px`;
+                  tooltipElement.style.top = `${moveEvent.clientY - 20}px`;
+
+                  // 检查是否超出右边界
+                  const tooltipRect = tooltipElement.getBoundingClientRect();
+                  const windowWidth = window.innerWidth;
+                  if (tooltipRect.right > windowWidth) {
+                    // 如果超出右边界，则将提示框放在鼠标左侧
+                    tooltipElement.style.left = `${moveEvent.clientX - tooltipRect.width - 15}px`;
+                  }
+                } else {
+                  // 如果元素或提示框不存在，移除事件监听器
+                  document.removeEventListener('mousemove', handleMouseMove);
+                }
+              };
+
+              // 将鼠标移动事件处理函数存储在元素上，便于移除
+              e.currentTarget.handleMouseMove = handleMouseMove;
+              document.addEventListener('mousemove', handleMouseMove);
+
+              // 构建特性详情数组
+              const featureDetails: string[] = [];
+
+              // 添加机器用途
+              if (device.group && device.group.trim() !== '') {
+                featureDetails.push(`机器用途: ${device.group}`);
+              }
+
+              // 添加应用名称
+              if (device.appName && device.appName.trim() !== '') {
+                featureDetails.push(`应用名称: ${device.appName}`);
+              }
+
+              // 如果有标签特性或污点特性，获取详情
+              if (device.featureCount && device.featureCount > (device.group ? 1 : 0)) {
+                // 获取设备特性详情
+                const details = await getDeviceFeatureDetails(device.ciCode);
+
+                // 添加标签详情
+                if (details.labels && details.labels.length > 0) {
+                  featureDetails.push(`存在标签:`);
+                  details.labels.forEach(label => {
+                    featureDetails.push(`  ${label.key}=${label.value}`);
+                  });
+                }
+
+                // 添加污点详情
+                if (details.taints && details.taints.length > 0) {
+                  featureDetails.push(`存在污点:`);
+                  details.taints.forEach(taint => {
+                    featureDetails.push(`  ${taint.key}=${taint.value}:${taint.effect}`);
+                  });
+                }
+              }
+
+              // 更新提示框内容 - 美化样式
+              let tooltipContent = `
+                <div style="font-weight: 600; font-size: 14px; color: #1677ff; margin-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 6px;">
+                  <span style="margin-right: 5px;">&#x1F4CB;</span>设备特性
+                </div>
+                <div style="color: #666; font-size: 13px;">
+              `;
+
+              // 添加机器用途信息
+              const groupInfo = featureDetails.find(detail => detail.startsWith('机器用途:'));
+              if (groupInfo) {
+                const groupValue = groupInfo.split(':')[1].trim();
+                tooltipContent += `
+                  <div style="margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center;">
+                      <span style="margin-right: 5px; color: #1677ff;">&#x1F4BB;</span>
+                      <span style="font-weight: 500;">机器用途:</span>
+                    </div>
+                    <div>
+                      <span style="background-color: rgba(22, 119, 255, 0.1); padding: 2px 8px; border-radius: 4px; color: #1677ff; display: inline-block; text-align: left;">${groupValue.trim()}</span>
+                    </div>
+                  </div>
+                `;
+              }
+
+              // 添加应用名称信息
+              const appNameInfo = featureDetails.find(detail => detail.startsWith('应用名称:'));
+              if (appNameInfo) {
+                const appNameValue = appNameInfo.split(':')[1].trim();
+                tooltipContent += `
+                  <div style="margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center;">
+                      <span style="margin-right: 5px; color: #722ed1;">&#x1F4F1;</span>
+                      <span style="font-weight: 500;">应用名称:</span>
+                    </div>
+                    <div>
+                      <span style="background-color: rgba(114, 46, 209, 0.1); padding: 2px 8px; border-radius: 4px; color: #722ed1; display: inline-block; text-align: left;">${appNameValue.trim()}</span>
+                    </div>
+                  </div>
+                `;
+              }
+
+              // 添加标签信息
+              const labelIndex = featureDetails.findIndex(detail => detail === '存在标签:');
+              if (labelIndex !== -1) {
+                tooltipContent += `
+                  <div style="margin-bottom: 8px;">
+                    <div style="display: flex; align-items: center;">
+                      <span style="margin-right: 5px; color: #52c41a;">&#x1F3F7;</span>
+                      <span style="font-weight: 500;">标签信息:</span>
+                    </div>
+                  </div>
+                  <div style="margin-bottom: 12px;">
+                `;
+
+                // 收集标签详情
+                let i = labelIndex + 1;
+                while (i < featureDetails.length && featureDetails[i].startsWith('  ')) {
+                  const labelParts = featureDetails[i].trim().split('=');
+                  if (labelParts.length === 2) {
+                    tooltipContent += `
+                      <div style="margin-bottom: 8px;">
+                        <div style="color: #666; font-weight: 500;">${labelParts[0]}:</div>
+                        <div>
+                          <span style="background-color: rgba(82, 196, 26, 0.1); padding: 2px 8px; border-radius: 4px; color: #52c41a; display: inline-block; text-align: left;">${labelParts[1].trim()}</span>
+                        </div>
+                      </div>
+                    `;
+                  }
+                  i++;
+                }
+
+                tooltipContent += `</div>`;
+              }
+
+              // 添加污点信息
+              const taintIndex = featureDetails.findIndex(detail => detail === '存在污点:');
+              if (taintIndex !== -1) {
+                tooltipContent += `
+                  <div style="margin-bottom: 8px;">
+                    <div style="display: flex; align-items: center;">
+                      <span style="margin-right: 5px; color: #f5222d;">&#x26A0;</span>
+                      <span style="font-weight: 500;">污点信息:</span>
+                    </div>
+                  </div>
+                  <div style="margin-bottom: 12px;">
+                `;
+
+                // 收集污点详情
+                let i = taintIndex + 1;
+                while (i < featureDetails.length && featureDetails[i].startsWith('  ')) {
+                  const taintInfo = featureDetails[i].trim();
+                  const taintParts = taintInfo.split('=');
+                  if (taintParts.length === 2) {
+                    const keyPart = taintParts[0];
+                    const valueParts = taintParts[1].split(':');
+                    if (valueParts.length === 2) {
+                      const valuePart = valueParts[0];
+                      const effectPart = valueParts[1];
+
+                      // 根据 effect 类型选择颜色
+                      let effectColor = '#f5222d'; // 默认红色
+                      if (effectPart === 'PreferNoSchedule') {
+                        effectColor = '#faad14'; // 黄色
+                      } else if (effectPart === 'NoExecute') {
+                        effectColor = '#f5222d'; // 红色
+                      }
+
+                      tooltipContent += `
+                        <div style="margin-bottom: 12px;">
+                          <div style="color: #666; font-weight: 500;">${keyPart}:</div>
+                          <div>
+                            <div>
+                              <span style="background-color: rgba(245, 34, 45, 0.1); padding: 2px 8px; border-radius: 4px; color: #f5222d; display: inline-block; text-align: left;">${valuePart.trim()}</span>
+                            </div>
+                            <div>
+                              <span style="background-color: rgba(0, 0, 0, 0.04); padding: 2px 8px; border-radius: 4px; color: ${effectColor}; font-size: 12px; display: inline-block; text-align: left;">${effectPart.trim()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                    }
+                  }
+                  i++;
+                }
+
+                tooltipContent += `</div>`;
+              }
+
+              tooltipContent += `</div>`;
+              tooltip.innerHTML = tooltipContent;
+              console.log('提示框内容已设置完成');
+            } catch (error) {
+              console.error('获取设备特性详情失败:', error);
+            }
+          } else {
+            console.log('不满足显示条件，跳过提示框显示');
+          }
+        }}
+        onMouseLeave={(e) => {
+          try {
+            // 安全地移除提示框
+            const tooltip = e.currentTarget?.tooltip;
+            if (tooltip && document.body.contains(tooltip)) {
+              document.body.removeChild(tooltip);
+            }
+
+            // 清除引用
+            if (e.currentTarget) {
+              e.currentTarget.tooltip = null;
+            }
+
+            // 安全地移除鼠标移动事件监听器
+            const handleMouseMove = e.currentTarget?.handleMouseMove;
+            if (handleMouseMove) {
+              document.removeEventListener('mousemove', handleMouseMove);
+
+              // 清除引用
+              if (e.currentTarget) {
+                e.currentTarget.handleMouseMove = null;
+              }
+            }
+          } catch (error) {
+            console.error('清除提示框资源失败:', error);
+          }
+        }}
+      >
         <div className="device-info">
           <div className="device-name">
             <DesktopOutlined style={{ color: '#1890ff' }} />
@@ -3004,8 +3293,8 @@ const Dashboard: React.FC = () => {
                 clusterIds: values.clusterIds,
 
                 // 转换时间从天到分钟
-                durationMinutes: (values.durationDays || 1) * 24 * 60,
-                cooldownMinutes: (values.cooldownDays || 1) * 24 * 60,
+                durationMinutes: (values.durationDays || 0) * 24 * 60,
+                cooldownMinutes: (values.cooldownDays || 0) * 24 * 60,
 
                 // CPU相关参数
                 cpuThresholdValue: values.cpuThresholdValue,
@@ -3338,7 +3627,7 @@ const Dashboard: React.FC = () => {
                   rules={[{ required: true, message: '请输入持续时间!' }]}
                   tooltip="策略触发条件需要持续满足的时间"
                 >
-                  <InputNumber min={1} style={{ width: '100%' }} />
+                  <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -3350,7 +3639,7 @@ const Dashboard: React.FC = () => {
                   rules={[{ required: true, message: '请输入冷却时间!' }]}
                   tooltip="策略触发后的冷却周期，期间不会再次触发"
                 >
-                  <InputNumber min={1} style={{ width: '100%' }} />
+                  <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
             </Row>
@@ -3403,8 +3692,8 @@ const Dashboard: React.FC = () => {
                 clusterIds: values.clusterIds,
 
                 // 转换时间从天到分钟
-                durationMinutes: (values.durationDays || 1) * 24 * 60,
-                cooldownMinutes: (values.cooldownDays || 1) * 24 * 60,
+                durationMinutes: (values.durationDays || 0) * 24 * 60,
+                cooldownMinutes: (values.cooldownDays || 0) * 24 * 60,
 
                 // CPU相关参数
                 cpuThresholdValue: values.cpuThresholdValue,
@@ -3748,7 +4037,7 @@ const Dashboard: React.FC = () => {
                   rules={[{ required: true, message: '请输入持续时间!' }]}
                   tooltip="策略触发条件需要持续满足的时间"
                 >
-                  <InputNumber min={1} style={{ width: '100%' }} />
+                  <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -3760,7 +4049,7 @@ const Dashboard: React.FC = () => {
                   rules={[{ required: true, message: '请输入冷却时间!' }]}
                   tooltip="策略触发后的冷却周期，期间不会再次触发"
                 >
-                  <InputNumber min={1} style={{ width: '100%' }} />
+                  <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
             </Row>

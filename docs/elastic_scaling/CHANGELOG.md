@@ -124,10 +124,9 @@
 
 ```
 docs/elastic_scaling/
-├── README.md                                           # 总览文档
-├── CHANGELOG.md                                        # 本更新日志
-├── frontend_test_cases.md                             # 详细测试用例说明
-├── quick_test_guide.md                                # 快速测试指南
+├── README.md                                          # 总览文档
+├── CHANGELOG.md                                       # 本更新日志
+├── test_cases.md                                      # 详细测试用例说明
 ├── run_frontend_tests.sh                              # 自动化测试执行脚本
 ├── validate_test_data.sh                              # 测试数据验证脚本
 ├── create_test_schema.sql                             # 测试数据库表结构

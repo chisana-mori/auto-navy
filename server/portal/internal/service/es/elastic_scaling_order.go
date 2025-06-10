@@ -126,11 +126,17 @@ func (s *ElasticScalingService) CreateOrder(dto OrderDTO) (int64, error) {
 		zap.Int64("orderID", orderID),
 		zap.String("emailContent", emailContent))
 
+	// 获取当天值班人员信息
+	recipients, ccRecipients := s.getOnDutyPersons()
+	s.logger.Info("Retrieved on-duty persons",
+		zap.Strings("recipients", recipients),
+		zap.Strings("ccRecipients", ccRecipients))
+
 	// TODO: 实现邮件发送功能
 	// 这里需要用户自定义实现邮件发送逻辑
 	// 可以集成企业邮件系统、钉钉、企业微信等通知渠道
 	// 示例：
-	// err = s.sendEmail(emailContent, getOnDutyPersons())
+	// err = s.sendEmail(emailContent, recipients, ccRecipients)
 	// if err != nil {
 	//     s.logger.Error("Failed to send notification email", zap.Error(err))
 	// }
@@ -298,7 +304,7 @@ func (s *ElasticScalingService) ListOrders(clusterID int64, strategyID int64, ac
 	var total int64
 
 	// 构建查询，联合查询基础订单表和详情表
-	query := s.db.Table("orders o").
+	query := s.db.Table("ng_orders o").
 		Joins("JOIN ng_elastic_scaling_order_details d ON o.id = d.order_id").
 		Where("o.type = ?", portal.OrderTypeElasticScaling)
 
@@ -1108,4 +1114,45 @@ func (s *ElasticScalingService) calculateProjectedAllocation(snapshot *portal.Re
 	memRate = safePercentage(currentMemRequest, newMemCapacity)
 
 	return cpuRate, memRate
+}
+
+// getOnDutyPersons 获取当天值班人员信息
+func (s *ElasticScalingService) getOnDutyPersons() (recipients []string, ccRecipients []string) {
+	// 获取当天日期
+	today := time.Now().Format("2006-01-02")
+	
+	// 从数据库查询当天值班信息
+	var phoneDuty portal.PhoneDuty
+	err := s.db.Where("duty_date = ?", today).First(&phoneDuty).Error
+	
+	if err != nil {
+		s.logger.Warn("Failed to get on-duty persons for today",
+			zap.String("date", today),
+			zap.Error(err))
+		
+		// 如果无法获取值班人信息，使用默认抄送人作为收件人
+		defaultCC := []string{"default@pingan.com.cn"} // 可配置的默认抄送人
+		return defaultCC, []string{}
+	}
+	
+	// 构建收件人列表（A角和B角上午值班人员）
+	recipients = []string{}
+	if phoneDuty.AUm != "" {
+		recipients = append(recipients, phoneDuty.AUm+"@pingan.com.cn")
+	}
+	if phoneDuty.BUm != "" {
+		recipients = append(recipients, phoneDuty.BUm+"@pingan.com.cn")
+	}
+	
+	// 默认抄送人（可根据需要配置）
+	ccRecipients = []string{"default@pingan.com.cn"}
+	
+	s.logger.Info("Successfully retrieved on-duty persons",
+		zap.String("date", today),
+		zap.String("aUm", phoneDuty.AUm),
+		zap.String("bUm", phoneDuty.BUm),
+		zap.Strings("recipients", recipients),
+		zap.Strings("ccRecipients", ccRecipients))
+	
+	return recipients, ccRecipients
 }

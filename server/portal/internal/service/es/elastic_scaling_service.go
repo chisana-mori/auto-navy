@@ -21,7 +21,7 @@ const (
 	StrategyExecutionResultBreachedPendingDeviceMatch = "breached_pending_device_match" // From previous step
 	StrategyExecutionResultFailureNoSnapshots         = "failure_no_snapshots_for_duration"
 	StrategyExecutionResultFailureThresholdNotMet     = "failure_threshold_not_met"
-	StrategyExecutionResultSkippedCooldown            = "skipped_cooldown"           // 冷却期内跳过评估
+	StrategyExecutionResultSkippedCooldown            = "skipped_cooldown" // 冷却期内跳过评估
 	StrategyExecutionResultFailureInvalidTemplateID   = "failure_invalid_query_template_id"
 	StrategyExecutionResultFailureTemplateNotFound    = "failure_query_template_not_found"
 	StrategyExecutionResultFailureTemplateUnmarshal   = "failure_query_template_unmarshal_error"

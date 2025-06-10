@@ -693,16 +693,53 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
               <Text strong style={{ display: 'block', marginBottom: '4px' }}>值</Text>
               <Select
                 style={{ width: '100%' }}
-                placeholder="输入或选择值"
-                mode={isMultipleValueCondition() ? 'multiple' : undefined}
+                placeholder={
+                  block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn
+                    ? "输入值，支持空格/逗号/分号分隔"
+                    : "输入或选择值"
+                }
+                mode={
+                  block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn
+                    ? "tags"
+                    : "tags"
+                }
                 value={block.value}
-                onChange={(value) => updateFilterBlock(groupId, block.id, { value })}
+                onChange={(value) => {
+                  if (block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn) {
+                    // 多值模式：处理数组并分割文本
+                    if (Array.isArray(value)) {
+                      const processedValues = value.flatMap((v: string) => {
+                        if (typeof v === 'string' && (v.includes(' ') || v.includes(',') || v.includes(';') || v.includes('\n'))) {
+                          return v.split(/[\n,;\s]+/).filter((item: string) => item.trim() !== '');
+                        }
+                        return v;
+                      });
+                      updateFilterBlock(groupId, block.id, { value: processedValues });
+                    } else {
+                      updateFilterBlock(groupId, block.id, { value });
+                    }
+                  } else {
+                    // 单值模式：只取第一个值
+                    const singleValue = Array.isArray(value) ? value[0] : value;
+                    updateFilterBlock(groupId, block.id, { value: singleValue });
+                  }
+                }}
                 loading={loadingValues}
                 showSearch
                 allowClear
-                optionFilterProp="children"
+                tokenSeparators={
+                  block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn
+                    ? ['\n', ',', ';', ' ', '\t']
+                    : []
+                }
+                maxTagCount={
+                  block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn
+                    ? "responsive"
+                    : 1
+                }
+                maxTagTextLength={20}
+                filterOption={false}
                 popupMatchSelectWidth={false}
-                // showArrow 属性已被废弃，现在是默认行为
                 tagRender={props => (
                   <Tag
                     closable
@@ -713,6 +750,16 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                   >
                     {props.label}
                   </Tag>
+                )}
+                dropdownRender={(menu) => (
+                  <div>
+                    {menu}
+                    {(block.conditionType === ConditionType.In || block.conditionType === ConditionType.NotIn) && (
+                      <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0', fontSize: '12px', color: '#666' }}>
+                        💡 支持空格、逗号、分号分隔多个值，按Enter添加标签
+                      </div>
+                    )}
+                  </div>
                 )}
               >
                 {getValueOptions().map((option: FilterOption) => (

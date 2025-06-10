@@ -529,12 +529,12 @@ func (s *ElasticScalingService) validateStrategyDTO(dto *StrategyDTO) error {
 		return errors.New("至少需要关联一个集群")
 	}
 
-	if dto.DurationMinutes <= 0 {
-		return errors.New("持续时间必须大于0")
+	if dto.DurationMinutes < 0 {
+		return errors.New("持续时间不能为负数")
 	}
 
-	if dto.CooldownMinutes <= 0 {
-		return errors.New("冷却时间必须大于0")
+	if dto.CooldownMinutes < 0 {
+		return errors.New("冷却时间不能为负数")
 	}
 
 	return nil
