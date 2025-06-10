@@ -32,8 +32,8 @@ func (ElasticScalingStrategy) TableName() string {
 
 // StrategyClusterAssociation 策略集群关联表
 type StrategyClusterAssociation struct {
-	StrategyID int64 `gorm:"primaryKey;column:strategy_id"` // 策略ID
-	ClusterID  int64 `gorm:"primaryKey;column:cluster_id"`  // 集群ID
+	StrategyID int `gorm:"primaryKey;column:strategy_id"` // 策略ID
+	ClusterID  int `gorm:"primaryKey;column:cluster_id"`  // 集群ID
 }
 
 // TableName 指定表名

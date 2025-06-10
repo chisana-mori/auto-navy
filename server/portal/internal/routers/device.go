@@ -72,7 +72,7 @@ func (h *DeviceHandler) getDevice(c *gin.Context) {
 		return
 	}
 
-	device, err := h.service.GetDevice(c.Request.Context(), id)
+	device, err := h.service.GetDevice(c.Request.Context(), int(id))
 	if err != nil {
 		render.NotFound(c, fmt.Sprintf(MsgFailedToGetDevice, err.Error()))
 		return
@@ -155,7 +155,7 @@ func (h *DeviceHandler) exportDevices(c *gin.Context) {
 func (h *DeviceHandler) updateDeviceGroup(c *gin.Context) {
 	// 解析设备ID
 	idStr := c.Param(ParamID)
-	id, err := strconv.ParseInt(idStr, Base10, BitSize64)
+	id, err := strconv.ParseInt(idStr, Base10, 0)
 	if err != nil {
 		render.BadRequest(c, MsgInvalidDeviceIDFormat)
 		return
@@ -169,7 +169,7 @@ func (h *DeviceHandler) updateDeviceGroup(c *gin.Context) {
 	}
 
 	// 更新设备用途
-	err = h.service.UpdateDeviceGroup(c.Request.Context(), id, &request)
+	err = h.service.UpdateDeviceGroup(c.Request.Context(), int(id), &request)
 	if err != nil {
 		if strings.Contains(err.Error(), fmt.Sprintf(service.ErrDeviceNotFoundMsg, id)) {
 			render.NotFound(c, err.Error())

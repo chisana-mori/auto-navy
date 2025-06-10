@@ -269,7 +269,7 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 
 		// 同时缓存单个设备
 		for _, deviceResp := range responses {
-			s.cache.SetDevice(deviceResp.ID, &deviceResp)
+			s.cache.SetDevice(int(deviceResp.ID), &deviceResp)
 		}
 	}
 
@@ -278,7 +278,7 @@ func (s *DeviceService) ListDevices(ctx context.Context, query *DeviceQuery) (*D
 
 // GetDevice 获取设备详情
 // 使用基础查询，包含与 k8s_node 等表的关联，以获取 AppName 字段
-func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceResponse, error) {
+func (s *DeviceService) GetDevice(ctx context.Context, id int) (*DeviceResponse, error) {
 	// 尝试从缓存获取
 	if s.cache != nil {
 		if cachedDevice, err := s.cache.GetDevice(id); err == nil {
@@ -349,7 +349,7 @@ func (s *DeviceService) GetDevice(ctx context.Context, id int64) (*DeviceRespons
 
 // UpdateDeviceRole 更新设备角色
 
-func (s *DeviceService) UpdateDeviceRole(ctx context.Context, id int64, request *DeviceRoleUpdateRequest) error {
+func (s *DeviceService) UpdateDeviceRole(ctx context.Context, id int, request *DeviceRoleUpdateRequest) error {
 	// 查找设备
 	var device portal.Device
 	result := s.db.WithContext(ctx).Where("id = ?", id).First(&device)
@@ -373,7 +373,7 @@ func (s *DeviceService) UpdateDeviceRole(ctx context.Context, id int64, request 
 }
 
 // UpdateDeviceGroup 更新设备用途
-func (s *DeviceService) UpdateDeviceGroup(ctx context.Context, id int64, request *DeviceGroupUpdateRequest) error {
+func (s *DeviceService) UpdateDeviceGroup(ctx context.Context, id int, request *DeviceGroupUpdateRequest) error {
 	// 查找设备
 	var device portal.Device
 	result := s.db.WithContext(ctx).Where("id = ?", id).First(&device)
@@ -398,7 +398,7 @@ func (s *DeviceService) UpdateDeviceGroup(ctx context.Context, id int64, request
 
 // publishDeviceChangeEvent 是实际的事件发布函数，符合 models.PublishDeviceChangeEventFunc 签名
 // 它将被注册到 models 包中，由 GORM Hooks 调用
-func publishDeviceChangeEvent(deviceID int64) {
+func publishDeviceChangeEvent(deviceID int) {
 	// 注意：这个函数现在是包级别的，不再是 DeviceService 的方法
 	// 因此，它需要一种方式来访问 Redis Handler。
 	// 方案1: 使用全局变量（如果 Redis Handler 是全局单例）
@@ -413,7 +413,7 @@ func publishDeviceChangeEvent(deviceID int64) {
 	}
 
 	// 将 int64 ID 转换为字符串
-	message := strconv.FormatInt(deviceID, 10)
+	message := strconv.Itoa(deviceID)
 
 	// 发布消息到 Redis Pub/Sub
 	err := redisHandler.Pub(redis.DeviceUpdatesChannel, message)

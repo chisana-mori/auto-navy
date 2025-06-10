@@ -20,8 +20,8 @@ const (
 	statusReady   = "Ready"
 	statusOffline = "Offline"
 
-	clusterProdID int64 = 1
-	clusterTestID int64 = 2
+	clusterProdID int = 1
+	clusterTestID int = 2
 
 	labelSourceInternal = 0
 	labelSourceExternal = 1
@@ -388,14 +388,14 @@ func seedK8sResourceSnapshots(db *gorm.DB, clusters []portal.K8sCluster) error {
 				// Generate some varying mock data
 				baseCPU := 1000.0 * (1.0 - float64(d)*0.05) // Decrease slightly each day
 				baseMem := 2000.0 * (1.0 - float64(d)*0.03)
-				baseNodes := 100 - int64(d*2)
-				basePods := 1500 - int64(d*50)
+				baseNodes := 100 - (d * 2)
+				basePods := 1500 - (d * 50)
 
 				// Add some randomness
 				cpuCapacity := baseCPU + rand.Float64()*baseCPU*0.1
 				memCapacity := baseMem + rand.Float64()*baseMem*0.1
-				nodeCount := baseNodes + rand.Int63n(10) - 5
-				podCount := basePods + rand.Int63n(100) - 50
+				nodeCount := baseNodes + int(rand.Int63n(10)) - 5
+				podCount := basePods + int(rand.Int63n(100)) - 50
 
 				// Ensure counts are not negative
 				if nodeCount < 0 {
@@ -528,7 +528,7 @@ func seedLabelFeatures(db *gorm.DB) ([]portal.LabelManagement, error) {
 		"workload-type":                 {"batch", "web", "database"},
 	}
 
-	labelMap := make(map[string]int64)
+	labelMap := make(map[string]int)
 	for _, l := range labels {
 		labelMap[l.Key] = l.ID
 	}
@@ -831,9 +831,9 @@ func seedK8sNodeTaints(db *gorm.DB, nodes []portal.K8sNode, features []portal.Ta
 // updateDeviceRelations updates device 'role' and 'cluster' based on matched k8s_node/k8s_etcd.
 func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K8sETCD, clusters []portal.K8sCluster) error {
 	// Create a map for fast lookup of cluster by ID
-	clusterMap := make(map[int64]portal.K8sCluster)
+	clusterMap := make(map[int]portal.K8sCluster)
 	for _, c := range clusters {
-		clusterMap[int64(c.ID)] = c
+		clusterMap[c.ID] = c
 	}
 
 	// Update based on k8s_node
@@ -848,7 +848,7 @@ func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K
 		updates := map[string]interface{}{
 			"role":       node.Role,
 			"cluster":    cluster.ClusterName,
-			"cluster_id": int(node.K8sClusterID), // Convert int64 to int for Device model
+			"cluster_id": node.K8sClusterID,
 		}
 		// Use case-insensitive matching for ci_code and nodename
 		result := db.Model(&portal.Device{}).Where("LOWER(ci_code) = LOWER(?) AND ci_code != ''", node.NodeName).Updates(updates)
@@ -862,7 +862,7 @@ func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K
 	// Update based on k8s_etcd
 	log.Println("Updating devices based on k8s_etcd matches (if not already updated by node)...")
 	for _, etcd := range etcds {
-		cluster, ok := clusterMap[int64(etcd.ClusterID)] // Convert int to int64 for map lookup
+		cluster, ok := clusterMap[etcd.ClusterID]
 		if !ok {
 			log.Printf("Warning: Cluster ID %d not found for etcd %s", etcd.ClusterID, etcd.Instance)
 			continue
@@ -904,7 +904,7 @@ func updateDeviceRelations(db *gorm.DB, nodes []portal.K8sNode, etcds []portal.K
 
 func seedF5Info(db *gorm.DB, clusters []portal.K8sCluster) error {
 	// Basic F5 mock data, link to existing cluster IDs if possible
-	clusterIDMap := make(map[string]int64)
+	clusterIDMap := make(map[string]int)
 	for _, c := range clusters {
 		clusterIDMap[c.Zone] = c.ID // Example mapping by region
 	}
@@ -1027,7 +1027,7 @@ func seedDeviceApps(db *gorm.DB, devices []portal.Device) error {
 	assignedAppIds := make(map[string]bool)
 
 	// 用于记录设备ID和对应的AppID，以便后续批量更新
-	deviceAppMap := make(map[int64]string)
+	deviceAppMap := make(map[int]string)
 
 	// 为每个设备创建一个或多个应用
 	for _, device := range devices {

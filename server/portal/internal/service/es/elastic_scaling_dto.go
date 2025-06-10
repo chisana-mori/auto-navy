@@ -8,7 +8,7 @@ import (
 
 // StrategyDTO 弹性伸缩策略DTO
 type StrategyDTO struct {
-	ID                     int64    `json:"id,omitempty"`
+	ID                     int    `json:"id,omitempty"`
 	Name                   string   `json:"name"`
 	Description            string   `json:"description"`
 	ThresholdTriggerAction string   `json:"thresholdTriggerAction"` // pool_entry 或 pool_exit
@@ -27,12 +27,12 @@ type StrategyDTO struct {
 	CreatedBy     string    `json:"createdBy"`
 	CreatedAt     time.Time `json:"createdAt,omitempty"`
 	UpdatedAt     time.Time `json:"updatedAt,omitempty"`
-	ClusterIDs    []int64   `json:"clusterIds"` // 关联的集群ID列表
+	ClusterIDs    []int   `json:"clusterIds"` // 关联的集群ID列表
 }
 
 // StrategyListItemDTO 策略列表项
 type StrategyListItemDTO struct {
-	ID                     int64     `json:"id"`
+	ID                     int     `json:"id"`
 	Name                   string    `json:"name"`
 	Description            string    `json:"description"`
 	ThresholdTriggerAction string    `json:"thresholdTriggerAction"`
@@ -61,43 +61,43 @@ type StrategyDetailDTO struct {
 
 // StrategyExecutionHistoryDTO 策略执行历史
 type StrategyExecutionHistoryDTO struct {
-	ID             int64     `json:"id"`
-	ClusterID      int64     `json:"clusterId"`
+	ID             int     `json:"id"`
+	ClusterID      int     `json:"clusterId"`
 	ResourceType   string    `json:"resourceType"`
 	ExecutionTime  time.Time `json:"executionTime"`
 	TriggeredValue string    `json:"triggeredValue"`
 	ThresholdValue string    `json:"thresholdValue"`
 	Result         string    `json:"result"`
-	OrderID        *int64    `json:"orderId"`
+	OrderID        *int    `json:"orderId"`
 	Reason         string    `json:"reason"`
 }
 
 // StrategyExecutionHistoryDetailDTO 策略执行历史详情（包含策略名和集群名）
 type StrategyExecutionHistoryDetailDTO struct {
-	ID             int64     `json:"id"`
-	StrategyID     int64     `json:"strategyId"`
+	ID             int     `json:"id"`
+	StrategyID     int     `json:"strategyId"`
 	StrategyName   string    `json:"strategyName"`
-	ClusterID      int64     `json:"clusterId"`
+	ClusterID      int     `json:"clusterId"`
 	ClusterName    string    `json:"clusterName"`
 	ResourceType   string    `json:"resourceType"`
 	ExecutionTime  time.Time `json:"executionTime"`
 	TriggeredValue string    `json:"triggeredValue"`
 	ThresholdValue string    `json:"thresholdValue"`
 	Result         string    `json:"result"`
-	OrderID        *int64    `json:"orderId"`
+	OrderID        *int    `json:"orderId"`
 	HasOrder       bool      `json:"hasOrder"`
 	Reason         string    `json:"reason"`
 }
 
 // OrderDTO 弹性伸缩订单DTO
 type OrderDTO struct {
-	ID               int64  `json:"id,omitempty"`
+	ID               int  `json:"id,omitempty"`
 	OrderNumber      string `json:"orderNumber"`
 	Name             string `json:"name"`        // 订单名称
 	Description      string `json:"description"` // 订单描述
-	ClusterID        int64  `json:"clusterId"`
+	ClusterID        int  `json:"clusterId"`
 	ClusterName      string `json:"clusterName,omitempty"`
-	StrategyID       *int64 `json:"strategyId"`
+	StrategyID       *int `json:"strategyId"`
 	StrategyName     string `json:"strategyName,omitempty"`
 	ActionType       string `json:"actionType"`       // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
 	ResourcePoolType string `json:"resourcePoolType"` // 资源池类型
@@ -114,7 +114,7 @@ type OrderDTO struct {
 	MaintenanceStartTime   *time.Time             `json:"maintenanceStartTime,omitempty"`
 	MaintenanceEndTime     *time.Time             `json:"maintenanceEndTime,omitempty"`
 	ExternalTicketID       string                 `json:"externalTicketId,omitempty"`
-	Devices                []int64                `json:"devices,omitempty"`   // 设备ID列表
+	Devices                []int                `json:"devices,omitempty"`   // 设备ID列表
 	ExtraInfo              map[string]interface{} `json:"extraInfo,omitempty"` // 额外信息，用于存储维护原因等
 	StrategyTriggeredValue string                 `json:"strategyTriggeredValue,omitempty"`
 	StrategyThresholdValue string                 `json:"strategyThresholdValue,omitempty"`
@@ -122,13 +122,13 @@ type OrderDTO struct {
 
 // OrderListItemDTO 订单列表项
 type OrderListItemDTO struct {
-	ID               int64     `json:"id"`
+	ID               int     `json:"id"`
 	OrderNumber      string    `json:"orderNumber"`
 	Name             string    `json:"name"`        // 订单名称
 	Description      string    `json:"description"` // 订单描述
-	ClusterID        int64     `json:"clusterId"`
+	ClusterID        int     `json:"clusterId"`
 	ClusterName      string    `json:"clusterName"`
-	StrategyID       *int64    `json:"strategyId"`
+	StrategyID       *int    `json:"strategyId"`
 	StrategyName     string    `json:"strategyName"`
 	ActionType       string    `json:"actionType"`
 	ResourcePoolType string    `json:"resourcePoolType"` // 资源池类型
@@ -146,7 +146,7 @@ type OrderDetailDTO struct {
 
 // DeviceDTO 设备DTO
 type DeviceDTO struct {
-	ID           int64   `json:"id"`
+	ID           int   `json:"id"`
 	CICode       string  `json:"ciCode"`
 	IP           string  `json:"ip"`
 	ArchType     string  `json:"archType"`

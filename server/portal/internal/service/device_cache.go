@@ -31,11 +31,11 @@ const (
 
 // CacheStats 缓存统计信息
 type CacheStats struct {
-	Hits      int64 `json:"hits"`      // 缓存命中次数
-	Misses    int64 `json:"misses"`    // 缓存未命中次数
-	Sets      int64 `json:"sets"`      // 缓存设置次数
-	Deletes   int64 `json:"deletes"`   // 缓存删除次数
-	StartTime int64 `json:"startTime"` // 统计开始时间
+	Hits      int `json:"hits"`      // 缓存命中次数
+	Misses    int `json:"misses"`    // 缓存未命中次数
+	Sets      int `json:"sets"`      // 缓存设置次数
+	Deletes   int `json:"deletes"`   // 缓存删除次数
+	StartTime int `json:"startTime"` // 统计开始时间
 }
 
 // DeviceCacheInterface defines the interface for a device cache.
@@ -43,8 +43,8 @@ type DeviceCacheInterface interface {
 	GetDeviceList(queryHash string) (*DeviceListResponse, error)
 	SetDeviceList(queryHash string, response *DeviceListResponse) error
 	InvalidateDeviceLists() error
-	GetDevice(deviceID int64) (*DeviceResponse, error)
-	SetDevice(deviceID int64, device *DeviceResponse) error
+	GetDevice(deviceID int) (*DeviceResponse, error)
+	SetDevice(deviceID int, device *DeviceResponse) error
 	GetDeviceFieldValues(field string) ([]string, error)
 	SetDeviceFieldValues(field string, values []string, isLabelField bool) error
 }
@@ -62,7 +62,7 @@ func NewDeviceCache(handler RedisHandlerInterface, keyBuilder *redis.KeyBuilder)
 		handler:    handler,
 		keyBuilder: keyBuilder,
 		stats: CacheStats{
-			StartTime: time.Now().Unix(),
+			StartTime: int(time.Now().Unix()),
 		},
 	}
 }
@@ -140,7 +140,7 @@ func (c *DeviceCache) GetDeviceList(queryHash string) (*DeviceListResponse, erro
 }
 
 // SetDevice 缓存单个设备
-func (c *DeviceCache) SetDevice(id int64, device *DeviceResponse) error {
+func (c *DeviceCache) SetDevice(id int, device *DeviceResponse) error {
 	key := c.keyBuilder.DeviceKey(id)
 	data, err := json.Marshal(device)
 	if err != nil {
@@ -155,7 +155,7 @@ func (c *DeviceCache) SetDevice(id int64, device *DeviceResponse) error {
 }
 
 // GetDevice 获取缓存的单个设备
-func (c *DeviceCache) GetDevice(id int64) (*DeviceResponse, error) {
+func (c *DeviceCache) GetDevice(id int) (*DeviceResponse, error) {
 	key := c.keyBuilder.DeviceKey(id)
 	data := c.handler.Get(key)
 	if data == "" {
@@ -217,7 +217,7 @@ func (c *DeviceCache) GetDeviceFieldValues(fieldName string) ([]string, error) {
 }
 
 // InvalidateDevice 使单个设备缓存失效
-func (c *DeviceCache) InvalidateDevice(id int64) {
+func (c *DeviceCache) InvalidateDevice(id int) {
 	key := c.keyBuilder.DeviceKey(id)
 	c.handler.Delete(key)
 
@@ -305,7 +305,7 @@ func (c *DeviceCache) GetCacheStats() CacheStats {
 // ResetCacheStats 重置缓存统计信息
 func (c *DeviceCache) ResetCacheStats() {
 	c.stats = CacheStats{
-		StartTime: time.Now().Unix(),
+		StartTime: int(time.Now().Unix()),
 	}
 }
 

@@ -15,15 +15,15 @@ type RichOrder interface {
 // 它使用泛型来处理不同订单类型的创建（C）和返回（T）数据结构。
 type UnifiedOrderService[T RichOrder, C any] interface {
 	CreateOrder(ctx context.Context, createDTO C) (T, error)
-	GetOrder(ctx context.Context, id int64) (T, error)
-	ListOrders(ctx context.Context, query any) ([]T, int64, error)
-	UpdateOrderStatus(ctx context.Context, id int64, status string, executor string, reason string) error
+	GetOrder(ctx context.Context, id int) (T, error)
+	ListOrders(ctx context.Context, query any) ([]T, int, error)
+	UpdateOrderStatus(ctx context.Context, id int, status string, executor string, reason string) error
 
 	// 订单生命周期快捷操作
-	ProcessOrder(ctx context.Context, id int64, executor string) error
-	CompleteOrder(ctx context.Context, id int64, executor string) error
-	FailOrder(ctx context.Context, id int64, executor string, reason string) error
-	CancelOrder(ctx context.Context, id int64, executor string) error
+	ProcessOrder(ctx context.Context, id int, executor string) error
+	CompleteOrder(ctx context.Context, id int, executor string) error
+	FailOrder(ctx context.Context, id int, executor string, reason string) error
+	CancelOrder(ctx context.Context, id int, executor string) error
 }
 
 // serviceRegistry 用于存储不同订单类型对应的服务实例。

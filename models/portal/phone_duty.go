@@ -9,7 +9,7 @@ type PhoneDuty struct {
 	ACn      string `gorm:"column:a_cn"`       // A班下午
 	BUm      string `gorm:"column:b_um"`       // B班上午
 	BCn      string `gorm:"column:b_cn"`       // B班下午
-	OmegaId  int64  `gorm:"column:omega_id"`   // Omega ID
+	OmegaId  int  `gorm:"column:omega_id"`   // Omega ID
 	CUm      string `gorm:"column:c_um"`       // C班上午
 	CCn      string `gorm:"column:c_cn"`       // C班下午
 }

@@ -21,7 +21,7 @@ func (l LabelManagement) TableName() string {
 
 type LabelValue struct {
 	BaseModel
-	LabelID int64  `gorm:"column:label_id"`
+	LabelID int  `gorm:"column:label_id"`
 	Value   string `gorm:"column:value"`
 }
 

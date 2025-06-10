@@ -56,7 +56,7 @@ func (h *F5InfoHandler) getF5Info(c *gin.Context) {
 		return
 	}
 
-	f5Info, err := h.service.GetF5Info(c.Request.Context(), id)
+	f5Info, err := h.service.GetF5Info(c.Request.Context(), int(id))
 	if err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, "f5", id) {
 			render.NotFound(c, err.Error())
@@ -124,7 +124,7 @@ func (h *F5InfoHandler) updateF5Info(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateF5Info(c.Request.Context(), id, &dto); err != nil {
+	if err := h.service.UpdateF5Info(c.Request.Context(), int(id), &dto); err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, "f5", id) {
 			render.NotFound(c, err.Error())
 		} else {
@@ -156,7 +156,7 @@ func (h *F5InfoHandler) deleteF5Info(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteF5Info(c.Request.Context(), id); err != nil {
+	if err := h.service.DeleteF5Info(c.Request.Context(), int(id)); err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrRecordNotFoundMsg, "f5", id) {
 			render.NotFound(c, err.Error())
 		} else {

@@ -5,7 +5,7 @@ import (
 	"fmt" // 添加 fmt 包导入
 	"log"
 	"navy-ng/models/portal" // 添加 portal 包导入
-	"navy-ng/pkg/redis" // Import redis package
+	"navy-ng/pkg/redis"     // Import redis package
 	"strconv"
 	"strings" // 添加 strings 包导入
 	"time"
@@ -119,7 +119,7 @@ func startDeviceUpdateSubscriber(deviceService *DeviceService, deviceCache *Devi
 
 		// 解析消息（设备 ID）
 		deviceIDStr := msg.Payload
-		deviceID, err := strconv.ParseInt(deviceIDStr, 10, 64)
+		deviceID, err := strconv.ParseInt(deviceIDStr, 10, 0)
 		if err != nil {
 			log.Printf("Error parsing device ID from message '%s': %v\n", deviceIDStr, err)
 			continue // 继续处理下一条消息
@@ -127,7 +127,7 @@ func startDeviceUpdateSubscriber(deviceService *DeviceService, deviceCache *Devi
 
 		// 使用后台上下文调用 GetDevice
 		ctx := context.Background()
-		latestDeviceData, err := deviceService.GetDevice(ctx, deviceID)
+		latestDeviceData, err := deviceService.GetDevice(ctx, int(deviceID))
 
 		if err != nil {
 			// 检查是否是 "not found" 错误 (表示设备被删除)
@@ -135,17 +135,17 @@ func startDeviceUpdateSubscriber(deviceService *DeviceService, deviceCache *Devi
 			if strings.Contains(err.Error(), fmt.Sprintf(ErrDeviceNotFoundMsg, deviceID)) {
 				log.Printf("Device ID %d not found in DB (likely deleted), invalidating cache entry.\n", deviceID)
 				// 失效（删除）单个设备缓存
-				deviceCache.InvalidateDevice(deviceID)
+				deviceCache.InvalidateDevice(int(deviceID))
 			} else {
 				// 其他错误，记录日志
 				log.Printf("Error fetching device ID %d from DB: %v\n", deviceID, err)
 				// 即使获取失败，也尝试失效缓存，以防数据不一致
-				deviceCache.InvalidateDevice(deviceID)
+				deviceCache.InvalidateDevice(int(deviceID))
 			}
 		} else {
 			// 获取成功，更新缓存
 			log.Printf("Updating cache for device ID: %d\n", deviceID)
-			deviceCache.SetDevice(deviceID, latestDeviceData)
+			deviceCache.SetDevice(int(deviceID), latestDeviceData)
 		}
 
 		// 无论更新还是删除，都失效列表缓存（简单策略）

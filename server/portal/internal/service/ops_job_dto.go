@@ -22,7 +22,7 @@ type OpsJobCreateDTO struct {
 
 // OpsJobResponse defines the response structure for a single OpsJob.
 type OpsJobResponse struct {
-	ID          int64  `json:"id" example:"1" swagger:"description=ID"`
+	ID          int  `json:"id" example:"1" swagger:"description=ID"`
 	Name        string `json:"name" example:"deploy-app" swagger:"description=任务名称"`
 	Description string `json:"description" example:"部署应用到生产环境" swagger:"description=任务描述"`
 	Status      string `json:"status" example:"running" swagger:"description=任务状态"`
@@ -44,7 +44,7 @@ type OpsJobListResponse struct {
 
 // OpsJobStatusUpdate defines the structure for WebSocket status updates.
 type OpsJobStatusUpdate struct {
-	ID       int64  `json:"id"`
+	ID       int  `json:"id"`
 	Status   string `json:"status"`
 	Progress int    `json:"progress"`
 	Message  string `json:"message"`
@@ -53,7 +53,7 @@ type OpsJobStatusUpdate struct {
 
 // Internal model for data transformation
 type internalOpsJob struct {
-	ID          int64
+	ID          int
 	Name        string
 	Description string
 	Status      string

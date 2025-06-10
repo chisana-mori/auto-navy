@@ -63,7 +63,7 @@ func (s *ElasticScalingService) EvaluateStrategies() error {
 		// 为每个策略单独评估，记录错误但继续处理其他策略
 		if err := s.evaluateStrategy(&strategy); err != nil {
 			s.logger.Error("Error evaluating strategy",
-				zap.Int64("strategyID", strategy.ID),
+				zap.Int("strategyID", strategy.ID),
 				zap.String("strategyName", strategy.Name),
 				zap.Error(err))
 		}
@@ -74,7 +74,7 @@ func (s *ElasticScalingService) EvaluateStrategies() error {
 // evaluateStrategy 评估单个策略的完整流程。
 // 它负责锁、数据获取和触发评估。冷却期检查已移至资源池级别。
 func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScalingStrategy) error {
-	s.logger.Info("Starting single strategy evaluation", zap.Int64("strategyID", strategy.ID), zap.String("strategyName", strategy.Name))
+	s.logger.Info("Starting single strategy evaluation", zap.Int("strategyID", strategy.ID), zap.String("strategyName", strategy.Name))
 
 	// 1. 尝试获取分布式锁
 	lockKey := fmt.Sprintf(lockKeyFormat, strategy.ID)
@@ -84,7 +84,7 @@ func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScaling
 		return fmt.Errorf(errFailedToCheckLock, strategy.ID, err)
 	}
 	if !locked {
-		s.logger.Info(logLockNotAcquired, zap.Int64(zapKeyStrategyID, strategy.ID))
+		s.logger.Info(logLockNotAcquired, zap.Int(zapKeyStrategyID, strategy.ID))
 		return nil
 	}
 	defer s.redisHandler.Delete(lockKey)
@@ -95,7 +95,7 @@ func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScaling
 		return fmt.Errorf(errFailedToGetAssociations, strategy.ID, err)
 	}
 	if len(associations) == 0 {
-		s.logger.Warn(logNoAssociatedClusters, zap.Int64(zapKeyStrategyID, strategy.ID))
+		s.logger.Warn(logNoAssociatedClusters, zap.Int(zapKeyStrategyID, strategy.ID))
 		return nil
 	}
 
@@ -108,13 +108,13 @@ func (s *ElasticScalingService) evaluateStrategy(strategy *portal.ElasticScaling
 }
 
 // evaluateAssociation 评估策略与单个集群的关联。
-func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScalingStrategy, clusterID int64) {
+func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScalingStrategy, clusterID int) {
 	resourceTypes := parseResourceTypes(strategy.ResourceTypes)
 
 	for _, resourceType := range resourceTypes {
 		s.logger.Info("Evaluating for resource type",
-			zap.Int64("strategyID", strategy.ID),
-			zap.Int64("clusterID", clusterID),
+			zap.Int("strategyID", strategy.ID),
+			zap.Int("clusterID", clusterID),
 			zap.String("resourceType", resourceType))
 
 		// 检查该集群+资源池是否在冷却期内
@@ -122,8 +122,8 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 		if err != nil {
 			s.logger.Error("Failed to check cooldown for cluster resource pool",
 				zap.Error(err),
-				zap.Int64("strategyID", strategy.ID),
-				zap.Int64("clusterID", clusterID),
+				zap.Int("strategyID", strategy.ID),
+				zap.Int("clusterID", clusterID),
 				zap.String("resourceType", resourceType))
 			continue
 		}
@@ -137,8 +137,8 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 
 			reason := fmt.Sprintf("集群 %s（%s类型）处于冷却期内，跳过本次评估", clusterName, resourceType)
 			s.logger.Info(reason,
-				zap.Int64("strategyID", strategy.ID),
-				zap.Int64("clusterID", clusterID),
+				zap.Int("strategyID", strategy.ID),
+				zap.Int("clusterID", clusterID),
 				zap.String("resourceType", resourceType))
 
 			// 记录冷却期执行历史
@@ -152,7 +152,7 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 		daysToCheck := requiredDays + 3 // 多查询几天以确保有足够的历史数据进行判断
 		snapshots, err := s.getOrderedDailySnapshots(clusterID, resourceType, daysToCheck)
 		if err != nil {
-			s.logger.Error("Failed to get daily snapshots", zap.Error(err), zap.Int64("clusterID", clusterID))
+			s.logger.Error("Failed to get daily snapshots", zap.Error(err), zap.Int("clusterID", clusterID))
 			continue
 		}
 
@@ -165,7 +165,7 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 			}
 
 			logMsg := fmt.Sprintf("集群 %s（%s类型）在过去 %d 天内未找到资源快照数据", clusterName, resourceType, daysToCheck)
-			s.logger.Info(logMsg, zap.Int64("strategyID", strategy.ID))
+			s.logger.Info(logMsg, zap.Int("strategyID", strategy.ID))
 			currentTime := portal.NavyTime(time.Now())
 			s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultFailureNoSnapshots, nil, logMsg, "", "", &currentTime)
 			continue
@@ -178,8 +178,8 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 		currentTime := portal.NavyTime(time.Now())
 		if breached {
 			s.logger.Info("Threshold consistently breached for strategy",
-				zap.Int64("strategyID", strategy.ID),
-				zap.Int64("clusterID", clusterID),
+				zap.Int("strategyID", strategy.ID),
+				zap.Int("clusterID", clusterID),
 				zap.Int("consecutiveDays", consecutiveDays),
 				zap.Int("requiredDays", requiredDays))
 
@@ -187,19 +187,19 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 			cpuDelta, memDelta := s.calculateResourceDelta(snapshots[len(snapshots)-1], strategy)
 
 			s.logger.Info("Calculated resource delta",
-				zap.Int64("strategyID", strategy.ID),
-				zap.Int64("clusterID", clusterID),
+				zap.Int("strategyID", strategy.ID),
+				zap.Int("clusterID", clusterID),
 				zap.Float64("cpuDelta", cpuDelta),
 				zap.Float64("memDelta", memDelta))
 
 			// 触发设备匹配和订单创建
 			if err := s.matchDevicesForStrategyFunc(strategy, clusterID, resourceType, triggeredValue, thresholdValue, cpuDelta, memDelta, &snapshots[len(snapshots)-1]); err != nil {
-				s.logger.Error("Error during device matching for strategy", zap.Error(err), zap.Int64("strategyID", strategy.ID))
+				s.logger.Error("Error during device matching for strategy", zap.Error(err), zap.Int("strategyID", strategy.ID))
 			}
 		} else {
 			s.logger.Info("Threshold not consistently breached for strategy",
-				zap.Int64("strategyID", strategy.ID),
-				zap.Int64("clusterID", clusterID),
+				zap.Int("strategyID", strategy.ID),
+				zap.Int("clusterID", clusterID),
 				zap.Int("consecutiveDays", consecutiveDays),
 				zap.Int("requiredDays", requiredDays))
 
@@ -220,7 +220,7 @@ func (s *ElasticScalingService) evaluateAssociation(strategy *portal.ElasticScal
 // isClusterResourcePoolInCooldown 检查指定集群+资源池是否在冷却期内
 // 冷却期基于订单：如果该集群+资源池生成了非取消状态的订单，
 // 则该资源池在冷却期内不会重复生成订单
-func (s *ElasticScalingService) isClusterResourcePoolInCooldown(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType string) (bool, error) {
+func (s *ElasticScalingService) isClusterResourcePoolInCooldown(strategy *portal.ElasticScalingStrategy, clusterID int, resourceType string) (bool, error) {
 	if strategy.CooldownMinutes <= 0 {
 		return false, nil
 	}
@@ -270,7 +270,7 @@ func (s *ElasticScalingService) isClusterResourcePoolInCooldown(strategy *portal
 }
 
 // getStrategyClusterAssociations 获取策略关联的集群。
-func (s *ElasticScalingService) getStrategyClusterAssociations(strategyID int64) ([]portal.StrategyClusterAssociation, error) {
+func (s *ElasticScalingService) getStrategyClusterAssociations(strategyID int) ([]portal.StrategyClusterAssociation, error) {
 	var associations []portal.StrategyClusterAssociation
 	if err := s.db.Where("strategy_id = ?", strategyID).Find(&associations).Error; err != nil {
 		return nil, err
@@ -279,7 +279,7 @@ func (s *ElasticScalingService) getStrategyClusterAssociations(strategyID int64)
 }
 
 // getOrderedDailySnapshots 获取并处理每日资源快照。
-func (s *ElasticScalingService) getOrderedDailySnapshots(clusterID int64, resourceType string, days int) ([]portal.ResourceSnapshot, error) {
+func (s *ElasticScalingService) getOrderedDailySnapshots(clusterID int, resourceType string, days int) ([]portal.ResourceSnapshot, error) {
 	endDate := now.EndOfDay()
 	startDate := endDate.AddDate(0, 0, -days+1) // 包含今天在内的过去N天
 
@@ -538,11 +538,11 @@ func (s *ElasticScalingService) buildTriggeredValueString(cpuValue, memValue flo
 
 // recordStrategyExecution 记录策略执行历史。
 func (s *ElasticScalingService) recordStrategyExecution(
-	strategyID int64,
-	clusterID int64,
+	strategyID int,
+	clusterID int,
 	resourceType string,
 	result string,
-	orderID *int64,
+	orderID *int,
 	reason string,
 	triggeredValue string,
 	thresholdValue string,
@@ -566,7 +566,7 @@ func (s *ElasticScalingService) recordStrategyExecution(
 	}
 
 	if err := s.db.Create(&history).Error; err != nil {
-		s.logger.Error("Failed to create strategy execution history entry in DB", zap.Error(err), zap.Int64("strategyID", strategyID))
+		s.logger.Error("Failed to create strategy execution history entry in DB", zap.Error(err), zap.Int("strategyID", strategyID))
 		return err
 	}
 	return nil

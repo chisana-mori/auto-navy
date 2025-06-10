@@ -2,7 +2,6 @@ package es
 
 import (
 	"net/http"
-	"strconv"
 
 	"navy-ng/pkg/middleware/render"
 	"navy-ng/pkg/redis"
@@ -14,6 +13,17 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+// OrderIDRequest 定义了从 URI 绑定订单 ID 参数的结构体
+type OrderIDRequest struct {
+	ID int `uri:"id" binding:"required"`
+}
+
+// DeviceIDRequest 定义了从 URI 绑定设备 ID 参数的结构体
+type DeviceIDRequest struct {
+	OrderID  int `uri:"id" binding:"required"`
+	DeviceID int `uri:"device_id" binding:"required"`
+}
 
 // Constants moved to constants.go
 
@@ -51,8 +61,8 @@ func (h *ElasticScalingOrderHandler) RegisterRoutes(router *gin.RouterGroup) {
 type ElasticScalingOrderQuery struct {
 	Page       int    `form:"page"`
 	PageSize   int    `form:"pageSize"`
-	ClusterID  int64  `form:"clusterId"`
-	StrategyID int64  `form:"strategyId"`
+	ClusterID  int    `form:"clusterId"`
+	StrategyID int    `form:"strategyId"`
 	ActionType string `form:"actionType"`
 	Status     string `form:"status"`
 	Name       string `form:"name"`
@@ -102,7 +112,7 @@ func (h *ElasticScalingOrderHandler) ListOrders(c *gin.Context) {
 // @Tags 弹性伸缩订单
 // @Accept json
 // @Produce json
-// @Param order body service.OrderDTO true "订单数据"
+// @Param order body es.OrderDTO true "订单数据"
 // @Success 200 {object} render.Response
 // @Failure 400 {object} render.ErrorResponse
 // @Failure 500 {object} render.ErrorResponse
@@ -133,8 +143,12 @@ func (h *ElasticScalingOrderHandler) CreateOrder(c *gin.Context) {
 // @Failure 500 {object} render.ErrorResponse
 // @Router /fe-v1/elastic-scaling/orders/{id} [get]
 func (h *ElasticScalingOrderHandler) GetOrder(c *gin.Context) {
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	order, err := h.service.GetOrder(id)
+	var req OrderIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		render.BadRequest(c, "无效的订单ID")
+		return
+	}
+	order, err := h.service.GetOrder(req.ID)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
@@ -155,7 +169,11 @@ func (h *ElasticScalingOrderHandler) GetOrder(c *gin.Context) {
 // @Failure 500 {object} render.ErrorResponse
 // @Router /fe-v1/elastic-scaling/orders/{id}/status [put]
 func (h *ElasticScalingOrderHandler) UpdateOrderStatus(c *gin.Context) {
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var req OrderIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		render.BadRequest(c, "无效的订单ID")
+		return
+	}
 	var reqBody struct {
 		Status string `json:"status" binding:"required"`
 		Reason string `json:"reason"`
@@ -165,7 +183,7 @@ func (h *ElasticScalingOrderHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 	executor := "admin"
-	err := h.service.UpdateOrderStatus(id, reqBody.Status, executor, reqBody.Reason)
+	err := h.service.UpdateOrderStatus(req.ID, reqBody.Status, executor, reqBody.Reason)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
@@ -185,8 +203,12 @@ func (h *ElasticScalingOrderHandler) UpdateOrderStatus(c *gin.Context) {
 // @Failure 500 {object} render.ErrorResponse
 // @Router /fe-v1/elastic-scaling/orders/{id}/devices [get]
 func (h *ElasticScalingOrderHandler) GetOrderDevices(c *gin.Context) {
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	devices, err := h.service.GetOrderDevices(id)
+	var req OrderIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		render.BadRequest(c, "无效的订单ID")
+		return
+	}
+	devices, err := h.service.GetOrderDevices(req.ID)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
@@ -208,8 +230,11 @@ func (h *ElasticScalingOrderHandler) GetOrderDevices(c *gin.Context) {
 // @Failure 500 {object} render.ErrorResponse
 // @Router /fe-v1/elastic-scaling/orders/{id}/devices/{device_id}/status [put]
 func (h *ElasticScalingOrderHandler) UpdateOrderDeviceStatus(c *gin.Context) {
-	orderID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	deviceID, _ := strconv.ParseInt(c.Param("device_id"), 10, 64)
+	var req DeviceIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		render.BadRequest(c, "无效的订单ID或设备ID")
+		return
+	}
 	var reqBody struct {
 		Status string `json:"status" binding:"required"`
 	}
@@ -217,7 +242,7 @@ func (h *ElasticScalingOrderHandler) UpdateOrderDeviceStatus(c *gin.Context) {
 		render.BadRequest(c, err.Error())
 		return
 	}
-	err := h.service.UpdateOrderDeviceStatus(orderID, deviceID, reqBody.Status)
+	err := h.service.UpdateOrderDeviceStatus(req.OrderID, req.DeviceID, reqBody.Status)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return

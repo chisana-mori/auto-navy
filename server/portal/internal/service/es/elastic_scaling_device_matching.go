@@ -18,7 +18,7 @@ import (
 // matchDevicesForStrategy 根据策略匹配设备并生成订单
 func (s *ElasticScalingService) matchDevicesForStrategy(
 	strategy *portal.ElasticScalingStrategy,
-	clusterID int64,
+	clusterID int,
 	resourceType string,
 	triggeredValueStr string,
 	thresholdValueStr string,
@@ -27,8 +27,8 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 	latestSnapshot *portal.ResourceSnapshot,
 ) error {
 	s.logger.Info("Starting device matching for strategy",
-		zap.Int64("strategyID", strategy.ID),
-		zap.Int64("clusterID", clusterID),
+		zap.Int("strategyID", int(strategy.ID)),
+		zap.Int("clusterID", clusterID),
 		zap.String("resourceType", resourceType),
 		zap.String("action", strategy.ThresholdTriggerAction))
 
@@ -38,24 +38,24 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 	policies, err := s.getDeviceMatchingPolicies(resourceType, strategy.ThresholdTriggerAction)
 	if err != nil {
 		reason := fmt.Sprintf("获取设备匹配策略失败: %s", err.Error())
-		s.logger.Error(reason, zap.Int64("strategyID", strategy.ID))
-		s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultFailureInvalidTemplateID, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		s.logger.Error(reason, zap.Int("strategyID", int(strategy.ID)))
+		s.recordStrategyExecution(int(strategy.ID), clusterID, resourceType, StrategyExecutionResultFailureInvalidTemplateID, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
 		return err
 	}
 
-	var allSelectedDeviceIDs []int64
+	var allSelectedDeviceIDs []int
 	var totalCandidateCount int
 
 	// 步骤2: 遍历所有匹配策略，执行设备查询和选择
 	for _, policy := range policies {
 		// 组装查询参数
-		filterGroups, err := s.assembleQueryParameters(policy, strategy.ID, clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
+		filterGroups, err := s.assembleQueryParameters(policy, int(strategy.ID), clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
 		if err != nil {
 			continue // 继续尝试下一个策略
 		}
 
 		// 查询候选设备
-		candidateDevices, err := s.findCandidateDevices(policy.QueryTemplateID, filterGroups, strategy.ID, clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
+		candidateDevices, err := s.findCandidateDevices(policy.QueryTemplateID, filterGroups, int(strategy.ID), clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
 		if err != nil {
 			continue // 继续尝试下一个策略
 		}
@@ -67,7 +67,7 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 		allSelectedDeviceIDs = append(allSelectedDeviceIDs, selectedDeviceIDs...)
 
 		s.logger.Info("Processed device matching policy",
-			zap.Int64("policyID", policy.ID),
+			zap.Int("policyID", policy.ID),
 			zap.String("policyName", policy.Name),
 			zap.Int("candidateCount", len(candidateDevices)),
 			zap.Int("selectedCount", len(selectedDeviceIDs)))
@@ -83,9 +83,9 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 		}
 
 		reason := fmt.Sprintf("集群 %s（%s类型）未找到候选设备", clusterName, resourceType)
-		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
+		s.logger.Info(reason, zap.Int("strategyID", int(strategy.ID)))
 		// 无设备时仍然生成订单，作为提醒，不记录为失败
-		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
+		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 	}
 
 	if len(allSelectedDeviceIDs) == 0 {
@@ -99,17 +99,17 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 		actionName := s.getActionName(strategy.ThresholdTriggerAction)
 		reason := fmt.Sprintf("集群 %s 执行%s操作时，经过筛选后无合适设备，查询到候选设备 %d 台",
 			clusterName, actionName, totalCandidateCount)
-		s.logger.Info(reason, zap.Int64("strategyID", strategy.ID))
+		s.logger.Info(reason, zap.Int("strategyID", int(strategy.ID)))
 		// 无合适设备时仍然生成订单，作为提醒，不记录为失败
-		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int64{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
+		return s.generateElasticScalingOrder(strategy, clusterID, resourceType, []int{}, triggeredValueStr, thresholdValueStr, cpuDelta, memDelta, latestSnapshot)
 	}
 
 	// 去重选中的设备ID
 	uniqueDeviceIDs := s.deduplicateDeviceIDs(allSelectedDeviceIDs)
 
 	s.logger.Info("Selected devices for strategy action",
-		zap.Int64("strategyID", strategy.ID),
-		zap.Int64s("selectedDeviceIDs", uniqueDeviceIDs),
+		zap.Int("strategyID", int(strategy.ID)),
+		zap.Ints("selectedDeviceIDs", uniqueDeviceIDs),
 		zap.Int("totalCandidateCount", totalCandidateCount),
 		zap.Int("finalSelectedCount", len(uniqueDeviceIDs)))
 
@@ -153,20 +153,20 @@ func (s *ElasticScalingService) getDeviceMatchingPolicies(resourceType, actionTy
 // assembleQueryParameters 组装查询参数，包含查询模板和额外动态条件
 func (s *ElasticScalingService) assembleQueryParameters(
 	policy ResourcePoolDeviceMatchingPolicy,
-	strategyID, clusterID int64,
+	strategyID, clusterID int,
 	resourceType, triggeredValueStr, thresholdValueStr string,
 	currentTime *portal.NavyTime,
 ) ([]FilterGroup, error) {
 	s.logger.Info("Assembling query parameters",
-		zap.Int64("policyID", policy.ID),
-		zap.Int64("templateID", policy.QueryTemplateID),
+		zap.Int("policyID", policy.ID),
+		zap.Int("templateID", policy.QueryTemplateID),
 		zap.Strings("additionConds", policy.AdditionConds))
 
 	// 获取基础查询模板
 	var queryTemplateModel portal.QueryTemplate
 	if err := s.db.First(&queryTemplateModel, policy.QueryTemplateID).Error; err != nil {
 		reason := fmt.Sprintf("查询模板 ID %d 查找失败：%v", policy.QueryTemplateID, err)
-		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
+		s.logger.Error(reason, zap.Int("strategyID", strategyID), zap.Error(err))
 		result := StrategyExecutionResultFailureDBError
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			result = StrategyExecutionResultFailureTemplateNotFound
@@ -179,7 +179,7 @@ func (s *ElasticScalingService) assembleQueryParameters(
 	var filterGroups []FilterGroup
 	if err := json.Unmarshal([]byte(queryTemplateModel.Groups), &filterGroups); err != nil {
 		reason := fmt.Sprintf("查询模板 ID %d 的过滤组解析失败：%v", policy.QueryTemplateID, err)
-		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
+		s.logger.Error(reason, zap.Int("strategyID", strategyID), zap.Error(err))
 		s.recordStrategyExecution(strategyID, clusterID, resourceType, StrategyExecutionResultFailureTemplateUnmarshal, nil, reason, triggeredValueStr, thresholdValueStr, currentTime)
 		return nil, err
 	}
@@ -196,17 +196,17 @@ func (s *ElasticScalingService) assembleQueryParameters(
 }
 
 // FetchAndUnmarshalQueryTemplatePublic is a public wrapper for testing.
-func (s *ElasticScalingService) FetchAndUnmarshalQueryTemplatePublic(queryTemplateID, strategyID int64, triggeredValueStr, thresholdValueStr string, currentTime *portal.NavyTime) ([]FilterGroup, error) {
+func (s *ElasticScalingService) FetchAndUnmarshalQueryTemplatePublic(queryTemplateID, strategyID int, triggeredValueStr, thresholdValueStr string, currentTime *portal.NavyTime) ([]FilterGroup, error) {
 	return s.fetchAndUnmarshalQueryTemplate(queryTemplateID, strategyID, 0, "", triggeredValueStr, thresholdValueStr, currentTime)
 }
 
-func (s *ElasticScalingService) fetchAndUnmarshalQueryTemplate(queryTemplateID, strategyID, clusterID int64, resourceType, triggeredValueStr, thresholdValueStr string, currentTime *portal.NavyTime) ([]FilterGroup, error) {
-	s.logger.Info("Using query template for device matching", zap.Int64("templateID", queryTemplateID), zap.Int64("strategyID", strategyID))
+func (s *ElasticScalingService) fetchAndUnmarshalQueryTemplate(queryTemplateID, strategyID, clusterID int, resourceType, triggeredValueStr, thresholdValueStr string, currentTime *portal.NavyTime) ([]FilterGroup, error) {
+	s.logger.Info("Using query template for device matching", zap.Int("templateID", queryTemplateID), zap.Int("strategyID", strategyID))
 
 	var queryTemplateModel portal.QueryTemplate
 	if err := s.db.First(&queryTemplateModel, queryTemplateID).Error; err != nil {
 		reason := fmt.Sprintf("查询模板 ID %d 查找失败：%v", queryTemplateID, err)
-		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
+		s.logger.Error(reason, zap.Int("strategyID", strategyID), zap.Error(err))
 		result := StrategyExecutionResultFailureDBError
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			result = StrategyExecutionResultFailureTemplateNotFound
@@ -218,14 +218,14 @@ func (s *ElasticScalingService) fetchAndUnmarshalQueryTemplate(queryTemplateID, 
 	var filterGroups []FilterGroup
 	if err := json.Unmarshal([]byte(queryTemplateModel.Groups), &filterGroups); err != nil {
 		reason := fmt.Sprintf("查询模板 ID %d 的过滤组解析失败：%v", queryTemplateID, err)
-		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
+		s.logger.Error(reason, zap.Int("strategyID", strategyID), zap.Error(err))
 		s.recordStrategyExecution(strategyID, clusterID, resourceType, StrategyExecutionResultFailureTemplateUnmarshal, nil, reason, triggeredValueStr, thresholdValueStr, currentTime)
 		return nil, err
 	}
 	return filterGroups, nil
 }
 
-func (s *ElasticScalingService) findCandidateDevices(queryTemplateID int64, filterGroups []FilterGroup, strategyID, clusterID int64, resourceType, triggeredValueStr, thresholdValueStr string, currentTime *portal.NavyTime) ([]DeviceResponse, error) {
+func (s *ElasticScalingService) findCandidateDevices(queryTemplateID int, filterGroups []FilterGroup, strategyID, clusterID int, resourceType, triggeredValueStr, thresholdValueStr string, currentTime *portal.NavyTime) ([]DeviceResponse, error) {
 	// 创建设备查询服务
 	var deviceCache DeviceCacheInterface
 	if s.cache != nil {
@@ -239,14 +239,14 @@ func (s *ElasticScalingService) findCandidateDevices(queryTemplateID int64, filt
 	}
 
 	s.logger.Info("Querying candidate devices using template",
-		zap.Int64("strategyID", strategyID),
-		zap.Int64("templateID", queryTemplateID),
+		zap.Int("strategyID", strategyID),
+		zap.Int("templateID", queryTemplateID),
 		zap.Any("requestGroups", deviceRequest.Groups))
 
 	candidateDevicesResponse, err := deviceQuerySvc.QueryDevices(context.Background(), deviceRequest)
 	if err != nil {
 		reason := fmt.Sprintf("使用模板 ID %d 查询设备失败：%v", queryTemplateID, err)
-		s.logger.Error(reason, zap.Int64("strategyID", strategyID), zap.Error(err))
+		s.logger.Error(reason, zap.Int("strategyID", strategyID), zap.Error(err))
 		s.recordStrategyExecution(strategyID, clusterID, resourceType, StrategyExecutionResultFailureDeviceQuery, nil, reason, triggeredValueStr, thresholdValueStr, currentTime)
 		return nil, err
 	}
@@ -256,19 +256,19 @@ func (s *ElasticScalingService) findCandidateDevices(queryTemplateID int64, filt
 	}
 
 	s.logger.Info("Successfully queried candidate devices",
-		zap.Int64("strategyID", strategyID),
-		zap.Int64("templateID", queryTemplateID),
+		zap.Int("strategyID", strategyID),
+		zap.Int("templateID", queryTemplateID),
 		zap.Int("candidateCount", len(candidateDevicesResponse.List)))
 
 	return candidateDevicesResponse.List, nil
 }
 
 // FilterAndSelectDevicesPublic is a public wrapper for testing.
-func (s *ElasticScalingService) FilterAndSelectDevicesPublic(candidates []DeviceResponse, strategy *portal.ElasticScalingStrategy, clusterID int64, cpuDelta, memDelta float64) []int64 {
+func (s *ElasticScalingService) FilterAndSelectDevicesPublic(candidates []DeviceResponse, strategy *portal.ElasticScalingStrategy, clusterID int, cpuDelta, memDelta float64) []int {
 	return s.filterAndSelectDevices(candidates, strategy, clusterID, cpuDelta, memDelta)
 }
 
-func (s *ElasticScalingService) filterAndSelectDevices(candidates []DeviceResponse, strategy *portal.ElasticScalingStrategy, clusterID int64, cpuDelta, memDelta float64) []int64 {
+func (s *ElasticScalingService) filterAndSelectDevices(candidates []DeviceResponse, strategy *portal.ElasticScalingStrategy, clusterID int, cpuDelta, memDelta float64) []int {
 	var suitableCandidates []DeviceResponse
 	if strategy.ThresholdTriggerAction == TriggerActionPoolEntry {
 		var unassignedDevices, assignedDevices []DeviceResponse
@@ -282,7 +282,7 @@ func (s *ElasticScalingService) filterAndSelectDevices(candidates []DeviceRespon
 		suitableCandidates = append(unassignedDevices, assignedDevices...)
 	} else { // TriggerActionPoolExit
 		for _, device := range candidates {
-			if int64(device.ClusterID) == clusterID {
+			if int(device.ClusterID) == clusterID {
 				suitableCandidates = append(suitableCandidates, device)
 			}
 		}
@@ -298,13 +298,13 @@ func (s *ElasticScalingService) filterAndSelectDevices(candidates []DeviceRespon
 	if numDevicesToChange <= 0 {
 		numDevicesToChange = 1
 		s.logger.Warn("Calculated device count is not positive, defaulting to 1",
-			zap.Int64("strategyID", strategy.ID),
+			zap.Int("strategyID", int(strategy.ID)),
 			zap.Int("calculatedDeviceCount", numDevicesToChange))
 	}
 
-	var selectedDeviceIDs []int64
+	var selectedDeviceIDs []int
 	for i := 0; i < len(suitableCandidates) && len(selectedDeviceIDs) < numDevicesToChange; i++ {
-		selectedDeviceIDs = append(selectedDeviceIDs, suitableCandidates[i].ID)
+		selectedDeviceIDs = append(selectedDeviceIDs, int(suitableCandidates[i].ID))
 	}
 
 	return selectedDeviceIDs
@@ -357,9 +357,9 @@ func (s *ElasticScalingService) calculateRequiredDeviceCount(cpuDelta, memDelta 
 }
 
 // deduplicateDeviceIDs 去重设备ID列表
-func (s *ElasticScalingService) deduplicateDeviceIDs(deviceIDs []int64) []int64 {
-	seen := make(map[int64]bool)
-	var unique []int64
+func (s *ElasticScalingService) deduplicateDeviceIDs(deviceIDs []int) []int {
+	seen := make(map[int]bool)
+	var unique []int
 
 	for _, id := range deviceIDs {
 		if !seen[id] {
@@ -372,8 +372,8 @@ func (s *ElasticScalingService) deduplicateDeviceIDs(deviceIDs []int64) []int64 
 }
 
 // greedySelectDevices 贪婪算法选择设备
-func (s *ElasticScalingService) greedySelectDevices(devices []DeviceResponse, cpuDemand, memDemand float64, action string) []int64 {
-	var selectedDeviceIDs []int64
+func (s *ElasticScalingService) greedySelectDevices(devices []DeviceResponse, cpuDemand, memDemand float64, action string) []int {
+	var selectedDeviceIDs []int
 	var cpuFulfilled, memFulfilled float64
 
 	// 对于入池，我们希望用最少的设备满足最大的需求，所以按CPU或内存（取决于哪个需求更大）降序排序
@@ -391,7 +391,7 @@ func (s *ElasticScalingService) greedySelectDevices(devices []DeviceResponse, cp
 			if cpuFulfilled >= cpuDemand && memFulfilled >= memDemand {
 				break // 需求已满足
 			}
-			selectedDeviceIDs = append(selectedDeviceIDs, device.ID)
+			selectedDeviceIDs = append(selectedDeviceIDs, int(device.ID))
 			cpuFulfilled += device.CPU
 			memFulfilled += device.Memory
 		} else { // TriggerActionPoolExit
@@ -399,7 +399,7 @@ func (s *ElasticScalingService) greedySelectDevices(devices []DeviceResponse, cp
 			if cpuFulfilled <= cpuDemand && memFulfilled <= memDemand {
 				break // 需求已满足
 			}
-			selectedDeviceIDs = append(selectedDeviceIDs, device.ID)
+			selectedDeviceIDs = append(selectedDeviceIDs, int(device.ID))
 			cpuFulfilled -= device.CPU
 			memFulfilled -= device.Memory
 		}
@@ -411,13 +411,13 @@ func (s *ElasticScalingService) greedySelectDevices(devices []DeviceResponse, cp
 		zap.Float64("memDemand", memDemand),
 		zap.Float64("cpuFulfilled", cpuFulfilled),
 		zap.Float64("memFulfilled", memFulfilled),
-		zap.Int64s("selectedDeviceIDs", selectedDeviceIDs))
+		zap.Ints("selectedDeviceIDs", selectedDeviceIDs))
 
 	return selectedDeviceIDs
 }
 
 // GreedySelectDevicesPublic is a public wrapper for testing.
-func (s *ElasticScalingService) GreedySelectDevicesPublic(devices []DeviceResponse, cpuDemand, memDemand float64, action string) []int64 {
+func (s *ElasticScalingService) GreedySelectDevicesPublic(devices []DeviceResponse, cpuDemand, memDemand float64, action string) []int {
 	return s.greedySelectDevices(devices, cpuDemand, memDemand, action)
 }
 
@@ -425,9 +425,9 @@ func (s *ElasticScalingService) GreedySelectDevicesPublic(devices []DeviceRespon
 // 在更新后的设计中，此函数在连续多天阈值被突破后被调用，而不是在分钟级别的阈值突破后。
 func (s *ElasticScalingService) generateElasticScalingOrder(
 	strategy *portal.ElasticScalingStrategy,
-	clusterID int64,
+	clusterID int,
 	resourceType string, // Keep for logging/reason context
-	selectedDeviceIDs []int64,
+	selectedDeviceIDs []int,
 	triggeredValueStr string,
 	thresholdValueStr string,
 	cpuDelta float64,
@@ -435,8 +435,8 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 	latestSnapshot *portal.ResourceSnapshot,
 ) error {
 	s.logger.Info("Generating elastic scaling order",
-		zap.Int64("strategyID", strategy.ID),
-		zap.Int64("clusterID", clusterID),
+		zap.Int("strategyID", int(strategy.ID)),
+		zap.Int("clusterID", clusterID),
 		zap.String("actionType", strategy.ThresholdTriggerAction),
 		zap.Int("deviceCount", len(selectedDeviceIDs)))
 
@@ -450,7 +450,7 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 		Name:                   orderName,
 		Description:            orderDescription,
 		ClusterID:              clusterID,
-		StrategyID:             &strategy.ID,
+		StrategyID:             func(i int) *int { v := int(i); return &v }(strategy.ID),
 		ActionType:             strategy.ThresholdTriggerAction,
 		DeviceCount:            len(selectedDeviceIDs),
 		Devices:                selectedDeviceIDs,
@@ -465,8 +465,8 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 
 	if err != nil {
 		s.logger.Error("Failed to create elastic scaling order",
-			zap.Int64("strategyID", strategy.ID),
-			zap.Int64("clusterID", clusterID),
+			zap.Int("strategyID", int(strategy.ID)),
+			zap.Int("clusterID", clusterID),
 			zap.Error(err))
 
 		// 获取集群名称用于中文描述
@@ -477,14 +477,14 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 		}
 
 		reason := fmt.Sprintf("为集群 %s（%s类型）创建订单失败：%v", clusterName, resourceType, err)
-		s.recordStrategyExecution(strategy.ID, clusterID, resourceType, StrategyExecutionResultOrderFailed, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+		s.recordStrategyExecution(int(strategy.ID), clusterID, resourceType, StrategyExecutionResultOrderFailed, nil, reason, triggeredValueStr, thresholdValueStr, &currentTime)
 		return err
 	}
 
 	s.logger.Info("Successfully created elastic scaling order",
-		zap.Int64("orderID", orderID),
-		zap.Int64("strategyID", strategy.ID),
-		zap.Int64("clusterID", clusterID),
+		zap.Int("orderID", orderID),
+		zap.Int("strategyID", int(strategy.ID)),
+		zap.Int("clusterID", clusterID),
 		zap.Int("deviceCount", len(selectedDeviceIDs)))
 
 	// 根据设备数量记录不同的执行结果
@@ -509,10 +509,10 @@ func (s *ElasticScalingService) generateElasticScalingOrder(
 		reason = fmt.Sprintf("已为集群 %s（%s类型）成功创建%s订单 %d，涉及设备 %d 台", clusterName, resourceType, actionName, orderID, len(selectedDeviceIDs))
 	}
 
-	s.recordStrategyExecution(strategy.ID, clusterID, resourceType, executionResult, &orderID, reason, triggeredValueStr, thresholdValueStr, &currentTime)
+	s.recordStrategyExecution(int(strategy.ID), clusterID, resourceType, executionResult, &orderID, reason, triggeredValueStr, thresholdValueStr, &currentTime)
 
 	// TODO: 根据设计文档，需要查询当周值班人员并向其发送运维通知
-	s.logger.Info("Placeholder: Trigger notification to duty roster about the new order.", zap.Int64("orderID", orderID))
+	s.logger.Info("Placeholder: Trigger notification to duty roster about the new order.", zap.Int("orderID", orderID))
 
 	return nil
 }

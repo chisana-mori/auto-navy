@@ -3,8 +3,8 @@ package portal
 // MaintenanceOrderDetail 设备维护订单详情模型
 type MaintenanceOrderDetail struct {
 	BaseModel
-	OrderID              int64     `gorm:"column:order_id;type:bigint;unique"`          // 关联订单ID（外键）
-	ClusterID            int64     `gorm:"column:cluster_id;type:bigint"`               // 关联集群ID
+	OrderID              int     `gorm:"column:order_id;type:bigint;unique"`          // 关联订单ID（外键）
+	ClusterID            int     `gorm:"column:cluster_id;type:bigint"`               // 关联集群ID
 	MaintenanceStartTime *NavyTime `gorm:"column:maintenance_start_time;type:datetime"` // 维护开始时间
 	MaintenanceEndTime   *NavyTime `gorm:"column:maintenance_end_time;type:datetime"`   // 维护结束时间
 	ExternalTicketID     string    `gorm:"column:external_ticket_id;type:varchar(100)"` // 外部工单号

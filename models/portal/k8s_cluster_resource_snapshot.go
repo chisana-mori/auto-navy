@@ -40,9 +40,9 @@ type ResourceSnapshot struct {
 	MemoryCapacity      float64 `gorm:"column:mem_capacity"`
 	CpuRequest          float64 `gorm:"column:cpu_request"`
 	MemRequest          float64 `gorm:"column:mem_request"`
-	NodeCount           int64   `gorm:"column:node_count"`
-	BMCount             int64   `gorm:"column:bm_count"`
-	VMCount             int64   `gorm:"column:vm_count"`
+	NodeCount           int   `gorm:"column:node_count"`
+	BMCount             int   `gorm:"column:bm_count"`
+	VMCount             int   `gorm:"column:vm_count"`
 	MaxCpuUsageRatio    float64 `gorm:"column:max_cpu"`
 	MaxMemoryUsageRatio float64 `gorm:"column:max_memory"`
 	ClusterID           uint    `gorm:"column:cluster_id"`
@@ -50,7 +50,7 @@ type ResourceSnapshot struct {
 	PerNodeMemRequest   float64 `gorm:"column:per_node_mem_req"`
 	ResourceType        string  `gorm:"column:resource_type"`
 	ResourcePool        string  `gorm:"column:resource_pool"`
-	PodCount            int64   `gorm:"column:pod_count"`
+	PodCount            int   `gorm:"column:pod_count"`
 }
 
 func (ResourceSnapshot) TableName() string {

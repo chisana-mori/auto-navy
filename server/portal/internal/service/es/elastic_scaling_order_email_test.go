@@ -26,7 +26,7 @@ func TestGenerateOrderNotificationEmail(t *testing.T) {
 			DeviceCount:      3,
 			CreatedBy:        "admin",
 			ResourcePoolType: "compute",
-			Devices:          []int64{1, 2},
+			Devices:          []int{1, 2},
 		}
 
 		emailContent := service.generateOrderNotificationEmailForTest(123, dto, "test-cluster")
@@ -53,7 +53,7 @@ func TestGenerateOrderNotificationEmail(t *testing.T) {
 			DeviceCount:      2,
 			CreatedBy:        "operator",
 			ResourcePoolType: "memory",
-			Devices:          []int64{1, 2},
+			Devices:          []int{1, 2},
 		}
 
 		emailContent := service.generateOrderNotificationEmailForTest(456, dto, "production-cluster")
@@ -78,7 +78,7 @@ func TestGenerateOrderNotificationEmail(t *testing.T) {
 			DeviceCount:      1,
 			CreatedBy:        "maintainer",
 			ResourcePoolType: "compute",
-			Devices:          []int64{1, 2},
+			Devices:          []int{1, 2},
 		}
 
 		emailContent := service.generateOrderNotificationEmailForTest(789, dto, "staging-cluster")

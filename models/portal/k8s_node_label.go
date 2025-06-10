@@ -6,7 +6,7 @@ type K8sNodeLabel struct {
 	Key    string   `gorm:"column:key;type:varchar(191)"`        // 标签key
 	Value  string   `gorm:"column:value;type:varchar(191)"`      // 标签value
 	Status string   `gorm:"column:status;type:varchar(191)"`     // 状态
-	NodeID int64    `gorm:"column:node_id;type:bigint unsigned"` // 所属节点ID
+	NodeID int    `gorm:"column:node_id;type:bigint unsigned"` // 所属节点ID
 	Node   *K8sNode `gorm:"foreignKey:NodeID"`                   // 关联的节点信息
 }
 

@@ -32,7 +32,7 @@ type DeviceQueryTaintValuesResponse struct {
 // DeviceQueryResponseDTO 设备查询响应
 // swagger:model
 type DeviceQueryResponseDTO struct {
-	ID           int64  `json:"id" example:"1" swagger:"description=设备ID"`
+	ID           int  `json:"id" example:"1" swagger:"description=设备ID"`
 	DeviceID     string `json:"deviceId" example:"SYSOPS00409045" swagger:"description=设备ID"`
 	IP           string `json:"ip" example:"29.19.50.124" swagger:"description=IP地址"`
 	MachineType  string `json:"machineType" example:"qf-core601-flannel-2" swagger:"description=机器类型"`
@@ -89,7 +89,7 @@ type DeviceQueryRequestDTO struct {
 // QueryTemplate 查询模板
 // swagger:model
 type QueryTemplateRequest struct {
-	ID          int64                `json:"id,omitempty" example:"1" swagger:"description=模板ID,新增时不需要传"`
+	ID          int                `json:"id,omitempty" example:"1" swagger:"description=模板ID,新增时不需要传"`
 	Name        string               `json:"name" example:"生产环境设备" swagger:"description=模板名称"`
 	Description string               `json:"description" example:"查询所有生产环境的设备" swagger:"description=模板描述"`
 	Groups      []FilterGroupRequest `json:"groups" swagger:"description=筛选组列表"`
@@ -98,7 +98,7 @@ type QueryTemplateRequest struct {
 // QueryTemplate 查询模板响应
 // swagger:model
 type QueryTemplateResponse struct {
-	ID          int64                `json:"id" example:"1" swagger:"description=模板ID"`
+	ID          int                `json:"id" example:"1" swagger:"description=模板ID"`
 	Name        string               `json:"name" example:"生产环境设备" swagger:"description=模板名称"`
 	Description string               `json:"description" example:"查询所有生产环境的设备" swagger:"description=模板描述"`
 	Groups      []FilterGroupRequest `json:"groups" swagger:"description=筛选组列表"`

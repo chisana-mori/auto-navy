@@ -184,7 +184,7 @@ func (s *ElasticScalingService) GetResourcePoolTypes() ([]string, error) {
 }
 
 // GetResourceAllocationTrend 获取资源分配趋势
-func (s *ElasticScalingService) GetResourceAllocationTrend(clusterID int64, timeRange string, resourceTypes string) (*ResourceAllocationTrendDTO, error) {
+func (s *ElasticScalingService) GetResourceAllocationTrend(clusterID int, timeRange string, resourceTypes string) (*ResourceAllocationTrendDTO, error) {
 	if clusterID <= 0 {
 		return nil, errors.New("无效的集群ID")
 	}

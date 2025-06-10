@@ -65,7 +65,7 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 	Describe("filterAndSelectDevices", func() {
 		var (
 			strategy  *portal.ElasticScalingStrategy
-			clusterID int64 = 1
+			clusterID int = 1
 		)
 
 		Context("for pool entry (scale-out)", func() {

@@ -61,9 +61,9 @@ const (
 )
 
 // CreateOrder 创建弹性伸缩订单
-func (s *ElasticScalingService) CreateOrder(dto OrderDTO) (int64, error) {
+func (s *ElasticScalingService) CreateOrder(dto OrderDTO) (int, error) {
 	// 使用事务确保数据一致性
-	var orderID int64
+	var orderID int
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// 创建基础订单
 		order := &portal.Order{
@@ -123,7 +123,7 @@ func (s *ElasticScalingService) CreateOrder(dto OrderDTO) (int64, error) {
 	// 生成邮件正文通知值班人员
 	emailContent := s.generateOrderNotificationEmail(orderID, dto)
 	s.logger.Info("Generated order notification email",
-		zap.Int64("orderID", orderID),
+		zap.Int("orderID", orderID),
 		zap.String("emailContent", emailContent))
 
 	// 获取当天值班人员信息
@@ -145,7 +145,7 @@ func (s *ElasticScalingService) CreateOrder(dto OrderDTO) (int64, error) {
 }
 
 // GetOrder 获取订单详情
-func (s *ElasticScalingService) GetOrder(id int64) (*OrderDetailDTO, error) {
+func (s *ElasticScalingService) GetOrder(id int) (*OrderDetailDTO, error) {
 	// 获取基础订单信息
 	var order portal.Order
 	if err := s.db.Preload(preloadElasticScalingDetail).First(&order, id).Error; err != nil {
@@ -185,7 +185,7 @@ func (s *ElasticScalingService) GetOrder(id int64) (*OrderDetailDTO, error) {
 	}
 
 	// 准备设备ID列表
-	deviceIDs := make([]int64, len(orderDevices))
+	deviceIDs := make([]int, len(orderDevices))
 	for i, od := range orderDevices {
 		deviceIDs[i] = od.DeviceID
 	}
@@ -267,7 +267,7 @@ func (s *ElasticScalingService) GetOrder(id int64) (*OrderDetailDTO, error) {
 	}
 
 	// 转换设备列表
-	deviceStatusMap := make(map[int64]string)
+	deviceStatusMap := make(map[int]string)
 	for _, od := range orderDevices {
 		deviceStatusMap[od.DeviceID] = od.Status
 	}
@@ -300,7 +300,7 @@ func (s *ElasticScalingService) GetOrder(id int64) (*OrderDetailDTO, error) {
 }
 
 // ListOrders 获取订单列表
-func (s *ElasticScalingService) ListOrders(clusterID int64, strategyID int64, actionType string, status string, name string, page, pageSize int) ([]OrderListItemDTO, int64, error) {
+func (s *ElasticScalingService) ListOrders(clusterID int, strategyID int, actionType string, status string, name string, page, pageSize int) ([]OrderListItemDTO, int, error) {
 	var total int64
 
 	// 构建查询，联合查询基础订单表和详情表
@@ -408,11 +408,11 @@ func (s *ElasticScalingService) ListOrders(clusterID int64, strategyID int64, ac
 		})
 	}
 
-	return result, int64(len(result)), nil
+	return result, int(len(result)), nil
 }
 
 // UpdateOrderStatus 更新订单状态
-func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, executor string, reason string) error {
+func (s *ElasticScalingService) UpdateOrderStatus(id int, status string, executor string, reason string) error {
 	// 使用通用订单服务更新状态
 	ctx := context.Background()
 	orderStatus := portal.OrderStatus(status)
@@ -458,9 +458,9 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 	detail := order.ElasticScalingDetail
 	if (status == string(portal.OrderStatusProcessing) || status == string(portal.OrderStatusCompleted)) && detail.StrategyID != nil {
 		s.logger.Info(logOrderStatusUpdated,
-			zap.Int64(zapKeyOrderID, order.ID),
+			zap.Int(zapKeyOrderID, order.ID),
 			zap.String(zapKeyNewStatus, status),
-			zap.Int64p(zapKeyStrategyID, detail.StrategyID))
+			zap.Intp(zapKeyStrategyID, detail.StrategyID))
 
 		var historyResult string
 		var executionTimeForHistory portal.NavyTime
@@ -474,7 +474,7 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 		} else {
 			// 如果时间戳缺失，则使用当前时间，但这不理想
 			s.logger.Warn(logTimeIsNil,
-				zap.Int64(zapKeyOrderID, order.ID),
+				zap.Int(zapKeyOrderID, order.ID),
 				zap.String(zapKeyStatus, status))
 			executionTimeForHistory = portal.NavyTime(time.Now())
 			if status == string(portal.OrderStatusProcessing) {
@@ -506,7 +506,7 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 		)
 		if errRecord != nil {
 			s.logger.Error(logFailedToRecordHistory,
-				zap.Int64(zapKeyOrderID, order.ID),
+				zap.Int(zapKeyOrderID, order.ID),
 				zap.Error(errRecord))
 		}
 	}
@@ -515,7 +515,7 @@ func (s *ElasticScalingService) UpdateOrderStatus(id int64, status string, execu
 }
 
 // UpdateOrderDeviceStatus 更新订单中单个设备的状态
-func (s *ElasticScalingService) UpdateOrderDeviceStatus(orderID int64, deviceID int64, status string) error {
+func (s *ElasticScalingService) UpdateOrderDeviceStatus(orderID int, deviceID int, status string) error {
 	// 验证状态
 	validStatuses := map[string]bool{
 		StatusPending:   true,
@@ -543,7 +543,7 @@ func (s *ElasticScalingService) UpdateOrderDeviceStatus(orderID int64, deviceID 
 }
 
 // GetOrderDevices 获取订单中的所有设备
-func (s *ElasticScalingService) GetOrderDevices(orderID int64) ([]DeviceDTO, error) {
+func (s *ElasticScalingService) GetOrderDevices(orderID int) ([]DeviceDTO, error) {
 	var orderDevices []portal.OrderDevice
 	if err := s.db.Where("order_id = ?", orderID).Find(&orderDevices).Error; err != nil {
 		return nil, err
@@ -553,7 +553,7 @@ func (s *ElasticScalingService) GetOrderDevices(orderID int64) ([]DeviceDTO, err
 		return []DeviceDTO{}, nil
 	}
 
-	deviceIDs := make([]int64, len(orderDevices))
+	deviceIDs := make([]int, len(orderDevices))
 	for i, od := range orderDevices {
 		deviceIDs[i] = od.DeviceID
 	}
@@ -564,7 +564,7 @@ func (s *ElasticScalingService) GetOrderDevices(orderID int64) ([]DeviceDTO, err
 	}
 
 	// 转换设备列表
-	deviceStatusMap := make(map[int64]string)
+	deviceStatusMap := make(map[int]string)
 	for _, od := range orderDevices {
 		deviceStatusMap[od.DeviceID] = od.Status
 	}
@@ -601,7 +601,7 @@ func (s *ElasticScalingService) generateOrderNumber() string {
 }
 
 // generateOrderNotificationEmail 生成订单创建的邮件通知内容
-func (s *ElasticScalingService) generateOrderNotificationEmail(orderID int64, dto OrderDTO) string {
+func (s *ElasticScalingService) generateOrderNotificationEmail(orderID int, dto OrderDTO) string {
 	// 获取集群名称
 	var cluster portal.K8sCluster
 	clusterName := "未知集群"
@@ -642,7 +642,7 @@ func (s *ElasticScalingService) getActionName(actionType string) string {
 }
 
 // getDeviceInfoForEmail 获取用于邮件通知的设备信息
-func (s *ElasticScalingService) getDeviceInfoForEmail(deviceIDs []int64) []DeviceDTO {
+func (s *ElasticScalingService) getDeviceInfoForEmail(deviceIDs []int) []DeviceDTO {
 	if len(deviceIDs) == 0 {
 		return nil
 	}
@@ -1032,9 +1032,9 @@ func (s *ElasticScalingService) generateOrderName(strategy *portal.ElasticScalin
 // generateOrderDescription generates a detailed description for the order.
 func (s *ElasticScalingService) generateOrderDescription(
 	strategy *portal.ElasticScalingStrategy,
-	clusterID int64,
+	clusterID int,
 	resourceType string,
-	selectedDeviceIDs []int64,
+	selectedDeviceIDs []int,
 	latestSnapshot *portal.ResourceSnapshot,
 ) string {
 	// 获取集群名称
@@ -1120,21 +1120,21 @@ func (s *ElasticScalingService) calculateProjectedAllocation(snapshot *portal.Re
 func (s *ElasticScalingService) getOnDutyPersons() (recipients []string, ccRecipients []string) {
 	// 获取当天日期
 	today := time.Now().Format("2006-01-02")
-	
+
 	// 从数据库查询当天值班信息
 	var phoneDuty portal.PhoneDuty
 	err := s.db.Where("duty_date = ?", today).First(&phoneDuty).Error
-	
+
 	if err != nil {
 		s.logger.Warn("Failed to get on-duty persons for today",
 			zap.String("date", today),
 			zap.Error(err))
-		
+
 		// 如果无法获取值班人信息，使用默认抄送人作为收件人
 		defaultCC := []string{"default@pingan.com.cn"} // 可配置的默认抄送人
 		return defaultCC, []string{}
 	}
-	
+
 	// 构建收件人列表（A角和B角上午值班人员）
 	recipients = []string{}
 	if phoneDuty.AUm != "" {
@@ -1143,16 +1143,16 @@ func (s *ElasticScalingService) getOnDutyPersons() (recipients []string, ccRecip
 	if phoneDuty.BUm != "" {
 		recipients = append(recipients, phoneDuty.BUm+"@pingan.com.cn")
 	}
-	
+
 	// 默认抄送人（可根据需要配置）
 	ccRecipients = []string{"default@pingan.com.cn"}
-	
+
 	s.logger.Info("Successfully retrieved on-duty persons",
 		zap.String("date", today),
 		zap.String("aUm", phoneDuty.AUm),
 		zap.String("bUm", phoneDuty.BUm),
 		zap.Strings("recipients", recipients),
 		zap.Strings("ccRecipients", ccRecipients))
-	
+
 	return recipients, ccRecipients
 }

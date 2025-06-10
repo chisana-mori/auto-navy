@@ -55,9 +55,9 @@ func (Order) TableName() string {
 // ElasticScalingOrderDetail 弹性伸缩订单详情模型
 type ElasticScalingOrderDetail struct {
 	BaseModel
-	OrderID                int64  `gorm:"column:order_id;type:bigint;unique"`                // 关联订单ID（外键）
-	ClusterID              int64  `gorm:"column:cluster_id;type:bigint"`                     // 关联集群ID
-	StrategyID             *int64 `gorm:"column:strategy_id;type:bigint"`                    // 关联策略ID（可为NULL）
+	OrderID                int  `gorm:"column:order_id;type:bigint;unique"`                // 关联订单ID（外键）
+	ClusterID              int  `gorm:"column:cluster_id;type:bigint"`                     // 关联集群ID
+	StrategyID             *int `gorm:"column:strategy_id;type:bigint"`                    // 关联策略ID（可为NULL）
 	ActionType             string `gorm:"column:action_type;type:varchar(50)"`               // 订单操作类型（入池/退池）
 	ResourcePoolType       string `gorm:"column:resource_pool_type;type:varchar(50)"`        // 资源池类型
 	DeviceCount            int    `gorm:"column:device_count;type:int"`                      // 请求的设备数量

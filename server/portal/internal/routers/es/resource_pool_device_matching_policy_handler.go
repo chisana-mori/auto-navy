@@ -17,6 +17,11 @@ import (
 	"navy-ng/server/portal/internal/service/es"
 )
 
+// PolicyIDRequest 定义了从 URI 绑定策略 ID 参数的结构体
+type PolicyIDRequest struct {
+	ID int `uri:"id" binding:"required"`
+}
+
 // ResourcePoolDeviceMatchingPolicyHandler 资源池设备匹配策略处理器
 type ResourcePoolDeviceMatchingPolicyHandler struct {
 	policyService *es.ResourcePoolDeviceMatchingPolicyService
@@ -118,14 +123,14 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingP
 // @Router /resource-pool/matching-policies/{id} [get]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) GetResourcePoolDeviceMatchingPolicy(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
-	if err != nil {
+	var req PolicyIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
 
 	// 调用服务获取策略详情
-	policy, err := h.policyService.GetResourcePoolDeviceMatchingPolicy(c.Request.Context(), id)
+	policy, err := h.policyService.GetResourcePoolDeviceMatchingPolicy(c.Request.Context(), int64(req.ID))
 	if err != nil {
 		render.NotFound(c, err.Error())
 		return
@@ -183,8 +188,8 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) CreateResourcePoolDeviceMatchi
 // @Router /resource-pool/matching-policies/{id} [put]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchingPolicy(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
-	if err != nil {
+	var uriReq PolicyIDRequest
+	if err := c.ShouldBindUri(&uriReq); err != nil {
 		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
@@ -200,7 +205,7 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchi
 	username := GetCurrentUsername(c)
 
 	// 转换为服务层模型
-	policy := req.ToServiceModel(id, username)
+	policy := req.ToServiceModel(uriReq.ID, username)
 
 	// 调用服务更新策略
 	if err := h.policyService.UpdateResourcePoolDeviceMatchingPolicy(c.Request.Context(), policy); err != nil {
@@ -225,14 +230,14 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchi
 // @Router /resource-pool/matching-policies/{id} [delete]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) DeleteResourcePoolDeviceMatchingPolicy(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
-	if err != nil {
+	var req PolicyIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
 
 	// 调用服务删除策略
-	if err := h.policyService.DeleteResourcePoolDeviceMatchingPolicy(c.Request.Context(), id); err != nil {
+	if err := h.policyService.DeleteResourcePoolDeviceMatchingPolicy(c.Request.Context(), int64(req.ID)); err != nil {
 		render.InternalServerError(c, err.Error())
 		return
 	}
@@ -255,8 +260,8 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) DeleteResourcePoolDeviceMatchi
 // @Router /resource-pool/matching-policies/{id}/status [put]
 func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchingPolicyStatus(c *gin.Context) {
 	// 获取策略ID
-	id, err := strconv.ParseInt(c.Param(ParamID), Base10, BitSize64)
-	if err != nil {
+	var uriReq PolicyIDRequest
+	if err := c.ShouldBindUri(&uriReq); err != nil {
 		render.BadRequest(c, MsgInvalidPolicyID)
 		return
 	}
@@ -269,7 +274,7 @@ func (h *ResourcePoolDeviceMatchingPolicyHandler) UpdateResourcePoolDeviceMatchi
 	}
 
 	// 调用服务更新策略状态
-	if err := h.policyService.UpdateResourcePoolDeviceMatchingPolicyStatus(c.Request.Context(), id, req.Status); err != nil {
+	if err := h.policyService.UpdateResourcePoolDeviceMatchingPolicyStatus(c.Request.Context(), int64(uriReq.ID), req.Status); err != nil {
 		render.InternalServerError(c, err.Error())
 		return
 	}

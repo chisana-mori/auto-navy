@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	
 	"gorm.io/gorm"
 
 	"navy-ng/models/portal"
@@ -114,7 +113,7 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 				Description:      dbPolicy.Description,
 				ResourcePoolType: dbPolicy.ResourcePoolType,
 				ActionType:       dbPolicy.ActionType,
-				QueryTemplateID:  int64(dbPolicy.QueryTemplateID),
+				QueryTemplateID:  int(dbPolicy.QueryTemplateID),
 				Status:           dbPolicy.Status,
 				AdditionConds:    additionConds,
 				CreatedBy:        dbPolicy.CreatedBy,
@@ -209,7 +208,7 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 		Description:      dbPolicy.Description,
 		ResourcePoolType: dbPolicy.ResourcePoolType,
 		ActionType:       dbPolicy.ActionType,
-		QueryTemplateID:  int64(dbPolicy.QueryTemplateID),
+		QueryTemplateID:  int(dbPolicy.QueryTemplateID),
 		QueryGroups:      queryGroups,
 		Status:           dbPolicy.Status,
 		AdditionConds:    additionConds,
@@ -523,7 +522,7 @@ func (s *ResourcePoolDeviceMatchingPolicyService) GetResourcePoolDeviceMatchingP
 			Description:      dbPolicy.Description,
 			ResourcePoolType: dbPolicy.ResourcePoolType,
 			ActionType:       dbPolicy.ActionType,
-			QueryTemplateID:  int64(dbPolicy.QueryTemplateID),
+			QueryTemplateID:  int(dbPolicy.QueryTemplateID),
 			Status:           dbPolicy.Status,
 			AdditionConds:    additionConds,
 			CreatedBy:        dbPolicy.CreatedBy,

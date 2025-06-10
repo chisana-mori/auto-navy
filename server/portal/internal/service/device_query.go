@@ -577,7 +577,7 @@ type FilterGroup struct {
 
 // QueryTemplate 查询模板
 type QueryTemplate struct {
-	ID          int64         `json:"id"`          // 模板ID
+	ID          int         `json:"id"`          // 模板ID
 	Name        string        `json:"name"`        // 模板名称
 	Description string        `json:"description"` // 模板描述
 	Groups      []FilterGroup `json:"groups"`      // 筛选组列表
@@ -1239,7 +1239,7 @@ func (s *DeviceQueryService) QueryDevices(ctx context.Context, req *DeviceQueryR
 
 		// 同时缓存单个设备
 		for _, deviceResp := range responses {
-			s.cache.SetDevice(deviceResp.ID, &deviceResp)
+			s.cache.SetDevice(int(deviceResp.ID), &deviceResp)
 		}
 	}
 
@@ -1371,7 +1371,7 @@ func (s *DeviceQueryService) SaveQueryTemplate(ctx context.Context, template *Qu
 
 	// 如果模板ID存在，则更新现有模板
 	if template.ID != 0 {
-		dbTemplate.ID = template.ID
+		dbTemplate.ID = int(template.ID)
 		result := s.db.WithContext(ctx).Save(dbTemplate)
 		if result.Error != nil {
 			return fmt.Errorf("failed to update template: %w", result.Error)
@@ -1392,7 +1392,7 @@ func (s *DeviceQueryService) SaveQueryTemplate(ctx context.Context, template *Qu
 	}
 
 	// 更新返回的模板ID
-	template.ID = dbTemplate.ID
+	template.ID = int(dbTemplate.ID)
 
 	// 清除相关缓存，因为模板可能会影响设备查询结果
 	if s.cache != nil {
@@ -1419,7 +1419,7 @@ func (s *DeviceQueryService) GetQueryTemplates(ctx context.Context) ([]QueryTemp
 		}
 
 		templates[i] = QueryTemplate{
-			ID:          dbTemplate.ID,
+			ID:          int(dbTemplate.ID),
 			Name:        dbTemplate.Name,
 			Description: dbTemplate.Description,
 			Groups:      groups,
@@ -1480,7 +1480,7 @@ func (s *DeviceQueryService) GetQueryTemplatesWithPagination(ctx context.Context
 	// 构建响应
 	response := &QueryTemplateListResponse{
 		List:  templates,
-		Total: total,
+		Total: int64(total),
 		Page:  page,
 		Size:  size,
 	}
@@ -1529,7 +1529,7 @@ func convertGroupsToResponse(groups []FilterGroup) []FilterGroupRequest {
 }
 
 // GetQueryTemplate 获取查询模板
-func (s *DeviceQueryService) GetQueryTemplate(ctx context.Context, id int64) (*QueryTemplate, error) {
+func (s *DeviceQueryService) GetQueryTemplate(ctx context.Context, id int) (*QueryTemplate, error) {
 	// 从数据库获取指定模板
 	var dbTemplate portal.QueryTemplate
 	if err := s.db.WithContext(ctx).First(&dbTemplate, "id = ?", id).Error; err != nil {
@@ -1547,7 +1547,7 @@ func (s *DeviceQueryService) GetQueryTemplate(ctx context.Context, id int64) (*Q
 
 	// 转换为服务层模板格式
 	template := &QueryTemplate{
-		ID:          dbTemplate.ID,
+		ID:          int(dbTemplate.ID),
 		Name:        dbTemplate.Name,
 		Description: dbTemplate.Description,
 		Groups:      groups,
@@ -1557,7 +1557,7 @@ func (s *DeviceQueryService) GetQueryTemplate(ctx context.Context, id int64) (*Q
 }
 
 // DeleteQueryTemplate 删除查询模板
-func (s *DeviceQueryService) DeleteQueryTemplate(ctx context.Context, id int64) error {
+func (s *DeviceQueryService) DeleteQueryTemplate(ctx context.Context, id int) error {
 	// 检查模板是否存在
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&portal.QueryTemplate{}).Where("id = ?", id).Count(&count).Error; err != nil {

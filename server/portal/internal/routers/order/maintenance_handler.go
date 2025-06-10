@@ -5,12 +5,16 @@ import (
 	. "navy-ng/server/portal/internal/routers"
 	"navy-ng/server/portal/internal/service/order"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+// MaintenanceIDRequest 定义了从 URI 绑定维护订单 ID 参数的结构体
+type MaintenanceIDRequest struct {
+	ID int `uri:"id" binding:"required"`
+}
 
 // MaintenanceHandler 设备维护处理器
 type MaintenanceHandler struct {
@@ -48,7 +52,7 @@ func (h *MaintenanceHandler) RegisterRoutes(api *gin.RouterGroup) {
 // @Tags 设备维护
 // @Accept json
 // @Produce json
-// @Param request body service.MaintenanceRequestDTO true "维护请求信息"
+// @Param request body order.MaintenanceRequestDTO true "维护请求信息"
 // @Success 200 {object} render.Response
 // @Failure 400 {object} render.Response
 // @Failure 500 {object} render.Response
@@ -89,7 +93,7 @@ func (h *MaintenanceHandler) RequestMaintenance(c *gin.Context) {
 // @Tags 设备维护
 // @Accept json
 // @Produce json
-// @Param callback body service.MaintenanceCallbackDTO true "维护回调信息"
+// @Param callback body order.MaintenanceCallbackDTO true "维护回调信息"
 // @Success 200 {object} render.Response
 // @Failure 400 {object} render.Response
 // @Failure 500 {object} render.Response
@@ -171,7 +175,7 @@ func (h *MaintenanceHandler) listMaintenances(c *gin.Context) {
 // @Tags 维护管理
 // @Accept json
 // @Produce json
-// @Param request body service.MaintenanceRequestDTO true "创建维护任务请求"
+// @Param request body order.MaintenanceRequestDTO true "创建维护任务请求"
 // @Success 201 {object} render.Response
 // @Failure 400 {object} render.ErrorResponse
 // @Failure 500 {object} render.ErrorResponse
@@ -188,7 +192,7 @@ func (h *MaintenanceHandler) createMaintenance(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path string true "维护任务ID"
-// @Param request body service.MaintenanceRequestDTO true "更新维护任务请求"
+// @Param request body order.MaintenanceRequestDTO true "更新维护任务请求"
 // @Success 200 {object} render.Response
 // @Failure 400 {object} render.ErrorResponse
 // @Failure 404 {object} render.ErrorResponse
@@ -269,8 +273,8 @@ func (h *MaintenanceHandler) GetPendingUncordonRequests(c *gin.Context) {
 // @Failure 500 {object} render.Response
 // @Router /fe-v1/device-maintenance/confirm/{id} [post]
 func (h *MaintenanceHandler) ConfirmMaintenance(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	var req MaintenanceIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, "无效的订单ID")
 		return
 	}
@@ -281,7 +285,7 @@ func (h *MaintenanceHandler) ConfirmMaintenance(c *gin.Context) {
 		operatorID = "admin"
 	}
 
-	err = h.service.ConfirmMaintenance(id, operatorID)
+	err := h.service.ConfirmMaintenance(req.ID, operatorID)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, "确认维护请求失败: "+err.Error())
 		return
@@ -302,8 +306,8 @@ func (h *MaintenanceHandler) ConfirmMaintenance(c *gin.Context) {
 // @Failure 500 {object} render.Response
 // @Router /fe-v1/device-maintenance/start/{id} [post]
 func (h *MaintenanceHandler) StartMaintenance(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	var req MaintenanceIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, "无效的订单ID")
 		return
 	}
@@ -314,7 +318,7 @@ func (h *MaintenanceHandler) StartMaintenance(c *gin.Context) {
 		operatorID = "admin"
 	}
 
-	err = h.service.StartMaintenance(id, operatorID)
+	err := h.service.StartMaintenance(req.ID, operatorID)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, "执行Cordon操作失败: "+err.Error())
 		return
@@ -335,8 +339,8 @@ func (h *MaintenanceHandler) StartMaintenance(c *gin.Context) {
 // @Failure 500 {object} render.Response
 // @Router /fe-v1/device-maintenance/uncordon/{id} [post]
 func (h *MaintenanceHandler) ExecuteUncordon(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	var req MaintenanceIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, "无效的订单ID")
 		return
 	}
@@ -347,7 +351,7 @@ func (h *MaintenanceHandler) ExecuteUncordon(c *gin.Context) {
 		operatorID = "admin"
 	}
 
-	err = h.service.ExecuteUncordon(id, operatorID)
+	err := h.service.ExecuteUncordon(req.ID, operatorID)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, "执行Uncordon操作失败: "+err.Error())
 		return

@@ -75,7 +75,7 @@ type GetOrderRequest struct {
 // @Produce json
 // @Param orderType path string true "订单类型 (e.g., general)"
 // @Param id path int true "订单ID"
-// @Success 200 {object} render.Response{data=service.GeneralOrderDTO} "成功时返回通用订单详情"
+// @Success 200 {object} render.Response{data=order.GeneralOrderDTO} "成功时返回通用订单详情"
 // @Failure 400 {object} render.ErrorResponse "请求参数错误"
 // @Failure 404 {object} render.ErrorResponse "订单不存在"
 // @Failure 500 {object} render.ErrorResponse "服务器内部错误"
@@ -111,7 +111,7 @@ func handleGetOrder[T order.RichOrder, C any](c *gin.Context, serviceInstance an
 	}
 
 	// 调用具体的服务方法
-	order, err := s.GetOrder(c.Request.Context(), id)
+	order, err := s.GetOrder(c.Request.Context(), int(id))
 	if err != nil {
 		// 可以在这里处理特定的错误类型，例如 gorm.ErrRecordNotFound
 		render.Fail(c, http.StatusInternalServerError, fmt.Sprintf(MsgGetOrderFailed, err.Error()))
@@ -135,8 +135,8 @@ type CreateOrderRequest struct {
 // @Accept json
 // @Produce json
 // @Param orderType path string true "订单类型 (e.g., general)"
-// @Param order body service.GeneralOrderCreateDTO true "创建通用订单所需的数据"
-// @Success 201 {object} render.Response{data=service.GeneralOrderDTO} "成功时返回创建的订单详情"
+// @Param order body order.GeneralOrderCreateDTO true "创建通用订单所需的数据"
+// @Success 201 {object} render.Response{data=order.GeneralOrderDTO} "成功时返回创建的订单详情"
 // @Failure 400 {object} render.ErrorResponse "请求参数错误"
 // @Failure 500 {object} render.ErrorResponse "服务器内部错误"
 // @Router /fe-v1/orders/{orderType} [post]
@@ -203,7 +203,7 @@ type ListOrdersRequest struct {
 // @Param status query string false "订单状态"
 // @Param createdBy query string false "创建者"
 // @Param name query string false "订单名称，支持模糊查询"
-// @Success 200 {object} render.Response{data=service.GeneralOrderQueryDTO} "成功时返回订单列表和总数"
+// @Success 200 {object} render.Response{data=order.GeneralOrderQueryDTO} "成功时返回订单列表和总数"
 // @Failure 400 {object} render.ErrorResponse "请求参数错误"
 // @Failure 500 {object} render.ErrorResponse "服务器内部错误"
 // @Router /fe-v1/orders/{orderType} [get]
@@ -309,7 +309,7 @@ func handleUpdateOrderStatus[T order.RichOrder, C any](c *gin.Context, serviceIn
 	}
 	// To-Do: Get executor from request context (e.g., JWT middleware)
 	executor := DefaultUsername
-	err := s.UpdateOrderStatus(c.Request.Context(), id, status, executor, reason)
+	err := s.UpdateOrderStatus(c.Request.Context(), int(id), status, executor, reason)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, fmt.Sprintf(MsgUpdateStatusFailed, err.Error()))
 		return
@@ -344,7 +344,7 @@ type FailRequest struct {
 // @Router /fe-v1/orders/{orderType}/{id}/process [post]
 func (h *UnifiedOrderHandler) ProcessOrder(c *gin.Context) {
 	h.handleSimpleLifecycleAction(c, func(srv order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO], id int64, executor string) error {
-		return srv.ProcessOrder(c.Request.Context(), id, executor)
+		return srv.ProcessOrder(c.Request.Context(), int(id), executor)
 	})
 }
 
@@ -361,7 +361,7 @@ func (h *UnifiedOrderHandler) ProcessOrder(c *gin.Context) {
 // @Router /fe-v1/orders/{orderType}/{id}/complete [post]
 func (h *UnifiedOrderHandler) CompleteOrder(c *gin.Context) {
 	h.handleSimpleLifecycleAction(c, func(srv order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO], id int64, executor string) error {
-		return srv.CompleteOrder(c.Request.Context(), id, executor)
+		return srv.CompleteOrder(c.Request.Context(), int(id), executor)
 	})
 }
 
@@ -397,7 +397,7 @@ func (h *UnifiedOrderHandler) FailOrder(c *gin.Context) {
 	switch uriReq.OrderType {
 	case "general":
 		s, _ := serviceInstance.(order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO])
-		err := s.FailOrder(c.Request.Context(), uriReq.ID, bodyReq.Executor, bodyReq.Reason)
+		err := s.FailOrder(c.Request.Context(), int(uriReq.ID), bodyReq.Executor, bodyReq.Reason)
 		if err != nil {
 			render.Fail(c, http.StatusInternalServerError, err.Error())
 			return
@@ -421,7 +421,7 @@ func (h *UnifiedOrderHandler) FailOrder(c *gin.Context) {
 // @Router /fe-v1/orders/{orderType}/{id}/cancel [post]
 func (h *UnifiedOrderHandler) CancelOrder(c *gin.Context) {
 	h.handleSimpleLifecycleAction(c, func(srv order.UnifiedOrderService[*order.GeneralOrderDTO, order.GeneralOrderCreateDTO], id int64, executor string) error {
-		return srv.CancelOrder(c.Request.Context(), id, executor)
+		return srv.CancelOrder(c.Request.Context(), int(id), executor)
 	})
 }
 

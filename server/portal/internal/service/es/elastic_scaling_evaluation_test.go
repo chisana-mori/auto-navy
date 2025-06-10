@@ -52,7 +52,7 @@ func (m *MockDeviceCache) Get(key string) (interface{}, bool) {
 
 func (m *MockDeviceCache) Set(key string, value interface{}, d time.Duration) {}
 
-func (m *MockDeviceCache) GetDevice(id int64) (*service.DeviceResponse, error) {
+func (m *MockDeviceCache) GetDevice(id int) (*service.DeviceResponse, error) {
 	return nil, errors.New("cache miss")
 }
 
@@ -69,7 +69,7 @@ func (m *MockDeviceCache) InvalidateDeviceLists() error {
 	return nil
 }
 
-func (m *MockDeviceCache) SetDevice(id int64, device *service.DeviceResponse) error {
+func (m *MockDeviceCache) SetDevice(id int, device *service.DeviceResponse) error {
 	// Mock SetDevice, do nothing
 	return nil
 }
@@ -326,7 +326,7 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 				// Assert: Verify no new history is created
 				var count int64
 				db.Model(&portal.StrategyExecutionHistory{}).Count(&count)
-				Expect(count).To(Equal(int64(1)))
+				Expect(count).To(Equal(int(1)))
 			})
 		})
 
@@ -339,7 +339,7 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 				// Assert: Verify no history is created
 				var count int64
 				db.Model(&portal.StrategyExecutionHistory{}).Count(&count)
-				Expect(count).To(Equal(int64(0)))
+				Expect(count).To(Equal(int(0)))
 			})
 		})
 

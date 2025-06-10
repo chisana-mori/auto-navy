@@ -7,7 +7,7 @@ type K8sNodeTaint struct {
 	Value  string   `gorm:"column:value;type:varchar(191)"`      // 污点value
 	Effect string   `gorm:"column:effect;type:varchar(191)"`     // 生效类型
 	Status string   `gorm:"column:status;type:varchar(191)"`     // 状态
-	NodeID int64    `gorm:"column:node_id;type:bigint unsigned"` // 所属节点ID
+	NodeID int    `gorm:"column:node_id;type:bigint unsigned"` // 所属节点ID
 	Node   *K8sNode `gorm:"foreignKey:NodeID"`                   // 关联的节点信息
 }
 

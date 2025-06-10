@@ -31,7 +31,7 @@ type K8sNode struct {
 	// /var/lib/kubelet磁盘量
 	NodeCreated  string         `gorm:"column:nodecreated;type:varchar(191)"`       // 节点创建时间
 	Status       string         `gorm:"column:status;type:varchar(191)"`            // 状态
-	K8sClusterID int64          `gorm:"column:k8s_cluster_id;type:bigint unsigned"` // 所属集群ID
+	K8sClusterID int          `gorm:"column:k8s_cluster_id;type:bigint unsigned"` // 所属集群ID
 	K8sCluster   *K8sCluster    `gorm:"foreignKey:K8sClusterID"`                    // 关联的集群信息
 	Labels       []K8sNodeLabel `gorm:"foreignKey:NodeID"`                          // 节点的标签列表
 	Taints       []K8sNodeTaint `gorm:"foreignKey:NodeID"`                          // 节点的污点列表

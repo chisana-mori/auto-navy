@@ -12,7 +12,7 @@ import (
 
 // MaintenanceRequestDTO 维护请求DTO
 type MaintenanceRequestDTO struct {
-	DeviceID             int64     `json:"deviceId"`
+	DeviceID             int     `json:"deviceId"`
 	CICode               string    `json:"ciCode"`
 	MaintenanceStartTime time.Time `json:"maintenanceStartTime"`
 	MaintenanceEndTime   time.Time `json:"maintenanceEndTime"`
@@ -25,12 +25,12 @@ type MaintenanceRequestDTO struct {
 // MaintenanceResponseDTO 维护响应DTO
 type MaintenanceResponseDTO struct {
 	Success         bool   `json:"success"`
-	OrderID         int64  `json:"orderId"`
+	OrderID         int  `json:"orderId"`
 	OrderNumber     string `json:"orderNumber"`
 	ScheduledTime   string `json:"scheduledTime"`
 	Status          string `json:"status"`
 	Message         string `json:"message"`
-	UncordonOrderID *int64 `json:"uncordonOrderId,omitempty"`
+	UncordonOrderID *int `json:"uncordonOrderId,omitempty"`
 }
 
 // MaintenanceCallbackDTO 维护回调DTO
@@ -45,8 +45,8 @@ type MaintenanceCallbackDTO struct {
 type MaintenanceOrderDTO struct {
 	Name                 string                 `json:"name"`
 	Description          string                 `json:"description"`
-	ClusterID            int64                  `json:"clusterId"`
-	Devices              []int64                `json:"devices"`
+	ClusterID            int                  `json:"clusterId"`
+	Devices              []int                `json:"devices"`
 	MaintenanceStartTime *time.Time             `json:"maintenanceStartTime"`
 	MaintenanceEndTime   *time.Time             `json:"maintenanceEndTime"`
 	ExternalTicketID     string                 `json:"externalTicketId"`
@@ -161,7 +161,7 @@ func (s *MaintenanceOrderService) ListOrders(ctx context.Context, filter interfa
 }
 
 // ConfirmMaintenance 确认维护
-func (s *MaintenanceOrderService) ConfirmMaintenance(ctx context.Context, orderID int64, operatorID string) error {
+func (s *MaintenanceOrderService) ConfirmMaintenance(ctx context.Context, orderID int, operatorID string) error {
 	return s.db.Model(&portal.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{
 		"status":   "confirmed",
 		"executor": operatorID,
@@ -169,7 +169,7 @@ func (s *MaintenanceOrderService) ConfirmMaintenance(ctx context.Context, orderI
 }
 
 // StartMaintenance 开始维护
-func (s *MaintenanceOrderService) StartMaintenance(ctx context.Context, orderID int64, operatorID string) error {
+func (s *MaintenanceOrderService) StartMaintenance(ctx context.Context, orderID int, operatorID string) error {
 	return s.db.Model(&portal.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{
 		"status":   "in_progress",
 		"executor": operatorID,
@@ -177,7 +177,7 @@ func (s *MaintenanceOrderService) StartMaintenance(ctx context.Context, orderID 
 }
 
 // ExecuteUncordon 执行Uncordon操作
-func (s *MaintenanceOrderService) ExecuteUncordon(ctx context.Context, orderID int64, operatorID string) error {
+func (s *MaintenanceOrderService) ExecuteUncordon(ctx context.Context, orderID int, operatorID string) error {
 	return s.db.Model(&portal.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{
 		"status":   portal.OrderStatusCompleted,
 		"executor": operatorID,
@@ -262,8 +262,8 @@ func (s *MaintenanceServiceV2) RequestMaintenance(request *MaintenanceRequestDTO
 	maintenanceOrderDTO := MaintenanceOrderDTO{
 		Name:                 fmt.Sprintf("设备维护 - %s", device.IP),
 		Description:          fmt.Sprintf("设备 %s 的维护请求，工单号: %s", device.IP, request.ExternalTicketID),
-		ClusterID:            int64(device.ClusterID),
-		Devices:              []int64{request.DeviceID},
+		ClusterID:            int(device.ClusterID),
+		Devices:              []int{request.DeviceID},
 		MaintenanceStartTime: &request.MaintenanceStartTime,
 		MaintenanceEndTime:   &request.MaintenanceEndTime,
 		ExternalTicketID:     request.ExternalTicketID,
@@ -294,13 +294,13 @@ func (s *MaintenanceServiceV2) RequestMaintenance(request *MaintenanceRequestDTO
 }
 
 // ConfirmMaintenance 确认维护请求
-func (s *MaintenanceServiceV2) ConfirmMaintenance(orderID int64, operatorID string) error {
+func (s *MaintenanceServiceV2) ConfirmMaintenance(orderID int, operatorID string) error {
 	ctx := context.Background()
 	return s.maintenanceOrderService.ConfirmMaintenance(ctx, orderID, operatorID)
 }
 
 // StartMaintenance 开始设备维护，执行Cordon操作
-func (s *MaintenanceServiceV2) StartMaintenance(orderID int64, operatorID string) error {
+func (s *MaintenanceServiceV2) StartMaintenance(orderID int, operatorID string) error {
 	ctx := context.Background()
 	return s.maintenanceOrderService.StartMaintenance(ctx, orderID, operatorID)
 }
@@ -349,7 +349,7 @@ func (s *MaintenanceServiceV2) CompleteMaintenance(externalTicketID string, mess
 }
 
 // ExecuteUncordon 执行Uncordon操作
-func (s *MaintenanceServiceV2) ExecuteUncordon(orderID int64, operatorID string) error {
+func (s *MaintenanceServiceV2) ExecuteUncordon(orderID int, operatorID string) error {
 	ctx := context.Background()
 	return s.maintenanceOrderService.ExecuteUncordon(ctx, orderID, operatorID)
 }

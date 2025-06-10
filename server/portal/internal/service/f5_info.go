@@ -32,7 +32,7 @@ const (
 	f5InfoNotFoundMsg = "F5 info with id %d not found"
 )
 
-func (s *F5InfoService) GetF5Info(ctx context.Context, id int64) (*F5InfoResponse, error) {
+func (s *F5InfoService) GetF5Info(ctx context.Context, id int) (*F5InfoResponse, error) {
 	var model portal.F5Info
 	err := s.db.WithContext(ctx).Preload("K8sCluster").
 		Where("id = ? AND deleted = ?", id, emptyString).First(&model).Error
@@ -113,7 +113,7 @@ func (s *F5InfoService) ListF5Infos(ctx context.Context,
 	}, nil
 }
 
-func (s *F5InfoService) UpdateF5Info(ctx context.Context, id int64,
+func (s *F5InfoService) UpdateF5Info(ctx context.Context, id int,
 	dto *F5InfoUpdateDTO) error {
 	model := fromF5InfoUpdateDTO(dto)
 
@@ -138,7 +138,7 @@ func (s *F5InfoService) UpdateF5Info(ctx context.Context, id int64,
 	return nil
 }
 
-func (s *F5InfoService) DeleteF5Info(ctx context.Context, id int64) error {
+func (s *F5InfoService) DeleteF5Info(ctx context.Context, id int) error {
 	result := s.db.WithContext(ctx).Model(&portal.F5Info{}).Where("id = ?", id).
 		Update("deleted", "1") // Assuming "1" marks as deleted
 

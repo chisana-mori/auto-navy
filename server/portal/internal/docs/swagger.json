@@ -458,7 +458,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.MaintenanceCallbackDTO"
+                            "$ref": "#/definitions/order.MaintenanceCallbackDTO"
                         }
                     }
                 ],
@@ -548,7 +548,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.MaintenanceRequestDTO"
+                            "$ref": "#/definitions/order.MaintenanceRequestDTO"
                         }
                     }
                 ],
@@ -979,7 +979,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.OrderDTO"
+                            "$ref": "#/definitions/es.OrderDTO"
                         }
                     }
                 ],
@@ -1316,7 +1316,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.StrategyDTO"
+                            "$ref": "#/definitions/es.StrategyDTO"
                         }
                     }
                 ],
@@ -1387,7 +1387,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.StrategyDTO"
+                            "$ref": "#/definitions/es.StrategyDTO"
                         }
                     }
                 ],
@@ -2015,7 +2015,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.MaintenanceRequestDTO"
+                            "$ref": "#/definitions/order.MaintenanceRequestDTO"
                         }
                     }
                 ],
@@ -2116,7 +2116,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.MaintenanceRequestDTO"
+                            "$ref": "#/definitions/order.MaintenanceRequestDTO"
                         }
                     }
                 ],
@@ -2449,7 +2449,7 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.GeneralOrderQueryDTO"
+                                            "$ref": "#/definitions/order.GeneralOrderQueryDTO"
                                         }
                                     }
                                 }
@@ -2496,7 +2496,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.GeneralOrderCreateDTO"
+                            "$ref": "#/definitions/order.GeneralOrderCreateDTO"
                         }
                     }
                 ],
@@ -2512,7 +2512,7 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.GeneralOrderDTO"
+                                            "$ref": "#/definitions/order.GeneralOrderDTO"
                                         }
                                     }
                                 }
@@ -2575,7 +2575,7 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/service.GeneralOrderDTO"
+                                            "$ref": "#/definitions/order.GeneralOrderDTO"
                                         }
                                     }
                                 }
@@ -2637,7 +2637,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/routers.ExecutorRequest"
+                            "$ref": "#/definitions/order.ExecutorRequest"
                         }
                     }
                 ],
@@ -2685,7 +2685,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/routers.ExecutorRequest"
+                            "$ref": "#/definitions/order.ExecutorRequest"
                         }
                     }
                 ],
@@ -2733,7 +2733,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/routers.FailRequest"
+                            "$ref": "#/definitions/order.FailRequest"
                         }
                     }
                 ],
@@ -2781,7 +2781,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/routers.ExecutorRequest"
+                            "$ref": "#/definitions/order.ExecutorRequest"
                         }
                     }
                 ],
@@ -2829,7 +2829,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/routers.UpdateOrderStatusRequest"
+                            "$ref": "#/definitions/order.UpdateOrderStatusRequest"
                         }
                     }
                 ],
@@ -3164,6 +3164,436 @@
         }
     },
     "definitions": {
+        "es.DeviceDTO": {
+            "type": "object",
+            "properties": {
+                "archType": {
+                    "type": "string"
+                },
+                "ciCode": {
+                    "type": "string"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "clusterId": {
+                    "type": "integer"
+                },
+                "cpu": {
+                    "type": "number"
+                },
+                "featureCount": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "isSpecial": {
+                    "type": "boolean"
+                },
+                "memory": {
+                    "type": "number"
+                },
+                "orderStatus": {
+                    "description": "在订单中的状态",
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "es.OrderDTO": {
+            "type": "object",
+            "properties": {
+                "actionType": {
+                    "description": "pool_entry, pool_exit, maintenance_request, maintenance_uncordon",
+                    "type": "string"
+                },
+                "clusterId": {
+                    "type": "integer"
+                },
+                "clusterName": {
+                    "type": "string"
+                },
+                "completionTime": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "description": "订单描述",
+                    "type": "string"
+                },
+                "deviceCount": {
+                    "type": "integer"
+                },
+                "deviceInfo": {
+                    "description": "DeviceID字段已移除，使用Devices列表和OrderDevice关联表",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/es.DeviceDTO"
+                        }
+                    ]
+                },
+                "devices": {
+                    "description": "设备ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "executionTime": {
+                    "type": "string"
+                },
+                "executor": {
+                    "type": "string"
+                },
+                "externalTicketId": {
+                    "type": "string"
+                },
+                "extraInfo": {
+                    "description": "额外信息，用于存储维护原因等",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "failureReason": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "maintenanceEndTime": {
+                    "type": "string"
+                },
+                "maintenanceStartTime": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "订单名称",
+                    "type": "string"
+                },
+                "orderNumber": {
+                    "type": "string"
+                },
+                "resourcePoolType": {
+                    "description": "资源池类型",
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "strategyId": {
+                    "type": "integer"
+                },
+                "strategyName": {
+                    "type": "string"
+                },
+                "strategyThresholdValue": {
+                    "type": "string"
+                },
+                "strategyTriggeredValue": {
+                    "type": "string"
+                }
+            }
+        },
+        "es.StrategyDTO": {
+            "type": "object",
+            "properties": {
+                "clusterIds": {
+                    "description": "关联的集群ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "conditionLogic": {
+                    "description": "AND 或 OR",
+                    "type": "string"
+                },
+                "cooldownMinutes": {
+                    "type": "integer"
+                },
+                "cpuTargetValue": {
+                    "description": "动作执行后CPU目标使用率",
+                    "type": "number"
+                },
+                "cpuThresholdType": {
+                    "description": "usage 或 allocated",
+                    "type": "string"
+                },
+                "cpuThresholdValue": {
+                    "type": "number"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "durationMinutes": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "memoryTargetValue": {
+                    "description": "动作执行后内存目标使用率",
+                    "type": "number"
+                },
+                "memoryThresholdType": {
+                    "description": "usage 或 allocated",
+                    "type": "string"
+                },
+                "memoryThresholdValue": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "resourceTypes": {
+                    "description": "资源类型列表，逗号分隔",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "enabled 或 disabled",
+                    "type": "string"
+                },
+                "thresholdTriggerAction": {
+                    "description": "pool_entry 或 pool_exit",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "order.ExecutorRequest": {
+            "type": "object",
+            "required": [
+                "executor"
+            ],
+            "properties": {
+                "executor": {
+                    "type": "string"
+                }
+            }
+        },
+        "order.FailRequest": {
+            "type": "object",
+            "required": [
+                "executor",
+                "reason"
+            ],
+            "properties": {
+                "executor": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "order.GeneralOrderCreateDTO": {
+            "type": "object",
+            "required": [
+                "createdBy",
+                "name"
+            ],
+            "properties": {
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "summary": {
+                    "description": "Add other fields specific to creating a general order",
+                    "type": "string"
+                }
+            }
+        },
+        "order.GeneralOrderDTO": {
+            "type": "object",
+            "properties": {
+                "completionTime": {
+                    "description": "完成时间",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "createdBy": {
+                    "description": "创建人",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "订单描述",
+                    "type": "string"
+                },
+                "details": {
+                    "$ref": "#/definitions/portal.GeneralOrderDetail"
+                },
+                "elasticScalingDetail": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.ElasticScalingOrderDetail"
+                        }
+                    ]
+                },
+                "executionTime": {
+                    "description": "执行时间",
+                    "type": "string"
+                },
+                "executor": {
+                    "description": "执行人",
+                    "type": "string"
+                },
+                "failureReason": {
+                    "description": "失败原因",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "maintenanceDetail": {
+                    "description": "设备维护详情",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.MaintenanceOrderDetail"
+                        }
+                    ]
+                },
+                "name": {
+                    "description": "订单名称",
+                    "type": "string"
+                },
+                "orderNumber": {
+                    "description": "唯一订单号",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "订单状态",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.OrderStatus"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "订单类型",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/portal.OrderType"
+                        }
+                    ]
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "order.GeneralOrderQueryDTO": {
+            "type": "object",
+            "properties": {
+                "createdBy": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "订单名称，支持模糊查询",
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "order.MaintenanceCallbackDTO": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "externalTicketId": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "order.MaintenanceRequestDTO": {
+            "type": "object",
+            "properties": {
+                "ciCode": {
+                    "type": "string"
+                },
+                "comments": {
+                    "type": "string"
+                },
+                "deviceId": {
+                    "type": "integer"
+                },
+                "externalTicketId": {
+                    "type": "string"
+                },
+                "maintenanceEndTime": {
+                    "type": "string"
+                },
+                "maintenanceStartTime": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "order.UpdateOrderStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "portal.ElasticScalingOrderDetail": {
             "type": "object",
             "properties": {
@@ -3474,46 +3904,6 @@
                 }
             }
         },
-        "routers.ExecutorRequest": {
-            "type": "object",
-            "required": [
-                "executor"
-            ],
-            "properties": {
-                "executor": {
-                    "type": "string"
-                }
-            }
-        },
-        "routers.FailRequest": {
-            "type": "object",
-            "required": [
-                "executor",
-                "reason"
-            ],
-            "properties": {
-                "executor": {
-                    "type": "string"
-                },
-                "reason": {
-                    "type": "string"
-                }
-            }
-        },
-        "routers.UpdateOrderStatusRequest": {
-            "type": "object",
-            "required": [
-                "status"
-            ],
-            "properties": {
-                "reason": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "service.ConditionType": {
             "type": "string",
             "enum": [
@@ -3715,51 +4105,6 @@
                         "enabled",
                         "disabled"
                     ]
-                }
-            }
-        },
-        "service.DeviceDTO": {
-            "type": "object",
-            "properties": {
-                "archType": {
-                    "type": "string"
-                },
-                "ciCode": {
-                    "type": "string"
-                },
-                "cluster": {
-                    "type": "string"
-                },
-                "clusterId": {
-                    "type": "integer"
-                },
-                "cpu": {
-                    "type": "number"
-                },
-                "featureCount": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "ip": {
-                    "type": "string"
-                },
-                "isSpecial": {
-                    "type": "boolean"
-                },
-                "memory": {
-                    "type": "number"
-                },
-                "orderStatus": {
-                    "description": "在订单中的状态",
-                    "type": "string"
-                },
-                "role": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
                 }
             }
         },
@@ -4222,133 +4567,6 @@
                 "FilterTypeDevice"
             ]
         },
-        "service.GeneralOrderCreateDTO": {
-            "type": "object",
-            "required": [
-                "createdBy",
-                "name"
-            ],
-            "properties": {
-                "createdBy": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "summary": {
-                    "description": "Add other fields specific to creating a general order",
-                    "type": "string"
-                }
-            }
-        },
-        "service.GeneralOrderDTO": {
-            "type": "object",
-            "properties": {
-                "completionTime": {
-                    "description": "完成时间",
-                    "type": "string"
-                },
-                "createdAt": {
-                    "description": "创建时间",
-                    "type": "string"
-                },
-                "createdBy": {
-                    "description": "创建人",
-                    "type": "string"
-                },
-                "description": {
-                    "description": "订单描述",
-                    "type": "string"
-                },
-                "details": {
-                    "$ref": "#/definitions/portal.GeneralOrderDetail"
-                },
-                "elasticScalingDetail": {
-                    "description": "关联关系",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/portal.ElasticScalingOrderDetail"
-                        }
-                    ]
-                },
-                "executionTime": {
-                    "description": "执行时间",
-                    "type": "string"
-                },
-                "executor": {
-                    "description": "执行人",
-                    "type": "string"
-                },
-                "failureReason": {
-                    "description": "失败原因",
-                    "type": "string"
-                },
-                "id": {
-                    "description": "主键ID",
-                    "type": "integer"
-                },
-                "maintenanceDetail": {
-                    "description": "设备维护详情",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/portal.MaintenanceOrderDetail"
-                        }
-                    ]
-                },
-                "name": {
-                    "description": "订单名称",
-                    "type": "string"
-                },
-                "orderNumber": {
-                    "description": "唯一订单号",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "订单状态",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/portal.OrderStatus"
-                        }
-                    ]
-                },
-                "type": {
-                    "description": "订单类型",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/portal.OrderType"
-                        }
-                    ]
-                },
-                "updatedAt": {
-                    "description": "更新时间",
-                    "type": "string"
-                }
-            }
-        },
-        "service.GeneralOrderQueryDTO": {
-            "type": "object",
-            "properties": {
-                "createdBy": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "订单名称，支持模糊查询",
-                    "type": "string"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "pageSize": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "service.K8sClusterResponse": {
             "type": "object",
             "properties": {
@@ -4545,52 +4763,6 @@
                 "LogicalOperatorOr"
             ]
         },
-        "service.MaintenanceCallbackDTO": {
-            "type": "object",
-            "properties": {
-                "completedAt": {
-                    "type": "string"
-                },
-                "externalTicketId": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "service.MaintenanceRequestDTO": {
-            "type": "object",
-            "properties": {
-                "ciCode": {
-                    "type": "string"
-                },
-                "comments": {
-                    "type": "string"
-                },
-                "deviceId": {
-                    "type": "integer"
-                },
-                "externalTicketId": {
-                    "type": "string"
-                },
-                "maintenanceEndTime": {
-                    "type": "string"
-                },
-                "maintenanceStartTime": {
-                    "type": "string"
-                },
-                "priority": {
-                    "type": "string"
-                },
-                "reason": {
-                    "type": "string"
-                }
-            }
-        },
         "service.OpsJobCreateDTO": {
             "type": "object",
             "required": [
@@ -4604,104 +4776,6 @@
                 "name": {
                     "type": "string",
                     "example": "deploy-app"
-                }
-            }
-        },
-        "service.OrderDTO": {
-            "type": "object",
-            "properties": {
-                "actionType": {
-                    "description": "pool_entry, pool_exit, maintenance_request, maintenance_uncordon",
-                    "type": "string"
-                },
-                "clusterId": {
-                    "type": "integer"
-                },
-                "clusterName": {
-                    "type": "string"
-                },
-                "completionTime": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "createdBy": {
-                    "type": "string"
-                },
-                "description": {
-                    "description": "订单描述",
-                    "type": "string"
-                },
-                "deviceCount": {
-                    "type": "integer"
-                },
-                "deviceInfo": {
-                    "description": "DeviceID字段已移除，使用Devices列表和OrderDevice关联表",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/service.DeviceDTO"
-                        }
-                    ]
-                },
-                "devices": {
-                    "description": "设备ID列表",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "executionTime": {
-                    "type": "string"
-                },
-                "executor": {
-                    "type": "string"
-                },
-                "externalTicketId": {
-                    "type": "string"
-                },
-                "extraInfo": {
-                    "description": "额外信息，用于存储维护原因等",
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "failureReason": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "maintenanceEndTime": {
-                    "type": "string"
-                },
-                "maintenanceStartTime": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "订单名称",
-                    "type": "string"
-                },
-                "orderNumber": {
-                    "type": "string"
-                },
-                "resourcePoolType": {
-                    "description": "资源池类型",
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "strategyId": {
-                    "type": "integer"
-                },
-                "strategyName": {
-                    "type": "string"
-                },
-                "strategyThresholdValue": {
-                    "type": "string"
-                },
-                "strategyTriggeredValue": {
-                    "type": "string"
                 }
             }
         },
@@ -4780,86 +4854,6 @@
                 "updatedAt": {
                     "type": "string",
                     "example": "2024-01-01T12:30:00Z"
-                }
-            }
-        },
-        "service.StrategyDTO": {
-            "type": "object",
-            "properties": {
-                "clusterIds": {
-                    "description": "关联的集群ID列表",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "conditionLogic": {
-                    "description": "AND 或 OR",
-                    "type": "string"
-                },
-                "cooldownMinutes": {
-                    "type": "integer"
-                },
-                "cpuTargetValue": {
-                    "description": "动作执行后CPU目标使用率",
-                    "type": "number"
-                },
-                "cpuThresholdType": {
-                    "description": "usage 或 allocated",
-                    "type": "string"
-                },
-                "cpuThresholdValue": {
-                    "type": "number"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "createdBy": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "deviceCount": {
-                    "type": "integer"
-                },
-                "durationMinutes": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "memoryTargetValue": {
-                    "description": "动作执行后内存目标使用率",
-                    "type": "number"
-                },
-                "memoryThresholdType": {
-                    "description": "usage 或 allocated",
-                    "type": "string"
-                },
-                "memoryThresholdValue": {
-                    "type": "number"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "nodeSelector": {
-                    "type": "string"
-                },
-                "resourceTypes": {
-                    "description": "资源类型列表，逗号分隔",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "enabled 或 disabled",
-                    "type": "string"
-                },
-                "thresholdTriggerAction": {
-                    "description": "pool_entry 或 pool_exit",
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
                 }
             }
         },

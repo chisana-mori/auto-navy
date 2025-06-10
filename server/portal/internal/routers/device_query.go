@@ -304,7 +304,7 @@ func (h *DeviceQueryHandler) getTemplate(c *gin.Context) {
 		return
 	}
 
-	template, err := h.service.GetQueryTemplate(c.Request.Context(), id)
+	template, err := h.service.GetQueryTemplate(c.Request.Context(), int(id))
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(MsgFailedToGetTemplate, err.Error()))
 		return
@@ -337,7 +337,7 @@ func (h *DeviceQueryHandler) deleteTemplate(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteQueryTemplate(c.Request.Context(), id)
+	err = h.service.DeleteQueryTemplate(c.Request.Context(), int(id))
 	if err != nil {
 		render.InternalServerError(c, fmt.Sprintf(MsgFailedToDeleteTemplate, err.Error()))
 		return

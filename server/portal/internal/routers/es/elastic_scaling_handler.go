@@ -8,12 +8,16 @@ import (
 	baseservice "navy-ng/server/portal/internal/service" // Alias for base service if still needed for DeviceCache
 	"navy-ng/server/portal/internal/service/es"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap" // Add zap import
 	"gorm.io/gorm"
 )
+
+// IDRequest 定义了从 URI 绑定 ID 参数的结构体
+type IDRequest struct {
+	ID int `uri:"id" binding:"required"`
+}
 
 // Constants moved to constants.go
 
@@ -123,7 +127,7 @@ func (h *ElasticScalingHandler) ListStrategies(c *gin.Context) {
 // @Tags 弹性伸缩
 // @Accept json
 // @Produce json
-// @Param strategy body service.StrategyDTO true "策略数据"
+// @Param strategy body es.StrategyDTO true "策略数据"
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies [post]
 func (h *ElasticScalingHandler) CreateStrategy(c *gin.Context) {
@@ -155,13 +159,13 @@ func (h *ElasticScalingHandler) CreateStrategy(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id} [get]
 func (h *ElasticScalingHandler) GetStrategy(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
-	if err != nil {
+	var req IDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
-	strategy, err := h.service.GetStrategy(id)
+	strategy, err := h.service.GetStrategy(int64(req.ID))
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
@@ -177,12 +181,12 @@ func (h *ElasticScalingHandler) GetStrategy(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "策略ID"
-// @Param strategy body service.StrategyDTO true "策略数据"
+// @Param strategy body es.StrategyDTO true "策略数据"
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id} [put]
 func (h *ElasticScalingHandler) UpdateStrategy(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
-	if err != nil {
+	var req IDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
@@ -193,7 +197,7 @@ func (h *ElasticScalingHandler) UpdateStrategy(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateStrategy(id, dto); err != nil {
+	if err := h.service.UpdateStrategy(int64(req.ID), dto); err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -211,13 +215,13 @@ func (h *ElasticScalingHandler) UpdateStrategy(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id} [delete]
 func (h *ElasticScalingHandler) DeleteStrategy(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
-	if err != nil {
+	var req IDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
-	if err := h.service.DeleteStrategy(id); err != nil {
+	if err := h.service.DeleteStrategy(int64(req.ID)); err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -236,8 +240,8 @@ func (h *ElasticScalingHandler) DeleteStrategy(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/strategies/{id}/status [put]
 func (h *ElasticScalingHandler) UpdateStrategyStatus(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
-	if err != nil {
+	var req IDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
@@ -256,7 +260,7 @@ func (h *ElasticScalingHandler) UpdateStrategyStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateStrategyStatus(id, reqBody.Status); err != nil {
+	if err := h.service.UpdateStrategyStatus(req.ID, reqBody.Status); err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -278,15 +282,15 @@ func (h *ElasticScalingHandler) UpdateStrategyStatus(c *gin.Context) {
 // @Router /fe-v1/elastic-scaling/strategies/{id}/execution-history [get]
 func (h *ElasticScalingHandler) GetStrategyExecutionHistory(c *gin.Context) {
 	// 解析策略ID
-	id, err := strconv.ParseInt(c.Param(routersconstants.ParamID), routersconstants.Base10, routersconstants.BitSize64)
-	if err != nil {
+	var req IDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
 		render.BadRequest(c, routersconstants.MsgInvalidStrategyID)
 		return
 	}
 
 	// 解析分页参数
 	var pagination baseservice.PaginationRequest
-	if err = c.ShouldBindQuery(&pagination); err != nil {
+	if err := c.ShouldBindQuery(&pagination); err != nil {
 		render.BadRequest(c, "分页参数错误")
 		return
 	}
@@ -296,7 +300,7 @@ func (h *ElasticScalingHandler) GetStrategyExecutionHistory(c *gin.Context) {
 	clusterName := c.Query("clusterName")
 
 	// 获取策略执行历史
-	histories, total, err := h.service.GetStrategyExecutionHistoryWithPagination(id, &pagination, clusterName)
+	histories, total, err := h.service.GetStrategyExecutionHistoryWithPagination(req.ID, &pagination, clusterName)
 	if err != nil {
 		render.Fail(c, http.StatusInternalServerError, err.Error())
 		return
@@ -335,7 +339,7 @@ func (h *ElasticScalingHandler) GetDashboardStats(c *gin.Context) {
 // @Success 200 {object} render.Response
 // @Router /fe-v1/elastic-scaling/stats/resource-trend [get]
 type ResourceTrendQuery struct {
-	ClusterID     int64  `form:"clusterId" binding:"required,min=1"`
+	ClusterID     int    `form:"clusterId" binding:"required,min=1"`
 	TimeRange     string `form:"timeRange"`
 	ResourceTypes string `form:"resourceTypes"`
 }

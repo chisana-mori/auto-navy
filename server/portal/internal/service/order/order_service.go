@@ -55,7 +55,7 @@ type OrderQuery struct {
 
 // BaseOrderDTO 基础订单DTO
 type BaseOrderDTO struct {
-	ID             int64              `json:"id"`
+	ID             int                `json:"id"`
 	OrderNumber    string             `json:"orderNumber"`
 	Name           string             `json:"name"`
 	Description    string             `json:"description"`
@@ -74,18 +74,18 @@ type BaseOrderDTO struct {
 type OrderService interface {
 	// 通用订单操作
 	CreateOrder(ctx context.Context, order *portal.Order) error
-	GetOrderByID(ctx context.Context, id int64) (*portal.Order, error)
+	GetOrderByID(ctx context.Context, id int) (*portal.Order, error)
 	GetOrderByNumber(ctx context.Context, orderNumber string) (*portal.Order, error)
-	UpdateOrderStatus(ctx context.Context, id int64, status portal.OrderStatus, executor string, reason string) error
-	ListOrders(ctx context.Context, query OrderQuery) ([]portal.Order, int64, error)
-	DeleteOrder(ctx context.Context, id int64) error
+	UpdateOrderStatus(ctx context.Context, id int, status portal.OrderStatus, executor string, reason string) error
+	ListOrders(ctx context.Context, query OrderQuery) ([]portal.Order, int, error)
+	DeleteOrder(ctx context.Context, id int) error
 
 	// 订单处理流程
-	ProcessOrder(ctx context.Context, id int64, executor string) error
-	CompleteOrder(ctx context.Context, id int64, executor string) error
-	FailOrder(ctx context.Context, id int64, executor string, reason string) error
-	CancelOrder(ctx context.Context, id int64, executor string) error
-	IgnoreOrder(ctx context.Context, id int64, executor string) error
+	ProcessOrder(ctx context.Context, id int, executor string) error
+	CompleteOrder(ctx context.Context, id int, executor string) error
+	FailOrder(ctx context.Context, id int, executor string, reason string) error
+	CancelOrder(ctx context.Context, id int, executor string) error
+	IgnoreOrder(ctx context.Context, id int, executor string) error
 }
 
 // orderServiceImpl 通用订单服务实现
@@ -114,7 +114,7 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, order *portal.Order)
 }
 
 // GetOrderByID 根据ID获取订单
-func (s *orderServiceImpl) GetOrderByID(ctx context.Context, id int64) (*portal.Order, error) {
+func (s *orderServiceImpl) GetOrderByID(ctx context.Context, id int) (*portal.Order, error) {
 	var order portal.Order
 	err := s.db.WithContext(ctx).
 		Preload(preloadElasticScalingDetail).
@@ -144,7 +144,7 @@ func (s *orderServiceImpl) GetOrderByNumber(ctx context.Context, orderNumber str
 }
 
 // UpdateOrderStatus 更新订单状态
-func (s *orderServiceImpl) UpdateOrderStatus(ctx context.Context, id int64, status portal.OrderStatus, executor string, reason string) error {
+func (s *orderServiceImpl) UpdateOrderStatus(ctx context.Context, id int, status portal.OrderStatus, executor string, reason string) error {
 	updates := map[string]interface{}{
 		fieldStatus:    status,
 		fieldExecutor:  executor,
@@ -188,7 +188,7 @@ func (s *orderServiceImpl) UpdateOrderStatus(ctx context.Context, id int64, stat
 }
 
 // ListOrders 获取订单列表
-func (s *orderServiceImpl) ListOrders(ctx context.Context, query OrderQuery) ([]portal.Order, int64, error) {
+func (s *orderServiceImpl) ListOrders(ctx context.Context, query OrderQuery) ([]portal.Order, int, error) {
 	var orders []portal.Order
 	var total int64
 
@@ -231,36 +231,36 @@ func (s *orderServiceImpl) ListOrders(ctx context.Context, query OrderQuery) ([]
 		Order(OrderByCreatedAtDesc).
 		Find(&orders).Error
 
-	return orders, total, err
+	return orders, int(total), err
 }
 
 // DeleteOrder 删除订单（软删除）
-func (s *orderServiceImpl) DeleteOrder(ctx context.Context, id int64) error {
+func (s *orderServiceImpl) DeleteOrder(ctx context.Context, id int) error {
 	return s.db.WithContext(ctx).Delete(&portal.Order{}, id).Error
 }
 
 // ProcessOrder 处理订单
-func (s *orderServiceImpl) ProcessOrder(ctx context.Context, id int64, executor string) error {
+func (s *orderServiceImpl) ProcessOrder(ctx context.Context, id int, executor string) error {
 	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusProcessing, executor, "")
 }
 
 // CompleteOrder 完成订单
-func (s *orderServiceImpl) CompleteOrder(ctx context.Context, id int64, executor string) error {
+func (s *orderServiceImpl) CompleteOrder(ctx context.Context, id int, executor string) error {
 	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusCompleted, executor, "")
 }
 
 // FailOrder 订单失败
-func (s *orderServiceImpl) FailOrder(ctx context.Context, id int64, executor string, reason string) error {
+func (s *orderServiceImpl) FailOrder(ctx context.Context, id int, executor string, reason string) error {
 	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusFailed, executor, reason)
 }
 
 // CancelOrder 取消订单
-func (s *orderServiceImpl) CancelOrder(ctx context.Context, id int64, executor string) error {
+func (s *orderServiceImpl) CancelOrder(ctx context.Context, id int, executor string) error {
 	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusCancelled, executor, msgOrderCancelled)
 }
 
 // IgnoreOrder 忽略订单
-func (s *orderServiceImpl) IgnoreOrder(ctx context.Context, id int64, executor string) error {
+func (s *orderServiceImpl) IgnoreOrder(ctx context.Context, id int, executor string) error {
 	return s.UpdateOrderStatus(ctx, id, portal.OrderStatusIgnored, executor, msgOrderIgnored)
 }
 

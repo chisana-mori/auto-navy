@@ -39,7 +39,7 @@ const (
 )
 
 // NewNotFoundError 创建未找到错误
-func NewNotFoundError(resource string, id int64) error {
+func NewNotFoundError(resource string, id int) error {
 	return &ServiceError{
 		Code:    ErrCodeNotFound,
 		Message: fmt.Sprintf(ErrRecordNotFoundMsg, resource, id),
@@ -73,7 +73,7 @@ func IsNotFound(err error) bool {
 }
 
 // HandleDBError 处理数据库错误
-func HandleDBError(err error, resource string, id int64) error {
+func HandleDBError(err error, resource string, id int) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return NewNotFoundError(resource, id)
 	}

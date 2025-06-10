@@ -96,7 +96,7 @@ func (h *K8sClusterHandler) GetK8sClusterByID(ctx *gin.Context) {
 		return
 	}
 
-	response, err := h.service.GetK8sClusterByID(ctx.Request.Context(), id)
+	response, err := h.service.GetK8sClusterByID(ctx.Request.Context(), int(id))
 	if err != nil {
 		if service.IsNotFound(err) {
 			render.NotFound(ctx, err.Error())
@@ -172,7 +172,7 @@ func (h *K8sClusterHandler) UpdateK8sCluster(ctx *gin.Context) {
 	// 获取当前用户
 	username := GetCurrentUsername(ctx)
 
-	response, err := h.service.UpdateK8sCluster(ctx.Request.Context(), id, &req, username)
+	response, err := h.service.UpdateK8sCluster(ctx.Request.Context(), int(id), &req, username)
 	if err != nil {
 		if service.IsNotFound(err) {
 			render.NotFound(ctx, err.Error())
@@ -204,7 +204,7 @@ func (h *K8sClusterHandler) DeleteK8sCluster(ctx *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteK8sCluster(ctx.Request.Context(), id)
+	err = h.service.DeleteK8sCluster(ctx.Request.Context(), int(id))
 	if err != nil {
 		if service.IsNotFound(err) {
 			render.NotFound(ctx, err.Error())
@@ -236,7 +236,7 @@ func (h *K8sClusterHandler) GetK8sClusterNodes(ctx *gin.Context) {
 		return
 	}
 
-	response, err := h.service.GetK8sClusterNodes(ctx.Request.Context(), id)
+	response, err := h.service.GetK8sClusterNodes(ctx.Request.Context(), int(id))
 	if err != nil {
 		if service.IsNotFound(err) {
 			render.NotFound(ctx, err.Error())

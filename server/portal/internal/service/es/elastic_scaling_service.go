@@ -47,11 +47,11 @@ type ElasticScalingService struct {
 	logger                      *zap.Logger           // Added logger
 	cache                       DeviceCacheInterface  // Changed to DeviceCacheInterface
 	orderService                order.OrderService    // 通用订单服务
-	matchDevicesForStrategyFunc func(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error
+	matchDevicesForStrategyFunc func(strategy *portal.ElasticScalingStrategy, clusterID int, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error
 }
 
 // GetStrategyExecutionHistoryWithPagination 获取策略执行历史（分页）
-func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strategyID int64, pagination *PaginationRequest, clusterName string) ([]StrategyExecutionHistoryDetailDTO, int64, error) {
+func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strategyID int, pagination *PaginationRequest, clusterName string) ([]StrategyExecutionHistoryDetailDTO, int64, error) {
 	// 首先检查策略是否存在
 	var strategy portal.ElasticScalingStrategy
 	if err := s.db.First(&strategy, strategyID).Error; err != nil {
@@ -95,14 +95,14 @@ func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strate
 	}
 
 	// 获取所有相关的集群ID
-	clusterIDs := make([]int64, 0)
+	clusterIDs := make([]int, 0)
 	for _, history := range histories {
 		clusterIDs = append(clusterIDs, history.ClusterID)
 	}
 
 	// 批量获取集群信息
 	var clusters []portal.K8sCluster
-	clusterMap := make(map[int64]portal.K8sCluster)
+	clusterMap := make(map[int]portal.K8sCluster)
 	if len(clusterIDs) > 0 {
 		if err := s.db.Where("id IN ?", clusterIDs).Find(&clusters).Error; err != nil {
 			return nil, 0, err
@@ -160,6 +160,6 @@ func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, l
 }
 
 // SetMatchDevicesForStrategyFunc is a test helper to mock the device matching function.
-func (s *ElasticScalingService) SetMatchDevicesForStrategyFunc(f func(strategy *portal.ElasticScalingStrategy, clusterID int64, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error) {
+func (s *ElasticScalingService) SetMatchDevicesForStrategyFunc(f func(strategy *portal.ElasticScalingStrategy, clusterID int, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error) {
 	s.matchDevicesForStrategyFunc = f
 }

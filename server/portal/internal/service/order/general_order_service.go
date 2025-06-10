@@ -95,7 +95,7 @@ func (s *generalOrderServiceImpl) CreateOrder(ctx context.Context, createDTO Gen
 }
 
 // GetOrder 获取单个通用订单的完整信息
-func (s *generalOrderServiceImpl) GetOrder(ctx context.Context, id int64) (*GeneralOrderDTO, error) {
+func (s *generalOrderServiceImpl) GetOrder(ctx context.Context, id int) (*GeneralOrderDTO, error) {
 	baseOrder, err := s.baseService.GetOrderByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (s *generalOrderServiceImpl) GetOrder(ctx context.Context, id int64) (*Gene
 }
 
 // ListOrders 获取通用订单列表
-func (s *generalOrderServiceImpl) ListOrders(ctx context.Context, queryContext any) ([]*GeneralOrderDTO, int64, error) {
+func (s *generalOrderServiceImpl) ListOrders(ctx context.Context, queryContext any) ([]*GeneralOrderDTO, int, error) {
 	c, ok := queryContext.(*gin.Context)
 	if !ok {
 		return nil, 0, errors.New(errQueryContextInvalid)
@@ -154,7 +154,7 @@ func (s *generalOrderServiceImpl) ListOrders(ctx context.Context, queryContext a
 	}
 
 	// 批量获取订单详情
-	orderIDs := make([]int64, len(baseOrders))
+	orderIDs := make([]int, len(baseOrders))
 	for i, order := range baseOrders {
 		orderIDs[i] = order.ID
 	}
@@ -164,7 +164,7 @@ func (s *generalOrderServiceImpl) ListOrders(ctx context.Context, queryContext a
 		return nil, 0, err
 	}
 
-	detailsMap := make(map[int64]*portal.GeneralOrderDetail)
+	detailsMap := make(map[int]*portal.GeneralOrderDetail)
 	for i := range details {
 		detailsMap[details[i].OrderID] = &details[i]
 	}
@@ -184,7 +184,7 @@ func (s *generalOrderServiceImpl) ListOrders(ctx context.Context, queryContext a
 }
 
 // UpdateOrderStatus 更新订单状态
-func (s *generalOrderServiceImpl) UpdateOrderStatus(ctx context.Context, id int64, status string, executor string, reason string) error {
+func (s *generalOrderServiceImpl) UpdateOrderStatus(ctx context.Context, id int, status string, executor string, reason string) error {
 	// We can add validation here to ensure the order is of type 'general' before updating.
 	// For now, we directly use the base service.
 	return s.baseService.UpdateOrderStatus(ctx, id, portal.OrderStatus(status), executor, reason)
@@ -193,21 +193,21 @@ func (s *generalOrderServiceImpl) UpdateOrderStatus(ctx context.Context, id int6
 // --- 订单生命周期快捷操作 ---
 
 // ProcessOrder 将订单状态更新为处理中
-func (s *generalOrderServiceImpl) ProcessOrder(ctx context.Context, id int64, executor string) error {
+func (s *generalOrderServiceImpl) ProcessOrder(ctx context.Context, id int, executor string) error {
 	return s.baseService.ProcessOrder(ctx, id, executor)
 }
 
 // CompleteOrder 将订单状态更新为已完成
-func (s *generalOrderServiceImpl) CompleteOrder(ctx context.Context, id int64, executor string) error {
+func (s *generalOrderServiceImpl) CompleteOrder(ctx context.Context, id int, executor string) error {
 	return s.baseService.CompleteOrder(ctx, id, executor)
 }
 
 // FailOrder 将订单状态更新为失败
-func (s *generalOrderServiceImpl) FailOrder(ctx context.Context, id int64, executor string, reason string) error {
+func (s *generalOrderServiceImpl) FailOrder(ctx context.Context, id int, executor string, reason string) error {
 	return s.baseService.FailOrder(ctx, id, executor, reason)
 }
 
 // CancelOrder 将订单状态更新为已取消
-func (s *generalOrderServiceImpl) CancelOrder(ctx context.Context, id int64, executor string) error {
+func (s *generalOrderServiceImpl) CancelOrder(ctx context.Context, id int, executor string) error {
 	return s.baseService.CancelOrder(ctx, id, executor)
 }

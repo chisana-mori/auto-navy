@@ -11,7 +11,7 @@ import (
 
 // PublishDeviceChangeEventFunc 定义了发布设备变更事件的函数类型
 // 参数是设备 ID
-type PublishDeviceChangeEventFunc func(deviceID int64)
+type PublishDeviceChangeEventFunc func(deviceID int)
 
 // deviceChangeEventPublisher 是一个包级变量，用于持有实际的事件发布函数
 // 这个变量将在 service 包初始化时被赋值
@@ -77,7 +77,7 @@ func (d *Device) AfterSave(tx *gorm.DB) (err error) {
 	// 调用已注册的事件发布函数
 	if deviceChangeEventPublisher != nil {
 		fmt.Printf("Hook AfterSave triggered for Device ID: %d, publishing event...\n", d.ID)
-		deviceChangeEventPublisher(d.ID)
+		deviceChangeEventPublisher(int(d.ID))
 	} else {
 		fmt.Printf("Warning: Hook AfterSave triggered for Device ID: %d, but no event publisher registered.\n", d.ID)
 	}
@@ -89,7 +89,7 @@ func (d *Device) AfterDelete(tx *gorm.DB) (err error) {
 	// 调用已注册的事件发布函数
 	if deviceChangeEventPublisher != nil {
 		fmt.Printf("Hook AfterDelete triggered for Device ID: %d, publishing event...\n", d.ID)
-		deviceChangeEventPublisher(d.ID)
+		deviceChangeEventPublisher(int(d.ID))
 	} else {
 		fmt.Printf("Warning: Hook AfterDelete triggered for Device ID: %d, but no event publisher registered.\n", d.ID)
 	}

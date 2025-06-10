@@ -42,7 +42,7 @@ func (s *SecurityCheckService) GetSecurityChecks(ctx context.Context, clusterNam
 }
 
 // GetSecurityCheckItems 获取安全检查项
-func (s *SecurityCheckService) GetSecurityCheckItems(ctx context.Context, securityCheckID int64) ([]portal.SecurityCheckItem, error) {
+func (s *SecurityCheckService) GetSecurityCheckItems(ctx context.Context, securityCheckID int) ([]portal.SecurityCheckItem, error) {
 	var items []portal.SecurityCheckItem
 
 	if err := s.db.WithContext(ctx).

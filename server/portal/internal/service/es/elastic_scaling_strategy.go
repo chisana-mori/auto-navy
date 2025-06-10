@@ -10,7 +10,7 @@ import (
 )
 
 // CreateStrategy 创建弹性伸缩策略
-func (s *ElasticScalingService) CreateStrategy(dto StrategyDTO) (int64, error) {
+func (s *ElasticScalingService) CreateStrategy(dto StrategyDTO) (int, error) {
 	// 参数验证
 	if err := s.validateStrategyDTO(&dto); err != nil {
 		return 0, err
@@ -189,7 +189,7 @@ func (s *ElasticScalingService) GetStrategy(id int64) (*StrategyDetailDTO, error
 		return nil, err
 	}
 
-	clusterIDs := make([]int64, len(associations))
+	clusterIDs := make([]int, len(associations))
 	for i, assoc := range associations {
 		clusterIDs[i] = assoc.ClusterID
 	}
@@ -405,7 +405,7 @@ func (s *ElasticScalingService) ListStrategies(name string, status string, actio
 }
 
 // UpdateStrategyStatus 更新策略状态
-func (s *ElasticScalingService) UpdateStrategyStatus(id int64, status string) error {
+func (s *ElasticScalingService) UpdateStrategyStatus(id int, status string) error {
 	if status != "enabled" && status != "disabled" {
 		return fmt.Errorf("无效的策略状态: %s", status)
 	}

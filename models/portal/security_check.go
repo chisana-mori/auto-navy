@@ -6,7 +6,7 @@ import (
 
 // SecurityCheck 安全检查主表
 type SecurityCheck struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement"`
+	ID          int     `gorm:"primaryKey;autoIncrement"`
 	ClusterName string    `gorm:"type:varchar(255);not null;index:idx_cluster"`
 	NodeType    string    `gorm:"type:enum('master','etcd','node');not null"`
 	NodeName    string    `gorm:"type:varchar(255);not null"`
@@ -18,8 +18,8 @@ type SecurityCheck struct {
 
 // SecurityCheckItem 安全检查项表
 type SecurityCheckItem struct {
-	ID              int64     `gorm:"primaryKey;autoIncrement"`
-	SecurityCheckID int64     `gorm:"not null;index:idx_check_id"`
+	ID              int     `gorm:"primaryKey;autoIncrement"`
+	SecurityCheckID int     `gorm:"not null;index:idx_check_id"`
 	ItemName        string    `gorm:"type:varchar(255);not null"`
 	ItemValue       string    `gorm:"type:text"`
 	Status          bool      `gorm:"not null"`

@@ -73,7 +73,7 @@ func (h *OpsJobHandler) getOpsJob(c *gin.Context) {
 		return
 	}
 
-	job, err := h.service.GetOpsJob(c.Request.Context(), id)
+	job, err := h.service.GetOpsJob(c.Request.Context(), int(id))
 	if err != nil {
 		if err.Error() == fmt.Sprintf(service.ErrOpsJobNotFoundMsg, id) {
 			render.NotFound(c, err.Error())
@@ -168,11 +168,11 @@ func (h *OpsJobHandler) handleWebSocket(c *gin.Context) {
 	}
 
 	// Handle WebSocket connection
-	go h.handleConnection(conn, id)
+	go h.handleConnection(conn, int(id))
 }
 
 // handleConnection manages the WebSocket connection for a specific job
-func (h *OpsJobHandler) handleConnection(conn *websocket.Conn, jobID int64) {
+func (h *OpsJobHandler) handleConnection(conn *websocket.Conn, jobID int) {
 	defer conn.Close()
 
 	// Register client for job updates

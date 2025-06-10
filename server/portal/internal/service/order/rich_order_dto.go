@@ -10,7 +10,7 @@ import (
 
 // DeviceDTO 设备DTO
 type DeviceDTO struct {
-	ID           int64   `json:"id"`
+	ID           int   `json:"id"`
 	CICode       string  `json:"ciCode"`
 	IP           string  `json:"ip"`
 	ArchType     string  `json:"archType"`
@@ -27,13 +27,13 @@ type DeviceDTO struct {
 
 // OrderDTO 弹性伸缩订单DTO
 type OrderDTO struct {
-	ID               int64  `json:"id,omitempty"`
+	ID               int  `json:"id,omitempty"`
 	OrderNumber      string `json:"orderNumber"`
 	Name             string `json:"name"`        // 订单名称
 	Description      string `json:"description"` // 订单描述
-	ClusterID        int64  `json:"clusterId"`
+	ClusterID        int  `json:"clusterId"`
 	ClusterName      string `json:"clusterName,omitempty"`
-	StrategyID       *int64 `json:"strategyId"`
+	StrategyID       *int `json:"strategyId"`
 	StrategyName     string `json:"strategyName,omitempty"`
 	ActionType       string `json:"actionType"`       // pool_entry, pool_exit, maintenance_request, maintenance_uncordon
 	ResourcePoolType string `json:"resourcePoolType"` // 资源池类型
@@ -50,7 +50,7 @@ type OrderDTO struct {
 	MaintenanceStartTime   *time.Time             `json:"maintenanceStartTime,omitempty"`
 	MaintenanceEndTime     *time.Time             `json:"maintenanceEndTime,omitempty"`
 	ExternalTicketID       string                 `json:"externalTicketId,omitempty"`
-	Devices                []int64                `json:"devices,omitempty"`   // 设备ID列表
+	Devices                []int                `json:"devices,omitempty"`   // 设备ID列表
 	ExtraInfo              map[string]interface{} `json:"extraInfo,omitempty"` // 额外信息，用于存储维护原因等
 	StrategyTriggeredValue string                 `json:"strategyTriggeredValue,omitempty"`
 	StrategyThresholdValue string                 `json:"strategyThresholdValue,omitempty"`
@@ -58,13 +58,13 @@ type OrderDTO struct {
 
 // OrderListItemDTO 订单列表项
 type OrderListItemDTO struct {
-	ID               int64     `json:"id"`
+	ID               int     `json:"id"`
 	OrderNumber      string    `json:"orderNumber"`
 	Name             string    `json:"name"`        // 订单名称
 	Description      string    `json:"description"` // 订单描述
-	ClusterID        int64     `json:"clusterId"`
+	ClusterID        int     `json:"clusterId"`
 	ClusterName      string    `json:"clusterName"`
-	StrategyID       *int64    `json:"strategyId"`
+	StrategyID       *int    `json:"strategyId"`
 	StrategyName     string    `json:"strategyName"`
 	ActionType       string    `json:"actionType"`
 	ResourcePoolType string    `json:"resourcePoolType"` // 资源池类型
@@ -83,7 +83,7 @@ type OrderDetailDTO struct {
 // RichOrderDTO 丰富的订单DTO，包含完整的关联信息
 type RichOrderDTO struct {
 	// 基础订单信息
-	ID             int64              `json:"id"`
+	ID             int              `json:"id"`
 	OrderNumber    string             `json:"orderNumber"`
 	Name           string             `json:"name"`
 	Description    string             `json:"description"`
@@ -109,11 +109,11 @@ type RichOrderDTO struct {
 
 // ElasticScalingDetailDTO 弹性伸缩详情DTO
 type ElasticScalingDetailDTO struct {
-	ID                     int64      `json:"id"`
-	OrderID                int64      `json:"orderId"`
-	ClusterID              int64      `json:"clusterId"`
+	ID                     int      `json:"id"`
+	OrderID                int      `json:"orderId"`
+	ClusterID              int      `json:"clusterId"`
 	ClusterName            string     `json:"clusterName,omitempty"` // 集群名称
-	StrategyID             *int64     `json:"strategyId"`
+	StrategyID             *int     `json:"strategyId"`
 	StrategyName           string     `json:"strategyName,omitempty"` // 策略名称
 	ActionType             string     `json:"actionType"`
 	DeviceCount            int        `json:"deviceCount"`
@@ -129,7 +129,7 @@ type ElasticScalingDetailDTO struct {
 // RichDeviceDTO 丰富的设备DTO
 type RichDeviceDTO struct {
 	// 基础设备信息
-	ID             int64     `json:"id"`
+	ID             int     `json:"id"`
 	CICode         string    `json:"ciCode"`
 	IP             string    `json:"ip"`
 	ArchType       string    `json:"archType"`

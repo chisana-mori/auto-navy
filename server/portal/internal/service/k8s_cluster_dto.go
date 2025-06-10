@@ -18,7 +18,7 @@ type K8sClusterQuery struct {
 
 // K8sClusterResponse 集群响应
 type K8sClusterResponse struct {
-	ID                int64              `json:"id"`
+	ID                int              `json:"id"`
 	ClusterID         string             `json:"clusterId"`
 	ClusterName       string             `json:"clusterName"`
 	ClusterNameCn     string             `json:"clusterNameCn"`
@@ -278,7 +278,7 @@ func (r *UpdateK8sClusterRequest) ToUpdateMap(updater string) map[string]interfa
 
 // K8sNodeResponse 节点响应
 type K8sNodeResponse struct {
-	ID                      int64  `json:"id"`
+	ID                      int  `json:"id"`
 	NodeName                string `json:"nodeName"`
 	HostIP                  string `json:"hostIp"`
 	Role                    string `json:"role"`

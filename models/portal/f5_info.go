@@ -14,7 +14,7 @@ type F5Info struct {
 	PoolName      string     `gorm:"column:pool_name;type:varchar(50)"`         // Pool名称
 	PoolStatus    string     `gorm:"column:pool_status;type:varchar(50)"`       // Pool状态
 	PoolMembers   string     `gorm:"column:pool_members;type:text"`             // Pool成员
-	K8sClusterID  int64      `gorm:"column:k8s_cluster_id;type:bigint"`         // K8s集群ID
+	K8sClusterID  int      `gorm:"column:k8s_cluster_id;type:bigint"`         // K8s集群ID
 	K8sCluster    K8sCluster `gorm:"foreignKey:K8sClusterID"`                   // K8s集群信息
 	Domains       string     `gorm:"column:domains;type:text"`                  // 域名
 	GrafanaParams string     `gorm:"column:grafana_params;type:text"`           // Grafana参数

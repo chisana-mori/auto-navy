@@ -78,7 +78,7 @@ func (s *K8sClusterService) GetK8sClusters(ctx context.Context, query *K8sCluste
 }
 
 // GetK8sClusterByID 根据ID获取K8s集群
-func (s *K8sClusterService) GetK8sClusterByID(ctx context.Context, id int64) (*K8sClusterResponse, error) {
+func (s *K8sClusterService) GetK8sClusterByID(ctx context.Context, id int) (*K8sClusterResponse, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -118,7 +118,7 @@ func (s *K8sClusterService) CreateK8sCluster(ctx context.Context, req *CreateK8s
 }
 
 // UpdateK8sCluster 更新K8s集群
-func (s *K8sClusterService) UpdateK8sCluster(ctx context.Context, id int64, req *UpdateK8sClusterRequest, username string) (*K8sClusterResponse, error) {
+func (s *K8sClusterService) UpdateK8sCluster(ctx context.Context, id int, req *UpdateK8sClusterRequest, username string) (*K8sClusterResponse, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -156,7 +156,7 @@ func (s *K8sClusterService) UpdateK8sCluster(ctx context.Context, id int64, req 
 }
 
 // DeleteK8sCluster 删除K8s集群
-func (s *K8sClusterService) DeleteK8sCluster(ctx context.Context, id int64) error {
+func (s *K8sClusterService) DeleteK8sCluster(ctx context.Context, id int) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -188,7 +188,7 @@ func (s *K8sClusterService) DeleteK8sCluster(ctx context.Context, id int64) erro
 }
 
 // GetK8sClusterNodes 获取集群的节点列表
-func (s *K8sClusterService) GetK8sClusterNodes(ctx context.Context, clusterID int64) ([]*K8sNodeResponse, error) {
+func (s *K8sClusterService) GetK8sClusterNodes(ctx context.Context, clusterID int) ([]*K8sNodeResponse, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 

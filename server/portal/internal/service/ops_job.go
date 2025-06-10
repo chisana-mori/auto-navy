@@ -16,7 +16,7 @@ import (
 // OpsJobService provides operations for OpsJob.
 type OpsJobService struct {
 	db            *gorm.DB
-	activeJobs    map[int64]*JobExecution
+	activeJobs    map[int]*JobExecution
 	activeJobsMux sync.Mutex
 }
 
@@ -28,7 +28,7 @@ type ClientConnection struct {
 
 // JobExecution represents an active job execution
 type JobExecution struct {
-	JobID   int64
+	JobID   int
 	Manager *WebSocketManager
 	Cancel  context.CancelFunc
 }
@@ -37,7 +37,7 @@ type JobExecution struct {
 func NewOpsJobService(db *gorm.DB) *OpsJobService {
 	return &OpsJobService{
 		db:         db,
-		activeJobs: make(map[int64]*JobExecution),
+		activeJobs: make(map[int]*JobExecution),
 	}
 }
 
@@ -49,7 +49,7 @@ const (
 
 // GetOpsJob retrieves a single OpsJob by ID.
 
-func (s *OpsJobService) GetOpsJob(ctx context.Context, id int64) (*OpsJobResponse, error) {
+func (s *OpsJobService) GetOpsJob(ctx context.Context, id int) (*OpsJobResponse, error) {
 	var model portal.OpsJob
 	err := s.db.WithContext(ctx).Where("id = ? AND deleted = ?", id, EmptyString).First(&model).Error
 	if err != nil {
@@ -126,7 +126,7 @@ func (s *OpsJobService) CreateOpsJob(ctx context.Context, dto *OpsJobCreateDTO) 
 }
 
 // StartJob starts the execution of a job and broadcasts updates via WebSocket.
-func (s *OpsJobService) StartJob(jobID int64, conn *websocket.Conn) error {
+func (s *OpsJobService) StartJob(jobID int, conn *websocket.Conn) error {
 	// Check if job exists
 	var job portal.OpsJob
 	if err := s.db.Where("id = ? AND deleted = ?", jobID, EmptyString).First(&job).Error; err != nil {
@@ -168,7 +168,7 @@ func (s *OpsJobService) StartJob(jobID int64, conn *websocket.Conn) error {
 }
 
 // RegisterClient registers a WebSocket client for job updates
-func (s *OpsJobService) RegisterClient(jobID int64, conn *websocket.Conn) error {
+func (s *OpsJobService) RegisterClient(jobID int, conn *websocket.Conn) error {
 	client := NewWebSocketClient(conn)
 
 	s.activeJobsMux.Lock()
@@ -198,7 +198,7 @@ func (s *OpsJobService) RegisterClient(jobID int64, conn *websocket.Conn) error 
 }
 
 // UnregisterClient removes a WebSocket client
-func (s *OpsJobService) UnregisterClient(jobID int64, conn *websocket.Conn) {
+func (s *OpsJobService) UnregisterClient(jobID int, conn *websocket.Conn) {
 	s.activeJobsMux.Lock()
 	defer s.activeJobsMux.Unlock()
 
@@ -217,7 +217,7 @@ func (s *OpsJobService) UnregisterClient(jobID int64, conn *websocket.Conn) {
 }
 
 // executeJob simulates a job execution with progress updates
-func (s *OpsJobService) executeJob(ctx context.Context, jobID int64) {
+func (s *OpsJobService) executeJob(ctx context.Context, jobID int) {
 	totalSteps := 10
 	logLines := []string{
 		"Initializing job execution...",
@@ -253,7 +253,7 @@ func (s *OpsJobService) executeJob(ctx context.Context, jobID int64) {
 }
 
 // updateJobStatus updates the job status and notifies all connected clients
-func (s *OpsJobService) updateJobStatus(jobID int64, status string, progress int, logLine string) {
+func (s *OpsJobService) updateJobStatus(jobID int, status string, progress int, logLine string) {
 	// Update database
 	var job portal.OpsJob
 	if err := s.db.First(&job, jobID).Error; err != nil {
@@ -287,7 +287,7 @@ func (s *OpsJobService) updateJobStatus(jobID int64, status string, progress int
 }
 
 // cleanupJob removes the job from active jobs map
-func (s *OpsJobService) cleanupJob(jobID int64) {
+func (s *OpsJobService) cleanupJob(jobID int) {
 	s.activeJobsMux.Lock()
 	defer s.activeJobsMux.Unlock()
 

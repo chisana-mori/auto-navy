@@ -6,12 +6,12 @@ import (
 
 // ResourcePoolDeviceMatchingPolicy 资源池设备匹配策略DTO
 type ResourcePoolDeviceMatchingPolicy struct {
-	ID               int64         `json:"id"`                                                       // 主键
+	ID               int         `json:"id"`                                                       // 主键
 	Name             string        `json:"name" binding:"required"`                                  // 策略名称
 	Description      string        `json:"description"`                                              // 策略描述
 	ResourcePoolType string        `json:"resourcePoolType" binding:"required"`                      // 资源池类型
 	ActionType       string        `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
-	QueryTemplateID  int64         `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
+	QueryTemplateID  int         `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
 	QueryGroups      []FilterGroup `json:"queryGroups,omitempty"`                                    // 查询条件组（从查询模板获取，非直接存储字段）
 	Status           string        `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
 	AdditionConds    []string      `json:"additionConds,omitempty"`                                  // 额外动态条件，仅入池时有效
@@ -38,7 +38,7 @@ type CreateResourcePoolDeviceMatchingPolicyRequest struct {
 	Description      string   `json:"description"`                                              // 策略描述
 	ResourcePoolType string   `json:"resourcePoolType" binding:"required"`                      // 资源池类型
 	ActionType       string   `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
-	QueryTemplateID  int64    `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
+	QueryTemplateID  int    `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
 	Status           string   `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
 	AdditionConds    []string `json:"additionConds,omitempty"`                                  // 额外动态条件，仅入池时有效
 }
@@ -49,7 +49,7 @@ type UpdateResourcePoolDeviceMatchingPolicyRequest struct {
 	Description      string   `json:"description"`                                              // 策略描述
 	ResourcePoolType string   `json:"resourcePoolType" binding:"required"`                      // 资源池类型
 	ActionType       string   `json:"actionType" binding:"required,oneof=pool_entry pool_exit"` // 动作类型：pool_entry 或 pool_exit
-	QueryTemplateID  int64    `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
+	QueryTemplateID  int    `json:"queryTemplateId" binding:"required"`                       // 关联的查询模板ID
 	Status           string   `json:"status" binding:"required,oneof=enabled disabled"`         // 状态：enabled 或 disabled
 	AdditionConds    []string `json:"additionConds,omitempty"`                                  // 额外动态条件，仅入池时有效
 }
@@ -75,7 +75,7 @@ func (req *CreateResourcePoolDeviceMatchingPolicyRequest) ToServiceModel(usernam
 }
 
 // ToServiceModel 将更新请求转换为服务模型
-func (req *UpdateResourcePoolDeviceMatchingPolicyRequest) ToServiceModel(id int64, username string) *ResourcePoolDeviceMatchingPolicy {
+func (req *UpdateResourcePoolDeviceMatchingPolicyRequest) ToServiceModel(id int, username string) *ResourcePoolDeviceMatchingPolicy {
 	return &ResourcePoolDeviceMatchingPolicy{
 		ID:               id,
 		Name:             req.Name,

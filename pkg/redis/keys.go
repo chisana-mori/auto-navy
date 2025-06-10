@@ -63,7 +63,7 @@ func (kb *KeyBuilder) DeviceListKey(queryHash string) string {
 }
 
 // DeviceKey 构建单个设备缓存键
-func (kb *KeyBuilder) DeviceKey(id int64) string {
+func (kb *KeyBuilder) DeviceKey(id int) string {
 	return fmt.Sprintf(DeviceKeyTpl, kb.globalPrefix, DeviceModule, kb.version, id)
 }
 
