@@ -7,6 +7,7 @@ import (
 	routersconstants "navy-ng/server/portal/internal/routers"
 	baseservice "navy-ng/server/portal/internal/service" // Alias for base service if still needed for DeviceCache
 	"navy-ng/server/portal/internal/service/es"
+	"navy-ng/server/portal/internal/service/events"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,20 +25,21 @@ type IDRequest struct {
 // ElasticScalingHandler 弹性伸缩处理器
 type ElasticScalingHandler struct {
 	service *es.ElasticScalingService
+	logger  *zap.Logger
 }
 
 // NewElasticScalingHandler 创建弹性伸缩处理器
 // NewElasticScalingHandler 创建弹性伸缩处理器
 // 接受数据库连接和 Redis 处理器作为参数
-func NewElasticScalingHandler(db *gorm.DB) *ElasticScalingHandler {
-	redisHandler := redis.NewRedisHandler(routersconstants.RedisDefault)
-	// Create a logger for the service
-	logger, _ := zap.NewProduction()
-	// 创建设备缓存
-	deviceCache := baseservice.NewDeviceCache(redisHandler, redis.NewKeyBuilder(routersconstants.RedisNamespace, routersconstants.RedisVersion))
+func NewElasticScalingHandler(db *gorm.DB, logger *zap.Logger, eventManager *events.EventManager) *ElasticScalingHandler {
+	// 使用默认Redis连接
+	redisHandler := redis.NewRedisHandler("default")
+	// Create device cache
+	deviceCache := baseservice.NewDeviceCache(redisHandler, redis.NewKeyBuilder("navy", "v1"))
 
 	return &ElasticScalingHandler{
-		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
+		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache, eventManager),
+		logger:  logger, // Add logger
 	}
 }
 

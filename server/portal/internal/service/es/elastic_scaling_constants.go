@@ -37,6 +37,8 @@ const (
 	DeviceStatusFailed     = "failed"
 	StatusSuccess          = "success"
 	StatusExecuting        = "executing"
+	StatusCancel           = "cancel"
+	StatusReturning        = "returning"
 )
 
 // 阈值类型

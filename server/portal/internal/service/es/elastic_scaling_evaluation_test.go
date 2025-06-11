@@ -127,7 +127,7 @@ var _ = Describe("ElasticScalingEvaluation", func() {
 		mockDeviceCache = &MockDeviceCache{}
 
 		// 初始化服务
-		ess = es.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache)
+		ess = es.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache, nil)
 	})
 
 	// 在每个测试结束后，清理环境

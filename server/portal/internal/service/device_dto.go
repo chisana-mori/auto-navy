@@ -15,7 +15,7 @@ type DeviceQueryDTO struct {
 // DeviceResponse 设备响应
 // swagger:model
 type DeviceResponseDTO struct {
-	ID           int  `json:"id" example:"1" swagger:"description=设备ID"`
+	ID           int    `json:"id" example:"1" swagger:"description=设备ID"`
 	DeviceID     string `json:"deviceId" example:"SYSOPS00409045" swagger:"description=设备ID"`
 	IP           string `json:"ip" example:"29.19.50.124" swagger:"description=IP地址"`
 	MachineType  string `json:"machineType" example:"qf-core601-flannel-2" swagger:"description=机器类型"`
@@ -82,8 +82,8 @@ type DeviceGroupUpdateRequest struct {
 
 // DeviceResponse Standard response for a single device or item in a list
 type DeviceResponse struct {
-	ID             int     `json:"id"`             // ID
-	DeviceID       int     `json:"deviceId"`       // 设备ID (Ensure this is populated)
+	ID             int       `json:"id"`             // ID
+	DeviceID       int       `json:"deviceId"`       // 设备ID (Ensure this is populated)
 	CICode         string    `json:"ciCode"`         // 设备编码
 	IP             string    `json:"ip"`             // IP地址
 	ArchType       string    `json:"archType"`       // CPU架构

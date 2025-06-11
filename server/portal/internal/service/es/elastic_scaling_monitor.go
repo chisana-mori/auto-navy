@@ -3,6 +3,7 @@ package es
 import (
 	"fmt"
 	"navy-ng/pkg/redis"
+	"navy-ng/server/portal/internal/service/events"
 	"time"
 
 	. "navy-ng/server/portal/internal/service"
@@ -22,6 +23,7 @@ type ElasticScalingMonitor struct {
 	stopChan       chan struct{}
 	isRunning      bool
 	cron           *cron.Cron
+	eventManager   *events.EventManager // 事件管理器
 }
 
 // MonitorConfig 监控配置
@@ -36,16 +38,16 @@ type MonitorConfig struct {
 // DefaultMonitorConfig 默认监控配置
 func DefaultMonitorConfig() MonitorConfig {
 	return MonitorConfig{
-		MonitorCron:        "* * * * *",      // 每分钟运行一次
-		EvaluationInterval: 10 * time.Minute, // 每10分钟评估一次策略
-		LockTimeout:        30 * time.Second, // 锁超时时间30秒
-		LockRetryInterval:  1 * time.Second,  // 锁重试间隔1秒
-		LockMaxRetries:     3,                // 最大重试3次
+		MonitorCron:        "0 10,14,18 * * *", // 每天10点、14点、18点运行
+		EvaluationInterval: 10 * time.Minute,   // 每10分钟评估一次策略
+		LockTimeout:        30 * time.Second,   // 锁超时时间30秒
+		LockRetryInterval:  1 * time.Second,    // 锁重试间隔1秒
+		LockMaxRetries:     3,                  // 最大重试3次
 	}
 }
 
 // NewElasticScalingMonitor 创建弹性伸缩监控服务实例
-func NewElasticScalingMonitor(db *gorm.DB, config MonitorConfig, logger *zap.Logger) *ElasticScalingMonitor {
+func NewElasticScalingMonitor(db *gorm.DB, config MonitorConfig, logger *zap.Logger, eventManager *events.EventManager) *ElasticScalingMonitor {
 	// 使用默认Redis连接
 	redisHandler := redis.NewRedisHandler("default")
 	// 设置锁的过期时间
@@ -57,9 +59,10 @@ func NewElasticScalingMonitor(db *gorm.DB, config MonitorConfig, logger *zap.Log
 	monitor := &ElasticScalingMonitor{
 		db:             db,
 		redisHandler:   redisHandler,
-		scalingService: NewElasticScalingService(db, redisHandler, logger, deviceCache), // Pass redisHandler, logger and cache
+		scalingService: NewElasticScalingService(db, redisHandler, logger, deviceCache, eventManager), // 添加eventManager参数
 		config:         config,
-		logger:         logger, // Assign logger
+		logger:         logger,       // Assign logger
+		eventManager:   eventManager, // 初始化事件管理器
 		stopChan:       make(chan struct{}),
 		isRunning:      false,
 	}

@@ -93,8 +93,8 @@ export async function getResourcePoolAllocationRate(
     return await request('cluster-resources/allocation-rate', {
       method: 'GET',
       params: {
-        cluster_name: clusterName,
-        resource_pool: resourcePool,
+        clusterName: clusterName,
+        resourcePool: resourcePool,
       },
     });
   } catch (error) {

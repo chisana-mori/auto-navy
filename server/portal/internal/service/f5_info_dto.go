@@ -26,7 +26,7 @@ type F5InfoUpdateDTO struct {
 	PoolName      string `json:"pool_name" example:"pool-1" swagger:"description=池名称"`
 	PoolStatus    string `json:"pool_status" example:"active" swagger:"description=池状态"`
 	PoolMembers   string `json:"pool_members" example:"192.168.1.10:80,192.168.1.11:80" swagger:"description=池成员列表,逗号分隔"`
-	K8sClusterID  int  `json:"k8s_cluster_id" example:"1" swagger:"description=K8s集群ID"`
+	K8sClusterID  int    `json:"k8s_cluster_id" example:"1" swagger:"description=K8s集群ID"`
 	Domains       string `json:"domains" example:"example.com,test.com" swagger:"description=域名列表,逗号分隔"`
 	GrafanaParams string `json:"grafana_params" example:"http://grafana.example.com" swagger:"description=Grafana监控参数"`
 	Ignored       bool   `json:"ignored" example:"false" swagger:"description=是否忽略"`
@@ -34,7 +34,7 @@ type F5InfoUpdateDTO struct {
 
 // F5InfoResponse defines the response structure for a single F5Info.
 type F5InfoResponse struct {
-	ID             int  `json:"id" example:"1" swagger:"description=ID"`
+	ID             int    `json:"id" example:"1" swagger:"description=ID"`
 	Name           string `json:"name" example:"f5-test" swagger:"description=F5名称"`
 	VIP            string `json:"vip" example:"192.168.1.1" swagger:"description=VIP地址"`
 	Port           string `json:"port" example:"80" swagger:"description=端口"`
@@ -44,7 +44,7 @@ type F5InfoResponse struct {
 	PoolName       string `json:"pool_name" example:"pool-1" swagger:"description=池名称"`
 	PoolStatus     string `json:"pool_status" example:"active" swagger:"description=池状态"`
 	PoolMembers    string `json:"pool_members" example:"192.168.1.10:80,192.168.1.11:80" swagger:"description=池成员列表"`
-	K8sClusterID   int  `json:"k8s_cluster_id" example:"1" swagger:"description=K8s集群ID"`
+	K8sClusterID   int    `json:"k8s_cluster_id" example:"1" swagger:"description=K8s集群ID"`
 	K8sClusterName string `json:"k8s_cluster_name" example:"生产集群" swagger:"description=K8s集群名称"`
 	Domains        string `json:"domains" example:"example.com,test.com" swagger:"description=域名列表"`
 	GrafanaParams  string `json:"grafana_params" example:"http://grafana.example.com" swagger:"description=Grafana监控参数"`

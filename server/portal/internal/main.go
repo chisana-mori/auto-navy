@@ -18,6 +18,7 @@ import (
 	"navy-ng/server/portal/internal/routers/es"
 	"navy-ng/server/portal/internal/routers/order"
 	ses "navy-ng/server/portal/internal/service/es"
+	"navy-ng/server/portal/internal/service/events"
 )
 
 // @title           Navy-NG API
@@ -48,21 +49,24 @@ func main() {
 	// 确保Redis已初始化（使用项目现有Redis实现）
 	initRedisIfNeeded()
 
+	// 创建 logger
+	logger, _ := zap.NewProduction()
+
+	// 初始化事件管理器
+	eventManager := events.NewEventManager(logger, events.DefaultConfig())
+
 	// 初始化路由处理器
 	f5Handler := routers.NewF5InfoHandler(db)
 	opsHandler := routers.NewOpsJobHandler(db)
 	deviceHandler := routers.NewDeviceHandler(db)
 	deviceQueryHandler := routers.NewDeviceQueryHandler(db)
-	elasticScalingHandler := es.NewElasticScalingHandler(db)
-	elasticScalingOrderHandler := es.NewElasticScalingOrderHandler(db)
+	elasticScalingHandler := es.NewElasticScalingHandler(db, logger, eventManager)
+	elasticScalingOrderHandler := es.NewElasticScalingOrderHandler(db, logger, eventManager)
 	maintenanceHandler := order.NewMaintenanceHandler(db)
 	resourcePoolDeviceMatchingPolicyHandler := es.NewResourcePoolDeviceMatchingPolicyHandler(db)
 	clusterResourceHandler := routers.NewClusterResourceHandler(db)
 	k8sClusterHandler := routers.NewK8sClusterHandler(db)
 	unifiedOrderHandler := order.NewUnifiedOrderHandler(db)
-
-	// 创建 logger for services
-	logger, _ := zap.NewProduction()
 
 	// 初始化并注册所有订单服务
 	unifiedOrderHandler.InitServices(logger)
@@ -93,8 +97,8 @@ func main() {
 	// 启动弹性伸缩监控服务（仅在启用时）
 	// if os.Getenv("ENABLE_ELASTIC_SCALING_MONITOR") == "true" {
 	monitorConfig := ses.DefaultMonitorConfig()
-	// 使用已创建的 logger for monitor
-	monitor := ses.NewElasticScalingMonitor(db, monitorConfig, logger)
+	// 使用已创建的 logger 和 eventManager for monitor
+	monitor := ses.NewElasticScalingMonitor(db, monitorConfig, logger, eventManager)
 	monitor.Start()
 
 	// 确保在应用退出时优雅地停止监控服务

@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"navy-ng/server/portal/internal/service"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"navy-ng/server/portal/internal/service"
 )
 
 // ClusterResourceHandler handles API requests related to cluster resources.
@@ -100,8 +101,8 @@ func (h *ClusterResourceHandler) GetRemainingClusterResources(c *gin.Context) {
 // @Failure 500 {object} render.ErrorResponse "Internal server error"
 // @Router /fe-v1/cluster-resources/allocation-rate [get]
 type ResourcePoolAllocationQuery struct {
-	ClusterName  string `form:"cluster_name" binding:"required"`
-	ResourcePool string `form:"resource_pool" binding:"required"`
+	ClusterName  string `form:"clusterName" binding:"required"`
+	ResourcePool string `form:"resourcePool" binding:"required"`
 }
 
 func (h *ClusterResourceHandler) GetResourcePoolAllocationRate(c *gin.Context) {

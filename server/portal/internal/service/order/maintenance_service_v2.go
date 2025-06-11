@@ -12,7 +12,7 @@ import (
 
 // MaintenanceRequestDTO 维护请求DTO
 type MaintenanceRequestDTO struct {
-	DeviceID             int     `json:"deviceId"`
+	DeviceID             int       `json:"deviceId"`
 	CICode               string    `json:"ciCode"`
 	MaintenanceStartTime time.Time `json:"maintenanceStartTime"`
 	MaintenanceEndTime   time.Time `json:"maintenanceEndTime"`
@@ -25,12 +25,12 @@ type MaintenanceRequestDTO struct {
 // MaintenanceResponseDTO 维护响应DTO
 type MaintenanceResponseDTO struct {
 	Success         bool   `json:"success"`
-	OrderID         int  `json:"orderId"`
+	OrderID         int    `json:"orderId"`
 	OrderNumber     string `json:"orderNumber"`
 	ScheduledTime   string `json:"scheduledTime"`
 	Status          string `json:"status"`
 	Message         string `json:"message"`
-	UncordonOrderID *int `json:"uncordonOrderId,omitempty"`
+	UncordonOrderID *int   `json:"uncordonOrderId,omitempty"`
 }
 
 // MaintenanceCallbackDTO 维护回调DTO
@@ -45,8 +45,8 @@ type MaintenanceCallbackDTO struct {
 type MaintenanceOrderDTO struct {
 	Name                 string                 `json:"name"`
 	Description          string                 `json:"description"`
-	ClusterID            int                  `json:"clusterId"`
-	Devices              []int                `json:"devices"`
+	ClusterID            int                    `json:"clusterId"`
+	Devices              []int                  `json:"devices"`
 	MaintenanceStartTime *time.Time             `json:"maintenanceStartTime"`
 	MaintenanceEndTime   *time.Time             `json:"maintenanceEndTime"`
 	ExternalTicketID     string                 `json:"externalTicketId"`

@@ -577,7 +577,7 @@ type FilterGroup struct {
 
 // QueryTemplate 查询模板
 type QueryTemplate struct {
-	ID          int         `json:"id"`          // 模板ID
+	ID          int           `json:"id"`          // 模板ID
 	Name        string        `json:"name"`        // 模板名称
 	Description string        `json:"description"` // 模板描述
 	Groups      []FilterGroup `json:"groups"`      // 筛选组列表

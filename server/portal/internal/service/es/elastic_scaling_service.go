@@ -3,6 +3,7 @@ package es
 import (
 	"fmt"
 	"navy-ng/models/portal"
+	"navy-ng/server/portal/internal/service/events"
 	"time"
 
 	. "navy-ng/server/portal/internal/service"
@@ -47,6 +48,7 @@ type ElasticScalingService struct {
 	logger                      *zap.Logger           // Added logger
 	cache                       DeviceCacheInterface  // Changed to DeviceCacheInterface
 	orderService                order.OrderService    // 通用订单服务
+	eventManager                *events.EventManager  // 事件管理器
 	matchDevicesForStrategyFunc func(strategy *portal.ElasticScalingStrategy, clusterID int, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error
 }
 
@@ -145,8 +147,8 @@ func (s *ElasticScalingService) GetStrategyExecutionHistoryWithPagination(strate
 }
 
 // NewElasticScalingService 创建弹性伸缩服务实例
-// 接受数据库连接、RedisHandlerInterface 实例、logger 和 cache 作为参数
-func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, logger *zap.Logger, cache DeviceCacheInterface) *ElasticScalingService {
+// 接受数据库连接、RedisHandlerInterface 实例、logger、cache 和 eventManager 作为参数
+func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, logger *zap.Logger, cache DeviceCacheInterface, eventManager *events.EventManager) *ElasticScalingService {
 	orderService := order.NewOrderService(db)
 	s := &ElasticScalingService{
 		db:           db,
@@ -154,12 +156,29 @@ func NewElasticScalingService(db *gorm.DB, redisHandler RedisHandlerInterface, l
 		logger:       logger,       // Assign logger
 		cache:        cache,        // Assign cache
 		orderService: orderService, // 初始化通用订单服务
+		eventManager: eventManager, // 初始化事件管理器
 	}
 	s.matchDevicesForStrategyFunc = s.matchDevicesForStrategy
+
+	// 注册订单事件处理器
+	if eventManager != nil {
+		s.RegisterEventHandlers(eventManager)
+		logger.Info("Elastic scaling service event handlers registered")
+	}
+
 	return s
 }
 
 // SetMatchDevicesForStrategyFunc is a test helper to mock the device matching function.
 func (s *ElasticScalingService) SetMatchDevicesForStrategyFunc(f func(strategy *portal.ElasticScalingStrategy, clusterID int, resourceType, triggeredValue, thresholdValue string, cpuDelta, memDelta float64, latestSnapshot *portal.ResourceSnapshot) error) {
 	s.matchDevicesForStrategyFunc = f
+}
+
+// SetEventManager 设置事件管理器（用于测试或延迟初始化）
+func (s *ElasticScalingService) SetEventManager(eventManager *events.EventManager) {
+	s.eventManager = eventManager
+	if eventManager != nil {
+		s.RegisterEventHandlers(eventManager)
+		s.logger.Info("Event manager set and handlers registered for elastic scaling service")
+	}
 }

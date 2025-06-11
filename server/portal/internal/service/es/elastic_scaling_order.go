@@ -522,6 +522,8 @@ func (s *ElasticScalingService) UpdateOrderDeviceStatus(orderID int, deviceID in
 		StatusSuccess:   true,
 		StatusFailed:    true,
 		StatusExecuting: true,
+		StatusReturning: true,
+		StatusCancel:    true,
 	}
 	if !validStatuses[status] {
 		return fmt.Errorf(errInvalidDeviceStatus, status)

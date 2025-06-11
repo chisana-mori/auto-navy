@@ -709,92 +709,278 @@ sequenceDiagram
 
 ## 6. 数据模型详细设计
 
-### 6.1 节点入池退池策略 (ElasticScalingStrategy)
+### 6.1 弹性伸缩策略表 (elastic_scaling_strategies)
 
-```
-ElasticScalingStrategy {
-    id                     int64    // 主键
-    name                   string   // 策略名称
-    description            string   // 策略描述
-    thresholdTriggerAction string   // 触发动作类型：pool_entry 或 pool_exit
-    cpuThresholdValue      float64  // CPU使用率阈值
-    cpuThresholdType       string   // CPU阈值类型：usage 或 allocated
-    cpuTargetValue         float64  // 动作执行后CPU目标使用率
-    memoryThresholdValue   float64  // 内存使用率阈值
-    memoryThresholdType    string   // 内存阈值类型：usage 或 allocated
-    memoryTargetValue      float64  // 动作执行后内存目标使用率
-    conditionLogic         string   // 条件逻辑：AND 或 OR
-    durationMinutes        int      // 持续时间（分钟）
-    cooldownMinutes        int      // 冷却时间（分钟）
-    deviceCount            int      // 设备数量
-    nodeSelector           string   // 节点选择器
-    resourceTypes          string   // 资源类型列表，逗号分隔
-    entryQueryTemplateID   int64    // 入池设备查询模板ID
-    exitQueryTemplateID    int64    // 退池设备查询模板ID
-    status                 string   // 状态：enabled 或 disabled
-    createdBy              string   // 创建者
-    createdAt              datetime // 创建时间
-    updatedAt              datetime // 更新时间
+```go
+type ElasticScalingStrategy struct {
+    BaseModel
+    Name                   string  `gorm:"column:name;type:varchar(255);not null;comment:策略名称" json:"name"`
+    Description            string  `gorm:"column:description;type:text;comment:策略描述" json:"description"`
+    ThresholdTriggerAction string  `gorm:"column:threshold_trigger_action;type:varchar(50);not null;comment:触发动作类型：pool_entry 或 pool_exit" json:"threshold_trigger_action"`
+    CPUThresholdValue      float64 `gorm:"column:cpu_threshold_value;type:decimal(5,2);comment:CPU使用率阈值" json:"cpu_threshold_value"`
+    CPUThresholdType       string  `gorm:"column:cpu_threshold_type;type:varchar(20);comment:CPU阈值类型：usage 或 allocated" json:"cpu_threshold_type"`
+    CPUTargetValue         float64 `gorm:"column:cpu_target_value;type:decimal(5,2);comment:动作执行后CPU目标使用率" json:"cpu_target_value"`
+    MemoryThresholdValue   float64 `gorm:"column:memory_threshold_value;type:decimal(5,2);comment:内存使用率阈值" json:"memory_threshold_value"`
+    MemoryThresholdType    string  `gorm:"column:memory_threshold_type;type:varchar(20);comment:内存阈值类型：usage 或 allocated" json:"memory_threshold_type"`
+    MemoryTargetValue      float64 `gorm:"column:memory_target_value;type:decimal(5,2);comment:动作执行后内存目标使用率" json:"memory_target_value"`
+    ConditionLogic         string  `gorm:"column:condition_logic;type:varchar(10);comment:条件逻辑：AND 或 OR" json:"condition_logic"`
+    DurationMinutes        int     `gorm:"column:duration_minutes;type:int;comment:持续时间（分钟）" json:"duration_minutes"`
+    CooldownMinutes        int     `gorm:"column:cooldown_minutes;type:int;comment:冷却时间（分钟）" json:"cooldown_minutes"`
+    DeviceCount            int     `gorm:"column:device_count;type:int;comment:设备数量" json:"device_count"`
+    NodeSelector           string  `gorm:"column:node_selector;type:text;comment:节点选择器" json:"node_selector"`
+    ResourceTypes          string  `gorm:"column:resource_types;type:varchar(255);comment:资源类型列表，逗号分隔" json:"resource_types"`
+    EntryQueryTemplateID   *int64  `gorm:"column:entry_query_template_id;type:bigint;comment:入池设备查询模板ID" json:"entry_query_template_id"`
+    ExitQueryTemplateID    *int64  `gorm:"column:exit_query_template_id;type:bigint;comment:退池设备查询模板ID" json:"exit_query_template_id"`
+    Status                 string  `gorm:"column:status;type:varchar(20);not null;default:'enabled';comment:状态：enabled 或 disabled" json:"status"`
+    CreatedBy              string  `gorm:"column:created_by;type:varchar(255);comment:创建者" json:"created_by"`
 }
 ```
 
-### 6.2 节点入池退池订单 (ElasticScalingOrder)
+### 6.2 策略集群关联表 (strategy_cluster_associations)
 
-```
-ElasticScalingOrder {
-    id                     int64    // 主键
-    orderNumber            string   // 唯一订单号
-    clusterId              int64    // 关联集群ID
-    strategyId             int64    // 关联策略ID(手动订单可为NULL)
-    actionType             string   // 订单操作类型
-    status                 string   // 订单状态：pending, processing, completed, failed, cancelled, ignored
-    deviceCount            int      // 请求的设备数量
-    deviceId               int64    // 涉及的特定设备ID(维护订单)
-    createdBy              string   // 创建者
-    executor               string   // 执行人
-    executionTime          datetime // 执行时间
-    completionTime         datetime // 完成时间
-    failureReason          string   // 失败原因
-    maintenanceStartTime   datetime // 维护开始时间
-    maintenanceEndTime     datetime // 维护结束时间
-    externalTicketId       string   // 外部工单号
-    strategyTriggeredValue string   // 策略触发时的具体指标值
-    strategyThresholdValue string   // 策略触发时的阈值设定
-    createdAt              datetime // 创建时间
-    updatedAt              datetime // 更新时间
+```go
+type StrategyClusterAssociation struct {
+    BaseModel
+    StrategyID int64 `gorm:"column:strategy_id;type:bigint;not null;comment:策略ID" json:"strategy_id"`
+    ClusterID  int64 `gorm:"column:cluster_id;type:bigint;not null;comment:集群ID" json:"cluster_id"`
 }
 ```
 
-### 6.3 查询模板 (QueryTemplate)
+### 6.3 基础订单表 (orders)
 
-```
-QueryTemplate {
-    id          int64    // 主键
-    name        string   // 模板名称
-    description string   // 模板描述
-    groups      string   // 筛选组列表，JSON格式
-    createdBy   string   // 创建者
-    updatedBy   string   // 更新者
-    createdAt   datetime // 创建时间
-    updatedAt   datetime // 更新时间
+```go
+type Order struct {
+    BaseModel
+    OrderNumber    string     `gorm:"column:order_number;type:varchar(255);uniqueIndex;not null;comment:唯一订单号" json:"order_number"`
+    Type           OrderType  `gorm:"column:type;type:varchar(50);not null;comment:订单类型" json:"type"`
+    Status         OrderStatus `gorm:"column:status;type:varchar(50);not null;default:'pending';comment:订单状态" json:"status"`
+    CreatedBy      string     `gorm:"column:created_by;type:varchar(255);comment:创建者" json:"created_by"`
+    Executor       string     `gorm:"column:executor;type:varchar(255);comment:执行人" json:"executor"`
+    ExecutionTime  *time.Time `gorm:"column:execution_time;type:datetime;comment:执行时间" json:"execution_time"`
+    CompletionTime *time.Time `gorm:"column:completion_time;type:datetime;comment:完成时间" json:"completion_time"`
+    FailureReason  string     `gorm:"column:failure_reason;type:text;comment:失败原因" json:"failure_reason"`
+    
+    // 关联关系
+    ElasticScalingDetail *ElasticScalingOrderDetail `gorm:"foreignKey:OrderID" json:"elastic_scaling_detail,omitempty"`
+    GeneralDetail        *GeneralOrderDetail        `gorm:"foreignKey:OrderID" json:"general_detail,omitempty"`
+    MaintenanceDetail    *MaintenanceOrderDetail    `gorm:"foreignKey:OrderID" json:"maintenance_detail,omitempty"`
+    OrderDevices         []OrderDevice              `gorm:"foreignKey:OrderID" json:"order_devices,omitempty"`
 }
 ```
 
-### 6.4 资源池设备匹配策略 (ResourcePoolDeviceMatchingPolicy)
+### 6.4 弹性伸缩订单详情表 (elastic_scaling_order_details)
 
+```go
+type ElasticScalingOrderDetail struct {
+    BaseModel
+    OrderID                int64   `gorm:"column:order_id;type:bigint;not null;uniqueIndex;comment:订单ID" json:"order_id"`
+    ClusterID              int64   `gorm:"column:cluster_id;type:bigint;not null;comment:集群ID" json:"cluster_id"`
+    StrategyID             *int64  `gorm:"column:strategy_id;type:bigint;comment:策略ID" json:"strategy_id"`
+    ActionType             string  `gorm:"column:action_type;type:varchar(50);not null;comment:动作类型" json:"action_type"`
+    DeviceCount            int     `gorm:"column:device_count;type:int;comment:设备数量" json:"device_count"`
+    ResourceType           string  `gorm:"column:resource_type;type:varchar(50);comment:资源类型" json:"resource_type"`
+    StrategyTriggeredValue string  `gorm:"column:strategy_triggered_value;type:text;comment:策略触发时的具体指标值" json:"strategy_triggered_value"`
+    StrategyThresholdValue string  `gorm:"column:strategy_threshold_value;type:text;comment:策略触发时的阈值设定" json:"strategy_threshold_value"`
+    
+    // 关联关系
+    Order    Order                    `gorm:"foreignKey:OrderID" json:"order"`
+    Strategy *ElasticScalingStrategy  `gorm:"foreignKey:StrategyID" json:"strategy,omitempty"`
+}
 ```
-ResourcePoolDeviceMatchingPolicy {
-    id                  int64    // 主键
-    name                string   // 策略名称
-    description         string   // 策略描述
-    resourcePoolType    string   // 资源池类型
-    actionType          string   // 动作类型：pool_entry 或 pool_exit
-    queryTemplateId     int64    // 关联的查询模板ID
-    status              string   // 状态：enabled 或 disabled
-    createdBy           string   // 创建者
-    updatedBy           string   // 更新者
-    createdAt           datetime // 创建时间
-    updatedAt           datetime // 更新时间
+
+### 6.5 通用订单详情表 (general_order_details)
+
+```go
+type GeneralOrderDetail struct {
+    BaseModel
+    OrderID int64  `gorm:"column:order_id;type:bigint;not null;uniqueIndex;comment:订单ID" json:"order_id"`
+    Summary string `gorm:"column:summary;type:text;comment:订单摘要" json:"summary"`
+    
+    // 关联关系
+    Order Order `gorm:"foreignKey:OrderID" json:"order"`
+}
+```
+
+### 6.6 设备维护订单详情表 (maintenance_order_details)
+
+```go
+type MaintenanceOrderDetail struct {
+    BaseModel
+    OrderID              int64                   `gorm:"column:order_id;type:bigint;not null;uniqueIndex;comment:订单ID" json:"order_id"`
+    ClusterID            int64                   `gorm:"column:cluster_id;type:bigint;not null;comment:集群ID" json:"cluster_id"`
+    DeviceID             int64                   `gorm:"column:device_id;type:bigint;not null;comment:设备ID" json:"device_id"`
+    MaintenanceStartTime *time.Time              `gorm:"column:maintenance_start_time;type:datetime;comment:维护开始时间" json:"maintenance_start_time"`
+    MaintenanceEndTime   *time.Time              `gorm:"column:maintenance_end_time;type:datetime;comment:维护结束时间" json:"maintenance_end_time"`
+    ExternalTicketID     string                  `gorm:"column:external_ticket_id;type:varchar(255);comment:外部工单号" json:"external_ticket_id"`
+    MaintenanceType      MaintenanceType         `gorm:"column:maintenance_type;type:varchar(50);comment:维护类型" json:"maintenance_type"`
+    Status               MaintenanceOrderStatus  `gorm:"column:status;type:varchar(50);comment:维护状态" json:"status"`
+    
+    // 关联关系
+    Order Order `gorm:"foreignKey:OrderID" json:"order"`
+}
+```
+
+### 6.7 查询模板表 (query_templates)
+
+```go
+type QueryTemplate struct {
+    BaseModel
+    Name        string `gorm:"column:name;type:varchar(255);not null;comment:模板名称" json:"name"`
+    Description string `gorm:"column:description;type:text;comment:模板描述" json:"description"`
+    Groups      string `gorm:"column:groups;type:longtext;comment:筛选组列表，JSON格式" json:"groups"`
+    CreatedBy   string `gorm:"column:created_by;type:varchar(255);comment:创建者" json:"created_by"`
+    UpdatedBy   string `gorm:"column:updated_by;type:varchar(255);comment:更新者" json:"updated_by"`
+}
+```
+
+### 6.8 资源池设备匹配策略表 (resource_pool_device_matching_policies)
+
+```go
+type ResourcePoolDeviceMatchingPolicy struct {
+    BaseModel
+    Name             string `gorm:"column:name;type:varchar(255);not null;comment:策略名称" json:"name"`
+    Description      string `gorm:"column:description;type:text;comment:策略描述" json:"description"`
+    ResourcePoolType string `gorm:"column:resource_pool_type;type:varchar(100);not null;comment:资源池类型" json:"resource_pool_type"`
+    ActionType       string `gorm:"column:action_type;type:varchar(50);not null;comment:动作类型：pool_entry 或 pool_exit" json:"action_type"`
+    QueryTemplateID  int64  `gorm:"column:query_template_id;type:bigint;not null;comment:关联的查询模板ID" json:"query_template_id"`
+    Status           string `gorm:"column:status;type:varchar(20);not null;default:'enabled';comment:状态：enabled 或 disabled" json:"status"`
+    CreatedBy        string `gorm:"column:created_by;type:varchar(255);comment:创建者" json:"created_by"`
+    UpdatedBy        string `gorm:"column:updated_by;type:varchar(255);comment:更新者" json:"updated_by"`
+    
+    // 关联关系
+    QueryTemplate QueryTemplate `gorm:"foreignKey:QueryTemplateID" json:"query_template"`
+}
+```
+
+### 6.9 订单设备关联表 (order_devices)
+
+```go
+type OrderDevice struct {
+    BaseModel
+    OrderID  int64  `gorm:"column:order_id;type:bigint;not null;comment:订单ID" json:"order_id"`
+    DeviceID int64  `gorm:"column:device_id;type:bigint;not null;comment:设备ID" json:"device_id"`
+    Status   string `gorm:"column:status;type:varchar(50);comment:设备在订单中的状态" json:"status"`
+    
+    // 关联关系
+    Order  Order  `gorm:"foreignKey:OrderID" json:"order"`
+    Device Device `gorm:"foreignKey:DeviceID" json:"device"`
+}
+```
+
+### 6.10 策略执行历史表 (strategy_execution_histories)
+
+```go
+type StrategyExecutionHistory struct {
+    BaseModel
+    StrategyID       int64      `gorm:"column:strategy_id;type:bigint;not null;comment:策略ID" json:"strategy_id"`
+    ClusterID        int64      `gorm:"column:cluster_id;type:bigint;not null;comment:集群ID" json:"cluster_id"`
+    ResourceType     string     `gorm:"column:resource_type;type:varchar(50);comment:资源类型" json:"resource_type"`
+    ExecutionTime    time.Time  `gorm:"column:execution_time;type:datetime;not null;comment:执行时间" json:"execution_time"`
+    TriggeredValue   string     `gorm:"column:triggered_value;type:text;comment:触发时的指标值" json:"triggered_value"`
+    ThresholdValue   string     `gorm:"column:threshold_value;type:text;comment:阈值设定" json:"threshold_value"`
+    Result           string     `gorm:"column:result;type:varchar(100);comment:执行结果" json:"result"`
+    OrderID          *int64     `gorm:"column:order_id;type:bigint;comment:关联的订单ID" json:"order_id"`
+    FailureReason    string     `gorm:"column:failure_reason;type:text;comment:失败原因" json:"failure_reason"`
+    
+    // 关联关系
+    Strategy *ElasticScalingStrategy `gorm:"foreignKey:StrategyID" json:"strategy,omitempty"`
+    Order    *Order                  `gorm:"foreignKey:OrderID" json:"order,omitempty"`
+}
+```
+
+### 6.11 通知日志表 (notification_logs)
+
+```go
+type NotificationLog struct {
+    BaseModel
+    OrderID       int64     `gorm:"column:order_id;type:bigint;not null;comment:订单ID" json:"order_id"`
+    NotifyType    string    `gorm:"column:notify_type;type:varchar(50);not null;comment:通知类型" json:"notify_type"`
+    Recipients    string    `gorm:"column:recipients;type:text;comment:接收人列表" json:"recipients"`
+    Subject       string    `gorm:"column:subject;type:varchar(500);comment:通知主题" json:"subject"`
+    Content       string    `gorm:"column:content;type:longtext;comment:通知内容" json:"content"`
+    Status        string    `gorm:"column:status;type:varchar(20);not null;comment:发送状态" json:"status"`
+    SentAt        *time.Time `gorm:"column:sent_at;type:datetime;comment:发送时间" json:"sent_at"`
+    FailureReason string    `gorm:"column:failure_reason;type:text;comment:失败原因" json:"failure_reason"`
+    
+    // 关联关系
+    Order Order `gorm:"foreignKey:OrderID" json:"order"`
+}
+```
+
+### 6.12 值班表 (duty_rosters)
+
+```go
+type DutyRoster struct {
+    BaseModel
+    DutyDate    time.Time `gorm:"column:duty_date;type:date;not null;comment:值班日期" json:"duty_date"`
+    WeekDay     string    `gorm:"column:week_day;type:varchar(20);comment:星期" json:"week_day"`
+    OnDutyUser  string    `gorm:"column:on_duty_user;type:varchar(255);comment:值班人员" json:"on_duty_user"`
+    PhoneNumber string    `gorm:"column:phone_number;type:varchar(50);comment:联系电话" json:"phone_number"`
+    Email       string    `gorm:"column:email;type:varchar(255);comment:邮箱地址" json:"email"`
+    IsActive    bool      `gorm:"column:is_active;type:tinyint(1);default:1;comment:是否有效" json:"is_active"`
+}
+```
+
+### 6.13 设备信息表 (devices)
+
+```go
+type Device struct {
+    BaseModel
+    CICode      string `gorm:"column:ci_code;type:varchar(255);uniqueIndex;not null;comment:CI编码" json:"ci_code"`
+    IP          string `gorm:"column:ip;type:varchar(45);comment:IP地址" json:"ip"`
+    ArchType    string `gorm:"column:arch_type;type:varchar(50);comment:架构类型" json:"arch_type"`
+    Company     string `gorm:"column:company;type:varchar(255);comment:公司" json:"company"`
+    OSName      string `gorm:"column:os_name;type:varchar(255);comment:操作系统名称" json:"os_name"`
+    Status      string `gorm:"column:status;type:varchar(50);comment:设备状态" json:"status"`
+    Cluster     string `gorm:"column:cluster;type:varchar(255);comment:集群" json:"cluster"`
+}
+```
+
+### 6.14 K8s集群信息表 (k8s_clusters)
+
+```go
+type K8sCluster struct {
+    BaseModel
+    ClusterID   int64  `gorm:"column:cluster_id;type:bigint;not null;uniqueIndex;comment:集群ID" json:"cluster_id"`
+    ClusterName string `gorm:"column:cluster_name;type:varchar(255);not null;comment:集群名称" json:"cluster_name"`
+    ApiServer   string `gorm:"column:api_server;type:varchar(500);comment:API服务器地址" json:"api_server"`
+    Token       string `gorm:"column:token;type:text;comment:访问令牌" json:"token"`
+    CaCert      string `gorm:"column:ca_cert;type:text;comment:CA证书" json:"ca_cert"`
+    Status      string `gorm:"column:status;type:varchar(50);comment:集群状态" json:"status"`
+}
+```
+
+### 6.15 集群资源快照表 (k8s_cluster_resource_snapshots)
+
+```go
+type ResourceSnapshot struct {
+    BaseModel
+    ClusterID       int64        `gorm:"column:cluster_id;type:bigint;not null;comment:集群ID" json:"cluster_id"`
+    ResourceType    ResourceType `gorm:"column:resource_type;type:varchar(50);not null;comment:资源类型" json:"resource_type"`
+    CpuCapacity     int64        `gorm:"column:cpu_capacity;type:bigint;comment:CPU容量(毫核)" json:"cpu_capacity"`
+    CpuAllocatable  int64        `gorm:"column:cpu_allocatable;type:bigint;comment:CPU可分配(毫核)" json:"cpu_allocatable"`
+    CpuUsage        int64        `gorm:"column:cpu_usage;type:bigint;comment:CPU使用量(毫核)" json:"cpu_usage"`
+    CpuAllocated    int64        `gorm:"column:cpu_allocated;type:bigint;comment:CPU已分配(毫核)" json:"cpu_allocated"`
+    MemoryCapacity  int64        `gorm:"column:memory_capacity;type:bigint;comment:内存容量(字节)" json:"memory_capacity"`
+    MemoryAllocatable int64      `gorm:"column:memory_allocatable;type:bigint;comment:内存可分配(字节)" json:"memory_allocatable"`
+    MemoryUsage     int64        `gorm:"column:memory_usage;type:bigint;comment:内存使用量(字节)" json:"memory_usage"`
+    MemoryAllocated int64        `gorm:"column:memory_allocated;type:bigint;comment:内存已分配(字节)" json:"memory_allocated"`
+    NodeCount       int          `gorm:"column:node_count;type:int;comment:节点数量" json:"node_count"`
+    SnapshotTime    time.Time    `gorm:"column:snapshot_time;type:datetime;not null;comment:快照时间" json:"snapshot_time"`
+}
+```
+
+### 6.16 值班电话信息表 (phone_duties)
+
+```go
+type PhoneDuty struct {
+    BaseModel
+    DutyDate time.Time `gorm:"column:duty_date;type:date;not null;uniqueIndex;comment:值班日期" json:"duty_date"`
+    WeekDay  string    `gorm:"column:week_day;type:varchar(20);comment:星期" json:"week_day"`
+    AUm      string    `gorm:"column:a_um;type:varchar(255);comment:A班值班人员" json:"a_um"`
+    BUm      string    `gorm:"column:b_um;type:varchar(255);comment:B班值班人员" json:"b_um"`
+    CUm      string    `gorm:"column:c_um;type:varchar(255);comment:C班值班人员" json:"c_um"`
+    DUm      string    `gorm:"column:d_um;type:varchar(255);comment:D班值班人员" json:"d_um"`
 }
 ```
 

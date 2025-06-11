@@ -50,7 +50,7 @@ var _ = Describe("ElasticScalingDeviceMatching", func() {
 
 		mockRedis = &MockRedisHandler{}
 		mockDeviceCache = &MockDeviceCache{}
-		ess = es.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache)
+		ess = es.NewElasticScalingService(db, mockRedis, logger, mockDeviceCache, nil)
 	})
 
 	AfterEach(func() {

@@ -285,7 +285,7 @@ const Dashboard: React.FC = () => {
       }
 
       console.log(`[fetchOrderAllocationData] 找到集群:`, { id: cluster.id, name: cluster.name });
-      console.log(`[fetchOrderAllocationData] 准备调用API: cluster_name=${cluster.name}, resource_pool=${order.resourcePoolType || 'total'}`);
+      console.log(`[fetchOrderAllocationData] 准备调用API: clusterName=${cluster.name}, resourcePool=${order.resourcePoolType || 'total'}`);
 
       const allocationData = await getResourcePoolAllocationRate(cluster.name, order.resourcePoolType || 'total');
       

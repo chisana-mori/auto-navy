@@ -5,9 +5,9 @@ import (
 
 	"navy-ng/pkg/middleware/render"
 	"navy-ng/pkg/redis"
-	. "navy-ng/server/portal/internal/routers"
 	"navy-ng/server/portal/internal/service"
 	"navy-ng/server/portal/internal/service/es"
+	"navy-ng/server/portal/internal/service/events"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -30,17 +30,19 @@ type DeviceIDRequest struct {
 // ElasticScalingOrderHandler 处理弹性伸缩订单的 Handler
 type ElasticScalingOrderHandler struct {
 	service *es.ElasticScalingService
+	logger  *zap.Logger
 }
 
 // NewElasticScalingOrderHandler 创建弹性伸缩订单处理器实例
-func NewElasticScalingOrderHandler(db *gorm.DB) *ElasticScalingOrderHandler {
-	redisHandler := redis.NewRedisHandler(RedisDefault)
-	logger, _ := zap.NewProduction()
-	keyBuilder := redis.NewKeyBuilder(RedisNamespace, RedisVersion)
-	deviceCache := service.NewDeviceCache(redisHandler, keyBuilder)
+func NewElasticScalingOrderHandler(db *gorm.DB, logger *zap.Logger, eventManager *events.EventManager) *ElasticScalingOrderHandler {
+	// 使用默认Redis连接
+	redisHandler := redis.NewRedisHandler("default")
+	// Create device cache
+	deviceCache := service.NewDeviceCache(redisHandler, redis.NewKeyBuilder("navy", "v1"))
 
 	return &ElasticScalingOrderHandler{
-		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache),
+		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache, eventManager),
+		logger:  logger, // Add logger
 	}
 }
 
