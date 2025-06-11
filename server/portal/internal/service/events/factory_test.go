@@ -39,7 +39,7 @@ func Test_ESOPublisher(t *testing.T) {
 	InitializeGenericEventSystem(em)
 
 	// 测试订单完成事件
-	err := NewESOPublisher(12345, "elastic_scaling").
+	err := NewESOPublisher(12345).
 		WithEventManager(em).
 		WithOperator("admin").
 		Complete(context.Background(), "订单处理完成")
@@ -70,7 +70,7 @@ func Test_ESOPublisher(t *testing.T) {
 // Test_ESOPublisher_WithoutFactory 测试未设置工厂的情况
 func Test_ESOPublisher_WithoutFactory(t *testing.T) {
 	// 测试未设置事件管理器时的错误处理
-	err := NewESOPublisher(12345, "elastic_scaling").
+	err := NewESOPublisher(12345).
 		Complete(context.Background(), "订单处理完成")
 
 	if err == nil {
@@ -347,14 +347,14 @@ func Test_FactoryErrorHandling(t *testing.T) {
 
 
 	// 测试正常情况
-	publisher := NewESOPublisher(12345, "purchase").WithEventManager(em)
+	publisher := NewESOPublisher(12345).WithEventManager(em)
 	err := publisher.Complete(ctx, "订单处理完成")
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
 	// 测试未设置事件管理器的情况
-	publisherWithoutEM := NewESOPublisher(12346, "purchase")
+	publisherWithoutEM := NewESOPublisher(12346)
 	err = publisherWithoutEM.Complete(ctx, "订单处理完成")
 	if err == nil {
 		t.Error("Expected error when EventManager not set, got nil")

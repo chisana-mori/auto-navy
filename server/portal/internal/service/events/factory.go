@@ -28,11 +28,11 @@ type ESOPublisher struct {
 }
 
 // NewESOPublisher 创建弹性伸缩订单发布器
-func NewESOPublisher(orderID int, orderType string) *ESOPublisher {
+func NewESOPublisher(orderID int) *ESOPublisher {
 	return &ESOPublisher{
 		orderID:   orderID,
-		orderType: orderType,
-		operator:  "system", // 默认操作者
+		orderType: "elastic_scaling", // 弹性伸缩订单类型固定
+		operator:  "system",          // 默认操作者
 	}
 }
 

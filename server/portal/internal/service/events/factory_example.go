@@ -13,7 +13,7 @@ func FactoryUsageExample(em *EventManager) {
 
 	// 示例1：弹性伸缩订单事件发布
 	// 创建订单完成事件
-	err := NewESOPublisher(12345, "elastic_scaling").
+	err := NewESOPublisher(12345).
 		WithEventManager(em).
 		WithOperator("admin").
 		Complete(ctx, "弹性伸缩订单处理完成")
@@ -22,7 +22,7 @@ func FactoryUsageExample(em *EventManager) {
 	}
 
 	// 创建订单失败事件
-	err = NewESOPublisher(12346, "elastic_scaling").
+	err = NewESOPublisher(12346).
 		WithEventManager(em).
 		WithOperator("system").
 		Failed(ctx, "弹性伸缩订单处理失败：资源不足")
@@ -96,7 +96,7 @@ func ChainedEventExample(em *EventManager, orderID int, deviceIDs []int) error {
 	ctx := context.Background()
 
 	// 1. 发布订单创建事件
-	if err := NewESOPublisher(orderID, "elastic_scaling").
+	if err := NewESOPublisher(orderID).
 		WithEventManager(em).
 		WithOperator("system").
 		Created(ctx, "弹性伸缩订单已创建"); err != nil {
@@ -122,7 +122,7 @@ func ChainedEventExample(em *EventManager, orderID int, deviceIDs []int) error {
 	}
 
 	// 4. 发布订单完成事件
-	if err := NewESOPublisher(orderID, "elastic_scaling").
+	if err := NewESOPublisher(orderID).
 		WithEventManager(em).
 		WithOperator("system").
 		Complete(ctx, fmt.Sprintf("弹性伸缩订单完成，共处理 %d 台设备", len(deviceIDs))); err != nil {
@@ -153,7 +153,7 @@ func ErrorHandlingExample(em *EventManager, orderID int, deviceID int) {
 	}
 
 	// 发布订单失败事件
-	if err := NewESOPublisher(orderID, "elastic_scaling").
+	if err := NewESOPublisher(orderID).
 		WithEventManager(em).
 		WithOperator("system").
 		Failed(ctx, fmt.Sprintf("订单处理失败：设备 %d 操作异常 - %s", deviceID, errorMsg)); err != nil {
