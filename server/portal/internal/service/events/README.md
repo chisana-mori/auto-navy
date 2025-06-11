@@ -1,358 +1,174 @@
-# Navy-NG 泛型事件系统
+# Events Service - 重构后的文件架构
 
-## 概述
+## 架构概览
 
-Navy-NG 泛型事件系统是一个高度抽象和灵活的事件驱动架构，支持类型安全的事件发布和处理，并提供自动类型转换功能。
+事件服务已重构为模块化的文件结构，每个文件负责特定的功能模块，提高了代码的可读性和可维护性。
 
-## 核心特性
+## 文件结构
 
-### 🔥 泛型支持
-- 完全类型安全的事件发布和处理
-- 支持任意类型的事件数据
-- 编译时类型检查
+```
+events/
+├── interfaces.go          # 所有接口定义
+├── manager_core.go        # 事件管理器核心结构和配置
+├── generic_events.go      # 泛型事件相关功能
+├── converter.go           # 类型转换器功能
+├── handlers.go            # 处理器管理功能
+├── publisher.go           # 事件发布功能
+├── execution.go           # 事件处理执行功能
+├── utils.go               # 辅助工具方法
+├── types.go               # 具体事件类型定义
+└── README.md              # 文档
+```
 
-### 🔄 自动类型转换
-- 注册自定义转换器，支持多种数据源
-- 自动转换 JSON、Map、现有结构体等格式
-- 可扩展的转换逻辑
+## 模块说明
 
-### ⚡ 高性能
-- 异步事件处理
-- 带重试机制的可靠投递
-- 可配置的超时和缓冲
+### 1. interfaces.go - 接口定义模块
+**职责：** 定义所有的接口和函数类型
 
-### 🛡️ 生产就绪
-- 完整的错误处理和日志记录
-- 支持分布式环境
-- 优雅的关闭机制
+**主要内容：**
+- `GenericEventHandler[T]` - 泛型事件处理器接口
+- `GenericEventHandlerFunc[T]` - 泛型函数类型处理器
+- `Event` - 基础事件接口
+- `EventHandler` - 传统事件处理器接口（兼容性）
+- `EventHandlerFunc` - 函数类型处理器（兼容性）
+- `TypeConverter[T]` - 类型转换器接口
 
-### 🎯 优雅API
-- 参数内聚到请求结构体
-- 链式调用支持
-- 直观的方法命名
+### 2. manager_core.go - 核心管理器模块
+**职责：** 事件管理器的核心结构定义和基础配置
 
-## 快速开始
+**主要内容：**
+- `EventManager` - 事件管理器主结构体
+- `Config` - 配置结构体
+- `PublishRequest`, `GetHandlersRequest`, `ShutdownRequest` - 请求结构体
+- `NewEventManager()` - 构造函数
+- `DefaultConfig()` - 默认配置
 
-### 1. 初始化事件管理器
+### 3. generic_events.go - 泛型事件模块
+**职责：** 泛型事件系统的核心功能
 
+**主要内容：**
+- `GenericEvent[T]` - 泛型事件结构体
+- `GenericEventRequest[T]` - 泛型事件发布请求
+- `GenericConvertRequest[T]` - 带转换器的泛型发布请求
+- `RegisterGenericRequest[T]` - 泛型注册请求
+- `UnregisterGenericRequest[T]` - 泛型注销请求
+- `NewGenericEvent()` - 创建泛型事件
+- `PublishGeneric()` - 泛型事件发布
+- `PublishGenericWithConverter()` - 带转换器的泛型事件发布
+
+### 4. converter.go - 类型转换器模块
+**职责：** 处理不同数据类型之间的转换
+
+**主要内容：**
+- `DefaultTypeConverter[T]` - 默认类型转换器实现
+- `RegisterConverter()` - 注册自定义转换器
+- `GetConverter()` - 获取类型转换器
+
+### 5. handlers.go - 处理器管理模块
+**职责：** 事件处理器的注册、注销和管理
+
+**主要内容：**
+- `NamedGenericEventHandler[T]` - 带名称的泛型处理器
+- `NamedEventHandler` - 带名称的传统处理器（兼容性）
+- `RegisterGeneric()` - 注册泛型处理器
+- `RegisterGenericFunc()` - 注册泛型函数处理器
+- `UnregisterGeneric()` - 注销泛型处理器
+- `isGenericHandlerRegistered()` - 检查处理器是否已注册
+
+### 6. publisher.go - 事件发布模块
+**职责：** 事件的发布和分发逻辑
+
+**主要内容：**
+- `Publish()` - 主发布方法
+- `publishGenericEvent()` - 泛型事件发布逻辑
+
+### 7. execution.go - 事件执行模块
+**职责：** 事件处理的具体执行逻辑，包括重试和错误处理
+
+**主要内容：**
+- `handleGenericEventSync()` - 同步处理泛型事件
+- `handleGenericEventAsync()` - 异步处理泛型事件
+- `executeGenericHandlerWithRetry()` - 带重试的泛型处理器执行
+- `handleEventSync()` - 同步处理传统事件
+- `handleEventAsync()` - 异步处理传统事件
+- `executeHandlerWithRetry()` - 带重试的传统处理器执行
+
+### 8. utils.go - 辅助工具模块
+**职责：** 提供辅助功能和管理器的生命周期管理
+
+**主要内容：**
+- `GetHandlers()` - 获取处理器列表
+- `GetAllEventTypes()` - 获取所有事件类型
+- `Shutdown()` - 优雅关闭事件管理器
+
+### 9. types.go - 事件类型模块
+**职责：** 定义具体的业务事件类型（保持原有结构）
+
+**主要内容：**
+- 订单相关事件
+- 设备操作事件
+- 维护事件
+- 弹性伸缩事件
+
+## 优势
+
+### 1. 模块化设计
+每个文件职责明确，功能内聚，降低了代码的复杂度。
+
+### 2. 易于维护
+- 相关功能集中在同一文件中
+- 接口定义统一管理
+- 核心逻辑与辅助功能分离
+
+### 3. 易于扩展
+- 新增事件类型可以独立添加
+- 转换器可以独立扩展
+- 处理器管理逻辑独立
+
+### 4. 更好的可测试性
+- 每个模块可以独立测试
+- 依赖关系更清晰
+
+## 使用示例
+
+### 基本使用
 ```go
-import (
-    "navy-ng/server/portal/internal/service/events"
-    "go.uber.org/zap"
-)
-
 // 创建事件管理器
-logger, _ := zap.NewProduction()
-eventManager := events.NewEventManager(logger, events.DefaultConfig())
+em := NewEventManager(logger, DefaultConfig())
 
-// 初始化泛型事件系统（注册内置转换器）
-events.InitializeGenericEventSystem(eventManager)
-```
-
-### 2. 定义事件数据结构
-
-```go
-// 订单事件数据
-type OrderEventData struct {
-    OrderID     int    `json:"order_id"`
-    OrderType   string `json:"order_type"`
-    Status      string `json:"status"`
-    Operator    string `json:"operator"`
-    Description string `json:"description"`
-}
-
-// 设备事件数据
-type DeviceEventData struct {
-    DeviceID    int    `json:"device_id"`
-    OrderID     int    `json:"order_id"`
-    Action      string `json:"action"`
-    Status      string `json:"status"`
-    Result      string `json:"result"`
-    ErrorMsg    string `json:"error_msg,omitempty"`
-}
-```
-
-### 3. 发布事件
-
-#### 方式1：直接发布结构体（推荐）
-
-```go
-ctx := context.Background()
-
-orderData := OrderEventData{
-    OrderID:     12345,
-    OrderType:   "elastic_scaling",
-    Status:      "completed",
-    Operator:    "system",
-    Description: "订单处理完成",
-}
-
-// 泛型发布（优雅API）
-err := events.PublishGeneric(eventManager, events.GenericEventRequest[OrderEventData]{
-    EventType: "order.completed",
-    Data:      orderData,
-    Source:    "order_service", 
-    Context:   ctx,
-})
-```
-
-#### 方式2：使用便利方法
-
-```go
-// 订单事件便利方法
-err := events.PublishOrderEventDirect(eventManager, events.OrderEventRequest{
-    EventType:   "order.processing",
-    OrderID:     12346,
-    OrderType:   "maintenance",
-    Status:      "processing",
-    Operator:    "admin",
-    Description: "维护订单处理中",
-    Context:     ctx,
+// 注册处理器
+RegisterGeneric(em, RegisterGenericRequest[OrderEvent]{
+    EventType:   "order.created",
+    HandlerName: "order_handler",
+    Handler:     &MyOrderHandler{},
 })
 
-// 设备事件便利方法
-err := events.PublishDeviceEventDirect(eventManager, events.DeviceEventRequest{
-    EventType: "device.operation.completed",
-    DeviceID:  98765,
-    OrderID:   12345,
-    Action:    "pool_entry",
-    Status:    "success",
-    Result:    "设备成功加入资源池",
-    Context:   ctx,
-})
-```
-
-#### 方式3：自动转换发布
-
-```go
-// 从 Map 发布（自动转换）
-mapData := map[string]interface{}{
-    "order_id":    12345,
-    "order_type":  "maintenance", 
-    "status":      "processing",
-    "operator":    "admin",
-    "description": "维护订单处理中",
-}
-
-err := events.PublishGenericWithConverter[OrderEventData](eventManager, 
-    events.GenericConvertRequest[OrderEventData]{
-        EventType: "order.processing",
-        RawData:   mapData,
-        Source:    "order_service",
-        Context:   ctx,
-    })
-
-// 从 JSON 发布（自动转换）
-jsonData := `{"device_id": 98765, "order_id": 12345, "action": "pool_entry", "status": "success"}`
-
-err := events.PublishGenericWithConverter[DeviceEventData](eventManager,
-    events.GenericConvertRequest[DeviceEventData]{
-        EventType: "device.operation.completed",
-        RawData:   jsonData,
-        Source:    "device_service",
-        Context:   ctx,
-    })
-
-// 兼容旧API的便利方法
-err := events.PublishOrderEvent(eventManager, ctx, "order.processing", mapData)
-err := events.PublishDeviceEvent(eventManager, ctx, "device.operation.completed", jsonData)
-```
-
-### 4. 注册事件处理器
-
-#### 泛型方式（推荐）
-
-```go
-// 自动类型转换，类型安全
-events.RegisterGenericHandler(eventManager, "order.completed", "order_completion_handler",
-    func(ctx context.Context, data OrderEventData) error {
-        // 直接使用强类型数据，无需转换
-        log.Printf("Order %d of type %s completed by %s", 
-            data.OrderID, data.OrderType, data.Operator)
-        
-        // 执行业务逻辑
-        return nil
-    })
-
-events.RegisterGenericHandler(eventManager, "device.operation.completed", "device_operation_handler", 
-    func(ctx context.Context, data DeviceEventData) error {
-        log.Printf("Device %d completed action %s with status %s",
-            data.DeviceID, data.Action, data.Status)
-        
-        // 执行业务逻辑
-        return nil
-    })
-```
-
-#### 传统方式
-
-```go
-eventManager.RegisterFunc(events.RegisterFuncRequest{
-    EventType:   "order.completed",
-    HandlerName: "order_completion_handler",
-    HandlerFunc: func(ctx context.Context, event events.Event) error {
-        // 手动类型转换
-        data, ok := event.Data().(OrderEventData)
-        if !ok {
-            return fmt.Errorf("invalid event data type")
-        }
-        
-        // 处理逻辑
-        log.Printf("Order %d completed", data.OrderID)
-        return nil
-    },
-})
-```
-
-## 在 ElasticScalingService 中的使用
-
-### 集成示例（优化版）
-
-```go
-func (s *ElasticScalingService) UpdateOrderStatus(orderID int, newStatus, executor, reason string) error {
-    // 获取旧状态
-    oldOrder, err := s.GetOrder(orderID)
-    if err != nil {
-        return err
-    }
-    
-    // 更新数据库
-    err = s.updateOrderInDB(orderID, newStatus, executor, reason)
-    if err != nil {
-        return err
-    }
-    
-    // 发布事件（优雅API）
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    
-    // 方式1：使用便利方法
-    if s.eventManager != nil {
-        err = events.PublishOrderEventDirect(s.eventManager, events.OrderEventRequest{
-            EventType:   "order.status.changed",
-            OrderID:     orderID,
-            OrderType:   oldOrder.OrderType,
-            Status:      newStatus,
-            Operator:    executor,
-            Description: reason,
-            Context:     ctx,
-        })
-        if err != nil {
-            s.logger.Error("Failed to publish order status change event", zap.Error(err))
-            // 不影响主流程
-        }
-    }
-    
-    return nil
-}
-
-func (s *ElasticScalingService) NotifyDeviceOperation(deviceID, orderID int, action, status, result string) error {
-    if s.eventManager == nil {
-        return nil
-    }
-    
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    
-    // 使用便利方法发布设备事件
-    return events.PublishDeviceEventDirect(s.eventManager, events.DeviceEventRequest{
-        EventType: fmt.Sprintf("device.operation.%s", status),
-        DeviceID:  deviceID,
-        OrderID:   orderID,
-        Action:    action,
-        Status:    status,
-        Result:    result,
-        Context:   ctx,
-    })
-}
-```
-
-## API对比
-
-### 旧API vs 新API
-
-```go
-// 旧API（参数分散）
-err := events.PublishGeneric(em, ctx, "order.completed", orderData, "order_service")
-
-// 新API（参数内聚，更优雅）
-err := events.PublishGeneric(em, events.GenericEventRequest[OrderEventData]{
-    EventType: "order.completed",
-    Data:      orderData,
+// 发布事件
+err := PublishGeneric(em, GenericEventRequest[OrderEvent]{
+    EventType: "order.created",
+    Data:      orderEvent,
     Source:    "order_service",
     Context:   ctx,
 })
-
-// 便利方法（最简洁）
-err := events.PublishOrderEventDirect(em, events.OrderEventRequest{
-    EventType:   "order.completed",
-    OrderID:     12345,
-    OrderType:   "elastic_scaling",
-    Status:      "completed",
-    Operator:    "system",
-    Description: "订单处理完成",
-    Context:     ctx,
-})
 ```
 
-### 优势对比
-
-| 特性 | 旧API | 新API |
-|------|--------|---------|
-| 参数组织 | 分散的参数列表 | 内聚的请求结构 |
-| 类型安全 | ✅ | ✅ |
-| 代码可读性 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| 扩展性 | ⭐⭐ | ⭐⭐⭐⭐⭐ |
-| IDE支持 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| 向后兼容 | - | ✅ |
-
-## 最佳实践
-
-### 1. 优先使用便利方法
+### 使用类型转换器
 ```go
-// 推荐：使用便利方法
-events.PublishOrderEventDirect(em, events.OrderEventRequest{
-    EventType: "order.completed",
-    OrderID:   12345,
-    // ... 其他字段
+// 注册转换器
+RegisterConverter(em, &CustomOrderConverter{})
+
+// 发布带转换的事件
+err := PublishGenericWithConverter(em, GenericConvertRequest[OrderEvent]{
+    EventType: "order.created",
+    RawData:   rawOrderData,
+    Source:    "order_service",
     Context:   ctx,
 })
-
-// 而不是：
-events.PublishGeneric(em, events.GenericEventRequest[OrderEventData]{...})
 ```
 
-### 2. 参数验证
-```go
-func PublishOrderEvent(em *EventManager, req OrderEventRequest) error {
-    if req.OrderID <= 0 {
-        return fmt.Errorf("invalid order ID: %d", req.OrderID)
-    }
-    if req.EventType == "" {
-        return fmt.Errorf("event type is required")
-    }
-    if req.Context == nil {
-        req.Context = context.Background()
-    }
-    
-    return events.PublishOrderEventDirect(em, req)
-}
-```
+## 兼容性
 
-### 3. 上下文传递
-```go
-// 带超时的上下文
-ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-defer cancel()
-
-req := events.OrderEventRequest{
-    EventType: "order.timeout",
-    Context:   ctx, // 传递带超时的上下文
-    // ... 其他字段
-}
-```
-
-这个优化使得Navy-NG泛型事件系统的API更加优雅、直观和易用，同时保持了强大的功能和向后兼容性。
+重构后的代码完全向后兼容，原有的使用方式仍然有效，同时提供了更现代化的泛型接口。
 
 ## 测试与验证
 
@@ -443,4 +259,4 @@ go test ./server/portal/internal/service/events/ -cover
 
 ---
 
-**NavyNG 泛型事件系统 - 让事件驱动架构更简单、更安全、更高效！** 🚀
+**NavyNG 泛型事件系统 - 让事件驱动架构更简单、更安全、更高效！** 🚀 
