@@ -1,5 +1,9 @@
 package events
 
+import (
+	"go.uber.org/zap"
+)
+
 // GetHandlers 获取指定事件类型的处理器列表
 func (em *EventManager) GetHandlers(req GetHandlersRequest) []string {
 	em.mutex.RLock()
@@ -25,6 +29,32 @@ func (em *EventManager) GetAllEventTypes() []string {
 	}
 
 	return types
+}
+
+// Register 注册事件处理器
+func (em *EventManager) Register(req RegisterRequest) {
+	em.mutex.Lock()
+	defer em.mutex.Unlock()
+
+	eventType := req.EventType
+	handler := req.Handler
+
+	// 检查是否已经注册了同名的处理器
+	for _, existingHandler := range em.handlers[eventType] {
+		if existingHandler.Name() == handler.Name() {
+			em.logger.Warn("Handler with same name already registered",
+				zap.String("eventType", eventType),
+				zap.String("handlerName", handler.Name()))
+			return
+		}
+	}
+
+	// 添加处理器
+	em.handlers[eventType] = append(em.handlers[eventType], handler)
+
+	em.logger.Info("Event handler registered",
+		zap.String("eventType", eventType),
+		zap.String("handlerName", handler.Name()))
 }
 
 // Shutdown 优雅关闭事件管理器

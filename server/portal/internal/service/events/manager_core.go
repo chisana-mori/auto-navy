@@ -44,6 +44,13 @@ type ShutdownRequest struct {
 	Ctx context.Context
 }
 
+// RegisterRequest 注册事件处理器的请求结构体
+type RegisterRequest struct {
+	EventType   string
+	HandlerName string
+	Handler     EventHandler
+}
+
 // DefaultConfig 默认配置
 func DefaultConfig() *Config {
 	return &Config{
