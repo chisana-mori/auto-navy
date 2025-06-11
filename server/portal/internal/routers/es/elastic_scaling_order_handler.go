@@ -42,7 +42,7 @@ func NewElasticScalingOrderHandler(db *gorm.DB, logger *zap.Logger, eventManager
 
 	return &ElasticScalingOrderHandler{
 		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache, eventManager),
-		logger:  logger, // Add logger
+		logger:  logger,
 	}
 }
 

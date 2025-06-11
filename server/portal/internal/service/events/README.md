@@ -40,8 +40,25 @@ events/
 - `EventManager` - 事件管理器主结构体
 - `Config` - 配置结构体
 - `PublishRequest`, `GetHandlersRequest`, `ShutdownRequest` - 请求结构体
-- `NewEventManager()` - 构造函数
+- `NewEventManager()` - 构造函数（推荐使用全局单例方法）
+- `InitGlobalEventManager()` - 初始化全局唯一的事件管理器
+- `GetGlobalEventManager()` - 获取全局唯一的事件管理器实例
 - `DefaultConfig()` - 默认配置
+
+### 全局单例的优势
+
+1. **内存效率**: 整个应用只有一个 EventManager 实例，避免重复创建
+2. **配置一致性**: 全局统一的事件处理配置，避免配置不一致问题
+3. **简化依赖注入**: 无需在每个服务中传递 EventManager 实例
+4. **线程安全**: 内置并发安全机制，支持多 goroutine 访问
+5. **易于测试**: 提供 `ResetGlobalEventManager()` 方法用于测试环境重置
+
+### 最佳实践
+
+- **应用启动时初始化**: 在 `main.go` 中使用 `InitGlobalEventManager()` 初始化
+- **服务层直接获取**: 在需要的地方使用 `GetGlobalEventManager()` 获取实例
+- **避免存储引用**: 不要在结构体中存储 EventManager 引用，直接调用全局方法
+- **测试环境重置**: 在测试中使用 `ResetGlobalEventManager()` 确保测试隔离
 
 ### 3. generic_events.go - 泛型事件模块
 **职责：** 泛型事件系统的核心功能
@@ -132,6 +149,34 @@ events/
 ## 使用示例
 
 ### 基本使用
+
+#### 推荐方式：使用全局单例
+```go
+// 在应用启动时初始化全局事件管理器（通常在 main.go 中）
+em := InitGlobalEventManager(logger, DefaultConfig())
+
+// 在其他地方获取全局事件管理器实例
+em := GetGlobalEventManager()
+```
+
+#### 在服务层中使用全局 EventManager
+```go
+type OrderService struct {
+    // 不需要在结构体中存储 EventManager
+}
+
+func (s *OrderService) CreateOrder(orderID int) error {
+    // 业务逻辑...
+    
+    // 直接获取全局 EventManager 发布事件
+    em := GetGlobalEventManager()
+    esoPublisher := NewESOPublisher(orderID).WithEventManager(em)
+    
+    return esoPublisher.Created(context.Background(), fmt.Sprintf("ESO-%d", orderID), "订单创建成功")
+}
+```
+
+#### 传统方式：直接创建（不推荐）
 ```go
 // 创建事件管理器
 em := NewEventManager(logger, DefaultConfig())
@@ -259,4 +304,4 @@ go test ./server/portal/internal/service/events/ -cover
 
 ---
 
-**NavyNG 泛型事件系统 - 让事件驱动架构更简单、更安全、更高效！** 🚀 
+**NavyNG 泛型事件系统 - 让事件驱动架构更简单、更安全、更高效！** 🚀

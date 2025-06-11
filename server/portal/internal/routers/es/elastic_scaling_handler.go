@@ -31,11 +31,15 @@ type ElasticScalingHandler struct {
 // NewElasticScalingHandler 创建弹性伸缩处理器
 // NewElasticScalingHandler 创建弹性伸缩处理器
 // 接受数据库连接和 Redis 处理器作为参数
-func NewElasticScalingHandler(db *gorm.DB, logger *zap.Logger, eventManager *events.EventManager) *ElasticScalingHandler {
+func NewElasticScalingHandler(db *gorm.DB) *ElasticScalingHandler {
+	// 创建 logger
+	logger, _ := zap.NewProduction()
 	// 使用默认Redis连接
 	redisHandler := redis.NewRedisHandler("default")
 	// Create device cache
 	deviceCache := baseservice.NewDeviceCache(redisHandler, redis.NewKeyBuilder("navy", "v1"))
+	// Create event manager
+	eventManager := events.GetGlobalEventManager()
 
 	return &ElasticScalingHandler{
 		service: es.NewElasticScalingService(db, redisHandler, logger, deviceCache, eventManager),

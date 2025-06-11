@@ -52,15 +52,15 @@ func main() {
 	// 创建 logger
 	logger, _ := zap.NewProduction()
 
-	// 初始化事件管理器
-	eventManager := events.NewEventManager(logger, events.DefaultConfig())
+	// 初始化全局唯一的事件管理器
+	eventManager := events.InitGlobalEventManager(logger, events.DefaultConfig())
 
 	// 初始化路由处理器
 	f5Handler := routers.NewF5InfoHandler(db)
 	opsHandler := routers.NewOpsJobHandler(db)
 	deviceHandler := routers.NewDeviceHandler(db)
 	deviceQueryHandler := routers.NewDeviceQueryHandler(db)
-	elasticScalingHandler := es.NewElasticScalingHandler(db, logger, eventManager)
+	elasticScalingHandler := es.NewElasticScalingHandler(db)
 	elasticScalingOrderHandler := es.NewElasticScalingOrderHandler(db, logger, eventManager)
 	maintenanceHandler := order.NewMaintenanceHandler(db)
 	resourcePoolDeviceMatchingPolicyHandler := es.NewResourcePoolDeviceMatchingPolicyHandler(db)

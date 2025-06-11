@@ -344,8 +344,6 @@ func Test_FactoryErrorHandling(t *testing.T) {
 	em := NewEventManager(logger, nil)
 	ctx := context.Background()
 
-
-
 	// 测试正常情况
 	publisher := NewESOPublisher(12345).WithEventManager(em)
 	err := publisher.Complete(ctx, "订单处理完成")

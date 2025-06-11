@@ -7,7 +7,7 @@ import (
 
 // EventPublisherFactory 事件发布器工厂
 type EventPublisherFactory struct {
-	em *EventManager
+	em  *EventManager
 	ctx context.Context
 }
 
@@ -29,7 +29,9 @@ type ESOPublisher struct {
 
 // NewESOPublisher 创建弹性伸缩订单发布器
 func NewESOPublisher(orderID int) *ESOPublisher {
+
 	return &ESOPublisher{
+		em:        GetGlobalEventManager(),
 		orderID:   orderID,
 		orderType: "elastic_scaling", // 弹性伸缩订单类型固定
 		operator:  "system",          // 默认操作者
@@ -136,14 +138,15 @@ func (p *ESOPublisher) Returning(ctx context.Context, description string) error 
 // DevicePublisher 设备操作发布器
 type DevicePublisher struct {
 	em       *EventManager
-	deviceID  int
-	orderID   int
-	action    string
+	deviceID int
+	orderID  int
+	action   string
 }
 
 // NewDevicePublisher 创建设备操作发布器
 func NewDevicePublisher(deviceID, orderID int, action string) *DevicePublisher {
 	return &DevicePublisher{
+		em:       GetGlobalEventManager(),
 		deviceID: deviceID,
 		orderID:  orderID,
 		action:   action,
@@ -306,6 +309,7 @@ type ScalingPublisher struct {
 // NewScalingPublisher 创建弹性伸缩发布器
 func NewScalingPublisher(strategyID, clusterID int, resourceType, actionType string) *ScalingPublisher {
 	return &ScalingPublisher{
+		em:           GetGlobalEventManager(),
 		strategyID:   strategyID,
 		clusterID:    clusterID,
 		resourceType: resourceType,
