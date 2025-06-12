@@ -72,10 +72,13 @@ export async function getTaintValues(key: string): Promise<string[]> {
 }
 
 // 获取设备字段值
-export async function getDeviceFieldValues(field: string): Promise<string[]> {
+export async function getDeviceFieldValues(field: string, size?: number): Promise<string[]> {
+  const params: any = { field };
+  // 如果指定了 size，添加 size 参数来获取更多数据，默认请求足够大的数量
+  params.size = size || 10000;
   return request(`${BASE_URL}/device-field-values`, {
     method: 'GET',
-    params: { field },
+    params,
   });
 }
 

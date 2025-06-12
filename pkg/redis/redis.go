@@ -1,10 +1,11 @@
 package redis
 
 import (
+	"context"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 type _client struct {
@@ -25,7 +26,7 @@ func Init(dbName string, host string, password string) error {
 		Password: password,
 		DB:       0,
 	})
-	_, err := client.Ping().Result()
+	_, err := client.Ping(context.Background()).Result()
 	if err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func Client(db string) *redis.Client {
 // 警告：此方法在生产环境中可能导致性能问题，因为它会阻塞服务器。
 // 推荐使用 ScanKeys 方法代替。
 func (rh *Handler) Keys(pattern string) (keys []string, err error) {
-	keys, err = rh.client.Keys(pattern).Result()
+	keys, err = rh.client.Keys(context.Background(), pattern).Result()
 	return
 }
 
@@ -65,7 +66,7 @@ func (rh *Handler) ScanKeys(pattern string) ([]string, error) {
 	for {
 		var currentKeys []string
 		// 执行 SCAN 命令，每次扫描默认数量的键（通常是 10）
-		currentKeys, cursor, err = rh.client.Scan(cursor, pattern, 10).Result()
+		currentKeys, cursor, err = rh.client.Scan(context.Background(), cursor, pattern, 10).Result()
 		if err != nil {
 			return nil, err // 返回错误
 		}
@@ -86,19 +87,19 @@ func (rh *Handler) Expire(expiration time.Duration) {
 }
 
 func (rh *Handler) Set(key string, value interface{}) {
-	err := rh.client.Set(key, value, rh.DefaultExpiration).Err()
+	err := rh.client.Set(context.Background(), key, value, rh.DefaultExpiration).Err()
 	if err != nil {
 	}
 }
 
 func (rh *Handler) SetWithExpireTime(key string, value string, expiry time.Duration) {
-	err := rh.client.Set(key, value, expiry).Err()
+	err := rh.client.Set(context.Background(), key, value, expiry).Err()
 	if err != nil {
 	}
 }
 
 func (rh *Handler) AcquireLock(key string, value string, expiry time.Duration) (isSuccess bool, err error) {
-	isSuccess, err = rh.client.SetNX(key, value, expiry).Result()
+	isSuccess, err = rh.client.SetNX(context.Background(), key, value, expiry).Result()
 	if err != nil {
 		return // Explicit return on error might be intended here
 	}
@@ -106,7 +107,7 @@ func (rh *Handler) AcquireLock(key string, value string, expiry time.Duration) (
 }
 
 func (rh *Handler) Pub(channel string, message string) (err error) {
-	err = rh.client.Publish(channel, message).Err()
+	err = rh.client.Publish(context.Background(), channel, message).Err()
 	if err != nil {
 		return
 	}
@@ -114,16 +115,16 @@ func (rh *Handler) Pub(channel string, message string) (err error) {
 }
 
 func (rh *Handler) Subscribe(channel string) (ret *redis.PubSub) {
-	ret = rh.client.Subscribe(channel)
+	ret = rh.client.Subscribe(context.Background(), channel)
 	return
 }
 
 func (rh *Handler) Delete(key string) {
-	rh.client.Del(key)
+	rh.client.Del(context.Background(), key)
 }
 
 func (rh *Handler) Exist(key string) (flag bool) {
-	count, err := rh.client.Exists(key).Result()
+	count, err := rh.client.Exists(context.Background(), key).Result()
 	if err != nil {
 	}
 	if count != 0 {
@@ -133,7 +134,7 @@ func (rh *Handler) Exist(key string) (flag bool) {
 }
 
 func (rh *Handler) Get(key string) string {
-	val, err := rh.client.Get(key).Result()
+	val, err := rh.client.Get(context.Background(), key).Result()
 	if err != nil {
 		return ""
 	}

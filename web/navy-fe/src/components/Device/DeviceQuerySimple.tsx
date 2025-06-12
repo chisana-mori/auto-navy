@@ -787,7 +787,6 @@ const DeviceQuerySimple: React.FC = () => {
               allowClear
               tokenSeparators={['\n', ',', ';', ' ', '\t']}
               maxTagCount="responsive"
-              maxTagTextLength={20}
               filterOption={(input, option) => {
                 if (!input) return true;
                 const label = option?.children?.toString().toLowerCase() || '';

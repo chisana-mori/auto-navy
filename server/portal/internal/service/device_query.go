@@ -895,7 +895,7 @@ func (s *DeviceQueryService) GetDeviceFieldValues(ctx context.Context, field str
 	} else {
 		pluckField = dbField
 	}
-	if err := query.Limit(100).Pluck(pluckField, &values).Error; err != nil {
+	if err := query.Pluck(pluckField, &values).Error; err != nil {
 		return nil, fmt.Errorf("failed to get device field values for %s: %w", field, err)
 	}
 

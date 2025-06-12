@@ -87,7 +87,7 @@ func ChainedEventExample(em *EventManager, orderID int, deviceIDs []int) error {
 	ctx := context.Background()
 
 	// 1. 发布订单创建事件
-	if err := NewESOPublisher(orderID).
+	if err := NewESOPublisher(orderID).WithEventManager(em).
 		WithOperator("system").
 		Created(ctx, "弹性伸缩订单已创建"); err != nil {
 		return fmt.Errorf("failed to publish order created event: %w", err)
@@ -95,7 +95,7 @@ func ChainedEventExample(em *EventManager, orderID int, deviceIDs []int) error {
 
 	// 2. 发布设备操作开始事件
 	for _, deviceID := range deviceIDs {
-		if err := NewDevicePublisher(deviceID, orderID, "pool_entry").
+		if err := NewDevicePublisher(deviceID, orderID, "pool_entry").WithEventManager(em).
 			Started(ctx, fmt.Sprintf("设备 %d 开始加入资源池", deviceID)); err != nil {
 			return fmt.Errorf("failed to publish device started event for device %d: %w", deviceID, err)
 		}
@@ -103,14 +103,14 @@ func ChainedEventExample(em *EventManager, orderID int, deviceIDs []int) error {
 
 	// 3. 模拟设备操作完成
 	for _, deviceID := range deviceIDs {
-		if err := NewDevicePublisher(deviceID, orderID, "pool_entry").
+		if err := NewDevicePublisher(deviceID, orderID, "pool_entry").WithEventManager(em).
 			Completed(ctx, fmt.Sprintf("设备 %d 成功加入资源池", deviceID)); err != nil {
 			return fmt.Errorf("failed to publish device completed event for device %d: %w", deviceID, err)
 		}
 	}
 
 	// 4. 发布订单完成事件
-	if err := NewESOPublisher(orderID).
+	if err := NewESOPublisher(orderID).WithEventManager(em).
 		WithOperator("system").
 		Complete(ctx, fmt.Sprintf("弹性伸缩订单完成，共处理 %d 台设备", len(deviceIDs))); err != nil {
 		return fmt.Errorf("failed to publish order completed event: %w", err)
@@ -140,7 +140,7 @@ func ErrorHandlingExample(em *EventManager, orderID int, deviceID int) {
 	}
 
 	// 发布订单失败事件
-	if err := NewESOPublisher(orderID).
+	if err := NewESOPublisher(orderID).WithEventManager(em).
 		WithOperator("system").
 		Failed(ctx, fmt.Sprintf("订单处理失败：设备 %d 操作异常 - %s", deviceID, errorMsg)); err != nil {
 		em.logger.Error("Failed to publish order failed event", zap.Error(err))

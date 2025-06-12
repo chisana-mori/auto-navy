@@ -89,7 +89,7 @@ const DeviceManagement: React.FC = () => {
 
     try {
       setLoadingGroupOptions(true);
-      const values = await getDeviceFieldValues('group');
+      const values = await getDeviceFieldValues('group', 10000);
       setGroupOptions(values);
     } catch (error) {
       console.error('获取机器用途选项失败:', error);

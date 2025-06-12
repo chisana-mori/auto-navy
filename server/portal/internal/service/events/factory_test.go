@@ -70,8 +70,9 @@ func Test_ESOPublisher(t *testing.T) {
 // Test_ESOPublisher_WithoutFactory 测试未设置工厂的情况
 func Test_ESOPublisher_WithoutFactory(t *testing.T) {
 	// 测试未设置事件管理器时的错误处理
-	err := NewESOPublisher(12345).
-		Complete(context.Background(), "订单处理完成")
+	publisher := NewESOPublisher(12345)
+	publisher.em = nil // Explicitly set em to nil for this test case
+	err := publisher.Complete(context.Background(), "订单处理完成")
 
 	if err == nil {
 		t.Error("Expected error when EventManager not set, got nil")
@@ -353,6 +354,7 @@ func Test_FactoryErrorHandling(t *testing.T) {
 
 	// 测试未设置事件管理器的情况
 	publisherWithoutEM := NewESOPublisher(12346)
+	publisherWithoutEM.em = nil // Explicitly set em to nil for this test case
 	err = publisherWithoutEM.Complete(ctx, "订单处理完成")
 	if err == nil {
 		t.Error("Expected error when EventManager not set, got nil")

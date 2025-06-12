@@ -137,7 +137,8 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     if (!field) return;
     try {
       setLoadingValues(true);
-      const response = await getDeviceFieldValues(field);
+      // 传入较大的 size 参数以获取更多数据
+      const response = await getDeviceFieldValues(field, 10000);
       if (Array.isArray(response)) {
         const options = response.map(value => ({
           id: value,
@@ -539,16 +540,27 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
     const getValueOptions = () => {
       if (!block.field) return [];
 
+      let options: FilterOption[] = [];
       switch (block.type) {
         case FilterType.NodeLabel:
-          return labelValues[block.field] || [];
+          options = labelValues[block.field] || [];
+          break;
         case FilterType.Taint:
-          return taintValues[block.field] || [];
+          options = taintValues[block.field] || [];
+          break;
         case FilterType.Device:
-          return deviceFieldValues[block.field] || [];
+          options = deviceFieldValues[block.field] || [];
+          break;
         default:
-          return [];
+          options = [];
       }
+      
+      // 添加调试信息
+      if (block.field && options.length > 0) {
+        console.log(`Field "${block.field}" has ${options.length} options available`);
+      }
+      
+      return options;
     };
 
     // 是否需要显示值输入
@@ -737,9 +749,10 @@ const AdvancedQueryPanel: React.FC<AdvancedQueryPanelProps> = ({
                     ? "responsive"
                     : 1
                 }
-                maxTagTextLength={20}
                 filterOption={false}
                 popupMatchSelectWidth={false}
+                virtual={true}
+                listHeight={400}
                 tagRender={props => (
                   <Tag
                     closable

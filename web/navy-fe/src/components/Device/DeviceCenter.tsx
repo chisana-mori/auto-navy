@@ -1015,7 +1015,7 @@ const DeviceCenter: React.FC = () => {
     // 移除条件判断，每次打开对话框都重新获取选项
     try {
       setLoadingGroupOptions(true);
-      const values = await getDeviceFieldValues('group');
+      const values = await getDeviceFieldValues('group', 10000);
       console.log('Fetched group options:', values); // 调试日志
 
       // 处理选项，如果包含分号，只取分号前的部分
@@ -1907,6 +1907,8 @@ const DeviceCenter: React.FC = () => {
               }
               getPopupContainer={() => document.body}
               dropdownStyle={{ maxHeight: '300px', overflow: 'auto' }}
+              virtual={true}
+              listHeight={256}
               placement="bottomLeft"
               popupMatchSelectWidth={false}
               className="group-select"

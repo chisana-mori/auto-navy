@@ -103,7 +103,7 @@ func startDeviceUpdateSubscriber(deviceService *DeviceService, deviceCache *Devi
 	defer pubsub.Close() // 确保在函数退出时关闭订阅
 
 	// 检查订阅是否成功 (可选，但建议)
-	_, err := pubsub.Receive()
+	_, err := pubsub.Receive(context.Background())
 	if err != nil {
 		log.Printf("Error subscribing to channel %s: %v\n", deviceUpdatesChannel, err)
 		return
