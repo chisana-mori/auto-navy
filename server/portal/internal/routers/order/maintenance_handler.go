@@ -5,6 +5,7 @@ import (
 	. "navy-ng/server/portal/internal/routers"
 	"navy-ng/server/portal/internal/service/order"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -104,6 +105,8 @@ func (h *MaintenanceHandler) MaintenanceCallback(c *gin.Context) {
 		render.BadRequest(c, "无效的回调格式: "+err.Error())
 		return
 	}
+
+	time.Now()
 
 	// 验证必填字段
 	if callback.ExternalTicketID == "" {

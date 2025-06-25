@@ -809,21 +809,28 @@ func (s *ElasticScalingService) buildEmailHTML(subject, actionName, clusterName 
                                 <span style="background-color: #f0f5ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; font-size: 12px;">%s</span>
                             </td>
                         </tr>
-                        <tr>
-                            <td style="padding: 12px 16px; color: #8c8c8c; font-size: 13px; font-weight: 500; vertical-align: top; padding-top: 16px;">
-                                <span style="display: inline-block; width: 4px; height: 16px; background-color: #13c2c2; margin-right: 8px; border-radius: 2px;"></span>
-                                触发原因
-                            </td>
-                            <td style="padding: 12px 16px; font-size: 14px; line-height: 1.6; color: #595959; padding-top: 16px;">
-                                <div style="background-color: #fafafa; padding: 12px; border-radius: 4px; border-left: 3px solid #13c2c2;">
-                                    %s
-                                </div>
-                            </td>
-                        </tr>`,
-		dto.Name, actionColor, actionColor, actionColor, actionName, clusterName, dto.ResourcePoolType, dto.DeviceCount, dto.CreatedBy, dto.Description))
+`,
+		dto.Name, actionColor, actionColor, actionColor, actionName, clusterName, dto.ResourcePoolType, dto.DeviceCount, dto.CreatedBy))
 
 	builder.WriteString(`
                     </table>
+                </div>
+            </div>`)
+
+	// 订单描述详情
+	builder.WriteString(`
+            <!-- 订单描述详情 -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="color: #262626; margin: 0 0 16px 0; font-size: 18px; font-weight: 600; display: flex; align-items: center;">
+                    <span style="margin-right: 8px;">📝</span>
+                    <span>订单详细描述</span>
+                </h3>
+                <div style="background-color: #fafafa; border-radius: 8px; padding: 20px; border-left: 4px solid #13c2c2;">`)
+
+	// 直接插入HTML格式的描述内容
+	builder.WriteString(dto.Description)
+
+	builder.WriteString(`
                 </div>
             </div>`)
 
@@ -842,13 +849,13 @@ func (s *ElasticScalingService) buildEmailHTML(subject, actionName, clusterName 
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background-color: #fafafa;">
-                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 13px; border-bottom: 1px solid #e8e8e8;">设备ID</th>
-                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 13px; border-bottom: 1px solid #e8e8e8;">CI编码</th>
-                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 13px; border-bottom: 1px solid #e8e8e8;">IP地址</th>
-                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 13px; border-bottom: 1px solid #e8e8e8;">CPU核心</th>
-                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 13px; border-bottom: 1px solid #e8e8e8;">内存(GB)</th>
-                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 13px; border-bottom: 1px solid #e8e8e8;">当前状态</th>
-                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 13px; border-bottom: 1px solid #e8e8e8;">所属集群</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 10px; border-bottom: 1px solid #e8e8e8;">设备ID</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 10px; border-bottom: 1px solid #e8e8e8;">CI编码</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 10px; border-bottom: 1px solid #e8e8e8;">IP地址</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 10px; border-bottom: 1px solid #e8e8e8;">CPU核心</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 10px; border-bottom: 1px solid #e8e8e8;">内存(GB)</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 10px; border-bottom: 1px solid #e8e8e8;">当前状态</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #595959; font-size: 10px; border-bottom: 1px solid #e8e8e8;">所属集群</th>
                                 </tr>
                             </thead>
                             <tbody>`)
@@ -875,13 +882,13 @@ func (s *ElasticScalingService) buildEmailHTML(subject, actionName, clusterName 
 
 			builder.WriteString(fmt.Sprintf(`
                                 <tr style="background-color: %s;">
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-weight: 600; color: #1890ff; font-family: monospace;">%d</td>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-family: monospace; font-weight: 500;">%s</td>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-family: monospace;">%s</td>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-weight: 600;">%.1f核</td>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-weight: 600;">%.1fGB</td>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8;">%s</td>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; color: #595959;">%s</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-weight: 600; color: #1890ff; font-family: monospace; font-size: 10px;">%d</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-family: monospace; font-weight: 500; font-size: 10px;">%s</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-family: monospace; font-size: 10px;">%s</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-weight: 600; font-size: 10px;">%.1f核</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-weight: 600; font-size: 10px;">%.1fGB</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; font-size: 10px;">%s</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid #e8e8e8; color: #595959; font-size: 10px;">%s</td>
                                 </tr>`,
 				bgColor,
 				d.ID,
@@ -1031,7 +1038,7 @@ func (s *ElasticScalingService) generateOrderName(strategy *portal.ElasticScalin
 	return fmt.Sprintf("弹性%s-%s-%s", actionStr, strategy.Name, time.Now().Format("20060102-1504"))
 }
 
-// generateOrderDescription generates a detailed description for the order.
+// generateOrderDescription generates a detailed description for the order in HTML format.
 func (s *ElasticScalingService) generateOrderDescription(
 	strategy *portal.ElasticScalingStrategy,
 	clusterID int,
@@ -1047,23 +1054,32 @@ func (s *ElasticScalingService) generateOrderDescription(
 	}
 
 	actionName := s.getActionName(strategy.ThresholdTriggerAction)
-	baseDescription := fmt.Sprintf("策略 [%s] 为集群 [%s]（%s类型）触发%s操作。",
-		strategy.Name, clusterName, resourceType, actionName)
+
+	// 构建HTML格式的描述
+	var htmlBuilder strings.Builder
+
+	// 基础描述
+	htmlBuilder.WriteString("<h4>弹性伸缩操作</h4>")
+	htmlBuilder.WriteString(fmt.Sprintf("<p>策略 <strong>%s</strong> 为集群 <strong>%s</strong>（%s类型）触发%s操作。</p>",
+		strategy.Name, clusterName, resourceType, actionName))
 
 	if len(selectedDeviceIDs) == 0 {
-		return baseDescription + "\n但未匹配到合适设备，请关注。"
+		htmlBuilder.WriteString("<p><strong>注意：</strong>未匹配到合适设备，请关注。</p>")
+		return htmlBuilder.String()
 	}
 
 	// 如果没有快照信息，无法计算预测值，返回基础描述
 	if latestSnapshot == nil {
-		return fmt.Sprintf("%s\n匹配到 %d 台设备。", baseDescription, len(selectedDeviceIDs))
+		htmlBuilder.WriteString(fmt.Sprintf("<p>匹配到 %d 台设备。</p>", len(selectedDeviceIDs)))
+		return htmlBuilder.String()
 	}
 
 	// 获取匹配到的设备的总资源
 	var devices []portal.Device
 	if err := s.db.Where("id IN ?", selectedDeviceIDs).Find(&devices).Error; err != nil {
 		s.logger.Error("Failed to fetch selected devices for description", zap.Error(err))
-		return fmt.Sprintf("%s\n匹配到 %d 台设备，但获取设备详情失败。", baseDescription, len(selectedDeviceIDs))
+		htmlBuilder.WriteString(fmt.Sprintf("<p>匹配到 %d 台设备，但获取设备详情失败。</p>", len(selectedDeviceIDs)))
+		return htmlBuilder.String()
 	}
 
 	var totalCPU, totalMemory float64
@@ -1077,21 +1093,27 @@ func (s *ElasticScalingService) generateOrderDescription(
 	currentMemAllocation := safePercentage(latestSnapshot.MemRequest, latestSnapshot.MemoryCapacity)
 	newCPUAllocationRate, newMemAllocationRate := s.calculateProjectedAllocation(latestSnapshot, totalCPU, totalMemory, strategy.ThresholdTriggerAction)
 
-	var changeVerb, direction string
+	var changeVerb string
 	if strategy.ThresholdTriggerAction == TriggerActionPoolEntry {
 		changeVerb = "降低"
-		direction = "至"
 	} else {
 		changeVerb = "提升"
-		direction = "至"
 	}
 
-	projectionDescription := fmt.Sprintf("\n匹配到 %d 台设备（总CPU: %.1f, 总内存: %.1f GB）。\n预计操作后：\n- CPU分配率将由 %.2f%% %s %s %.2f%%\n- 内存分配率将由 %.2f%% %s %s %.2f%%",
-		len(selectedDeviceIDs), totalCPU, totalMemory/1024,
-		currentCPUAllocation, changeVerb, direction, newCPUAllocationRate,
-		currentMemAllocation, changeVerb, direction, newMemAllocationRate)
+	// 设备和预测信息
+	htmlBuilder.WriteString("<h5>设备匹配情况</h5>")
+	htmlBuilder.WriteString(fmt.Sprintf("<p>匹配到 %d 台设备（总CPU: %.1f核, 总内存: %.1f GB）。</p>",
+		len(selectedDeviceIDs), totalCPU, totalMemory/1024))
 
-	return baseDescription + projectionDescription
+	htmlBuilder.WriteString("<h5>预计操作后资源分配率变化</h5>")
+	htmlBuilder.WriteString("<ul>")
+	htmlBuilder.WriteString(fmt.Sprintf("<li>CPU分配率将由 <strong>%.2f%%</strong> %s至 <strong>%.2f%%</strong></li>",
+		currentCPUAllocation, changeVerb, newCPUAllocationRate))
+	htmlBuilder.WriteString(fmt.Sprintf("<li>内存分配率将由 <strong>%.2f%%</strong> %s至 <strong>%.2f%%</strong></li>",
+		currentMemAllocation, changeVerb, newMemAllocationRate))
+	htmlBuilder.WriteString("</ul>")
+
+	return htmlBuilder.String()
 }
 
 // calculateProjectedAllocation calculates the projected resource allocation rates after the scaling action.

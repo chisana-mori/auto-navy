@@ -41,6 +41,7 @@ import OrderStatusFlow from './OrderStatusFlow';
 import DeviceMatchingPolicy from './DeviceMatchingPolicy';
 import EmptyOrderState from './EmptyOrderState';
 import CreateOrderModal from './CreateOrderModal';
+import ProseKitViewer from './ProseKitViewer';
 
 import './Dashboard.css';
 import './DeviceMatchingPolicy.less';
@@ -3227,11 +3228,28 @@ const Dashboard: React.FC = () => {
                 </Descriptions.Item>
               </Descriptions>
 
-              {/* 订单描述单独显示 */}
+              {/* 订单描述美化显示 */}
               {selectedOrder.description && (
-                <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fafafa', borderRadius: '6px', border: '1px solid #f0f0f0' }}>
-                  <div style={{ marginBottom: '8px', fontWeight: 500, color: '#262626', fontSize: '14px' }}>订单描述</div>
-                  <div style={{ color: '#666', lineHeight: '1.6', fontSize: '13px' }}>{selectedOrder.description}</div>
+                <div style={{ 
+                  marginTop: '20px', 
+                  padding: '20px', 
+                  background: 'linear-gradient(135deg, #f8fbff 0%, #f0f7ff 100%)',
+                  borderRadius: '12px', 
+                  border: '1px solid #e1f0ff',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '4px',
+                    height: '100%',
+                    background: 'linear-gradient(to bottom, #1890ff, #40a9ff)',
+                    borderRadius: '0 2px 2px 0'
+                  }} />
+                  <ProseKitViewer content={selectedOrder.description} />
                 </div>
               )}
 

@@ -334,11 +334,11 @@ func (s *ElasticScalingService) EvaluateSnapshots(
 			lastBreachedTriggeredValue = singleTriggeredValue
 			lastBreachedThresholdValue = singleThresholdValue
 		} else {
-			// 更新最大连续天数并重置计数器
+			// 更新最大连续天数并重置计数器为-1，表示有一天不满足条件
 			if consecutiveDays > maxConsecutiveDays {
 				maxConsecutiveDays = consecutiveDays
 			}
-			consecutiveDays = 0
+			consecutiveDays = -1
 		}
 	}
 	// 循环结束后再次更新最大连续天数

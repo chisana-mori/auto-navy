@@ -17,6 +17,7 @@ import { statsApi } from '../../services/elasticScalingService';
 import DeviceSelectionDrawer from './DeviceSelectionDrawer';
 import { v4 as uuidv4 } from 'uuid';
 import './CreateOrderModal.less';
+import ProseKitEditor from './ProseKitEditor';
 
 const { Option } = Select;
 
@@ -47,6 +48,7 @@ const CreateOrderModal = React.forwardRef<
   const [resourcePools, setResourcePools] = useState<any[]>([]);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
   const [matchingPolicies, setMatchingPolicies] = useState<ResourcePoolDeviceMatchingPolicy[]>([]);
   const [selectedPolicy, setSelectedPolicy] = useState<ResourcePoolDeviceMatchingPolicy | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -188,6 +190,7 @@ const CreateOrderModal = React.forwardRef<
       setFilterGroups([]);
       setCheckedFilters({ idc: false, zone: false, room: false });
       setRemovedBlockIds([]);
+      setEditorKey(prev => prev + 1); // Increment key to force re-render
       
       if (values) { // 克隆或编辑模式
         // 设置克隆模式状态
@@ -636,7 +639,7 @@ const CreateOrderModal = React.forwardRef<
             name="description"
             label="订单描述"
           >
-            <Input.TextArea placeholder="请输入订单描述" rows={2} />
+            <ProseKitEditor key={editorKey} placeholder="请输入订单描述（支持markdown,请使用4 5号标题）" />
           </Form.Item>
         </Card>
 

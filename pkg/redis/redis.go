@@ -16,7 +16,7 @@ var clientMap map[string]_client
 
 func init() {
 	clientMap = make(map[string]_client)
-	Init("default", "127.0.0.1:6379", "")
+	Init("default", "192.168.64.2:6379", "")
 }
 
 func Init(dbName string, host string, password string) error {

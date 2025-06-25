@@ -11,6 +11,7 @@ import DeviceDetail from './components/Device/DeviceDetail';
 import DeviceQuerySimple from './components/Device/DeviceQuerySimple';
 import DeviceCenter from './components/Device/DeviceCenter';
 import { Dashboard as ElasticScalingDashboard } from './components/ElasticScaling';
+import './styles/tomoon-title.css'; // 导入ToMoon艺术字样式
 
 const { Header, Content, Sider } = Layout;
 const { Title } = Typography;
@@ -73,11 +74,13 @@ const App: React.FC = () => {
         boxShadow: '0 1px 4px rgba(0,21,41,.08)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <CloudServerOutlined style={{ fontSize: '24px', color: '#1677ff', marginRight: '12px' }} />
-          <Title level={4} style={{ margin: 0 }}>Navy-NG 管理平台</Title>
+          <CloudServerOutlined style={{ fontSize: '24px', color: '#667eea', marginRight: '12px' }} />
+          <div className="tomoon-title-wrapper">
+            <Title level={4} className="tomoon-title">ToMoon</Title>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Avatar style={{ backgroundColor: '#1677ff', marginLeft: '12px' }} icon={<UserOutlined />} />
+          <Avatar style={{ backgroundColor: '#667eea', marginLeft: '12px' }} icon={<UserOutlined />} />
         </div>
       </Header>
       <Layout>

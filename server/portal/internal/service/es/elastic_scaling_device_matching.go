@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"navy-ng/models/portal"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	. "navy-ng/server/portal/internal/service"
@@ -49,7 +51,7 @@ func (s *ElasticScalingService) matchDevicesForStrategy(
 	// 步骤2: 遍历所有匹配策略，执行设备查询和选择
 	for _, policy := range policies {
 		// 组装查询参数
-		filterGroups, err := s.assembleQueryParameters(policy, int(strategy.ID), clusterID, resourceType, triggeredValueStr, thresholdValueStr, &currentTime)
+		filterGroups, err := s.assembleQueryParameters(policy, int(strategy.ID), clusterID, resourceType, triggeredValueStr, thresholdValueStr, strategy.ThresholdTriggerAction, &currentTime)
 		if err != nil {
 			continue // 继续尝试下一个策略
 		}
@@ -154,7 +156,7 @@ func (s *ElasticScalingService) getDeviceMatchingPolicies(resourceType, actionTy
 func (s *ElasticScalingService) assembleQueryParameters(
 	policy ResourcePoolDeviceMatchingPolicy,
 	strategyID, clusterID int,
-	resourceType, triggeredValueStr, thresholdValueStr string,
+	resourceType, triggeredValueStr, thresholdValueStr, actionType string,
 	currentTime *portal.NavyTime,
 ) ([]FilterGroup, error) {
 	s.logger.Info("Assembling query parameters",
@@ -184,12 +186,120 @@ func (s *ElasticScalingService) assembleQueryParameters(
 		return nil, err
 	}
 
-	// 组装额外动态条件（如果有）
-	if len(policy.AdditionConds) > 0 {
-		// TODO: 实现额外动态条件的组装逻辑
-		// 这里可以根据policy.AdditionConds中的条件，动态添加到filterGroups中
-		s.logger.Info("Additional conditions found, but not implemented yet",
-			zap.Strings("conditions", policy.AdditionConds))
+	// 获取集群信息用于默认策略和额外条件
+	var cluster portal.K8sCluster
+	if err := s.db.First(&cluster, clusterID).Error; err != nil {
+		s.logger.Warn("Failed to get cluster info",
+			zap.Int("clusterID", clusterID),
+			zap.Error(err))
+	} else {
+		// 添加默认的集群筛选条件
+		var defaultBlocks []FilterBlock
+
+		if actionType == TriggerActionPoolEntry {
+			// 入池策略：只选择未入池的设备 (cluster字段为空)
+			defaultBlocks = append(defaultBlocks, FilterBlock{
+				ID:            "default-unpooled-device",
+				Type:          FilterType("device"),
+				Key:           "cluster",
+				ConditionType: ConditionType("is_empty"),
+				Operator:      LogicalOperator("and"),
+			})
+			s.logger.Info("Added default pool entry condition: cluster is empty")
+		} else if actionType == TriggerActionPoolExit {
+			// 退池策略：只选择当前集群的设备
+			if cluster.ClusterName != "" {
+				defaultBlocks = append(defaultBlocks, FilterBlock{
+					ID:            "default-same-cluster",
+					Type:          FilterType("device"),
+					Key:           "cluster",
+					ConditionType: ConditionType("equal"),
+					Value:         cluster.ClusterName,
+					Operator:      LogicalOperator("and"),
+				})
+				s.logger.Info("Added default pool exit condition", zap.String("cluster", cluster.ClusterName))
+			}
+		}
+
+		// 如果有默认条件，添加到filterGroups中
+		if len(defaultBlocks) > 0 {
+			defaultGroup := FilterGroup{
+				ID:       "default_cluster_conditions",
+				Blocks:   defaultBlocks,
+				Operator: LogicalOperator("and"),
+			}
+			filterGroups = append(filterGroups, defaultGroup)
+		}
+
+		if len(policy.AdditionConds) > 0 {
+			s.logger.Info("Processing additional dynamic conditions for pool entry",
+				zap.Strings("conditions", policy.AdditionConds))
+			var additionalBlocks []FilterBlock
+
+			for _, conditionType := range policy.AdditionConds {
+				switch conditionType {
+				case "idc", "same_idc":
+					if cluster.Idc != "" {
+						additionalBlocks = append(additionalBlocks, FilterBlock{
+							Key:           "idc",
+							ConditionType: ConditionType("equal"),
+							Value:         cluster.Idc,
+							Operator:      LogicalOperator("and"),
+						})
+						s.logger.Info("Added IDC condition", zap.String("idc", cluster.Idc))
+					}
+				case "zone", "same_zone":
+					if cluster.Zone != "" {
+						additionalBlocks = append(additionalBlocks, FilterBlock{
+							Key:           "zone",
+							ConditionType: ConditionType("equal"),
+							Value:         cluster.Zone,
+							Operator:      LogicalOperator("and"),
+						})
+						s.logger.Info("Added Zone condition", zap.String("zone", cluster.Zone))
+					}
+				case "room", "same_room":
+					// 参考前端逻辑处理room信息
+					// 注意：K8sCluster模型中没有Room字段，需要从其他地方获取或解析
+					var roomValue string
+					// 尝试从集群名称中解析room信息
+					clusterName := cluster.ClusterName
+					if clusterName != "" && !strings.Contains(clusterName, "-test") {
+						// 正则表达式匹配：^[^-]+-.*?(\d+)-(?:calico|flannel)
+						roomRegex := `^[^-]+-.*?(\d+)-(?:calico|flannel)`
+						re := regexp.MustCompile(roomRegex)
+						matches := re.FindStringSubmatch(clusterName)
+						if len(matches) > 1 {
+							roomValue = matches[1]
+						}
+					}
+					if roomValue != "" {
+						additionalBlocks = append(additionalBlocks, FilterBlock{
+							Type:          "device",
+							Key:           "room",
+							ConditionType: ConditionType("equal"),
+							Value:         roomValue,
+							Operator:      LogicalOperator("and"),
+						})
+						s.logger.Info("Added Room condition", zap.String("room", roomValue))
+					}
+				default:
+					s.logger.Warn("Unknown additional condition type", zap.String("condition", conditionType))
+				}
+			}
+
+			// 如果有额外的位置条件，创建一个新的FilterGroup
+			if len(additionalBlocks) > 0 {
+				additionalGroup := FilterGroup{
+					ID:       "additional_location_conditions",
+					Blocks:   additionalBlocks,
+					Operator: LogicalOperator("and"),
+				}
+				filterGroups = append(filterGroups, additionalGroup)
+				s.logger.Info("Added additional location conditions group",
+					zap.Int("blocksCount", len(additionalBlocks)))
+			}
+		}
 	}
 
 	return filterGroups, nil
